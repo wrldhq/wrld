@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Download Center — WRLD.</title>
+<meta name="description" content="19 free, printable worksheets and templates — resumes, budgets, trackers, and planners you can download and actually use.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container text-center">
+      <div class="eyebrow reveal">⬇️ Download Center</div>
+      <h2 class="reveal">Worksheets and templates worth printing.</h2>
+      <p class="reveal" style="max-width:620px; margin:0 auto;">Every download here is generated as a clean, print-ready page — no sign-up, no fee. Print it, fill it in, and actually use it.</p>
+      <div class="search-wrap reveal mt-32">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="dl-search" placeholder="Search downloads..." aria-label="Search downloads">
+      </div>
+      <div class="filter-row reveal" id="pillar-filters"></div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <div class="pb-grid" id="dl-grid" style="grid-template-columns:repeat(3,1fr);"></div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+let activePillar = 'All';
+const pillarOptions = ['All', ...Object.keys(PILLARS)];
+
+function dlCard(d,i){
+  return `<div class="pb-card card hoverable reveal reveal-d${(i%3)+1}" data-search-text="${d.title.toLowerCase()} ${d.desc.toLowerCase()}" data-category="${d.pillar}">
+    <div class="pb-thumb" style="background:${PILLARS[d.pillar].color==='yellow'?'var(--yellow-15)':PILLARS[d.pillar].color==='navy'?'var(--navy-10)':'var(--blue-15)'};">${d.icon}</div>
+    <div class="pb-body">
+      <div class="pb-meta"><span class="pill pill-navy">${PILLARS[d.pillar].icon} ${PILLARS[d.pillar].label}</span></div>
+      <h4>${d.title}</h4>
+      <p>${d.desc}</p>
+      <div class="pb-footer">
+        <a href="worksheet.html?type=${d.type}" target="_blank" class="btn btn-primary btn-sm">⬇️ Download</a>
+        <a href="worksheet.html?type=${d.type}" target="_blank" class="btn-icon" title="Preview" aria-label="Preview">👁️</a>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderDL(){
+  const search = document.getElementById('dl-search').value.toLowerCase();
+  const filtered = DOWNLOADS.filter(d=>{
+    const matchP = activePillar==='All' || d.pillar===activePillar;
+    const matchS = !search || (d.title+d.desc).toLowerCase().includes(search);
+    return matchP && matchS;
+  });
+  document.getElementById('dl-grid').innerHTML = filtered.map(dlCard).join('');
+  setTimeout(initReveal, 20);
+}
+
+document.getElementById('pillar-filters').innerHTML = pillarOptions.map(k=>`<button class="filter-chip ${k==='All'?'active':''}" data-p="${k}">${k==='All'?'All':PILLARS[k].icon+' '+PILLARS[k].label}</button>`).join('');
+document.getElementById('pillar-filters').addEventListener('click', e=>{
+  const btn = e.target.closest('.filter-chip'); if(!btn) return;
+  activePillar = btn.dataset.p;
+  document.querySelectorAll('#pillar-filters .filter-chip').forEach(b=>b.classList.toggle('active', b===btn));
+  renderDL();
+});
+document.getElementById('dl-search').addEventListener('input', renderDL);
+
+initPage('downloads');
+renderDL();
+</script>
+</body>
+</html>

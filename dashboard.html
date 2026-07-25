@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — WRLD.</title>
+<meta name="description" content="Your WRLD learning dashboard — streak, saved Playbooks, progress, and recommendations.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container">
+      <div class="sample-banner reveal">
+        <span>🧪</span><div><strong>Demo Dashboard —</strong> this is a local, sample learning account stored only in your browser, showing exactly how a real WRLD account will work once accounts launch.</div>
+      </div>
+      <div class="flex justify-between items-center" style="flex-wrap:wrap; gap:16px;">
+        <div>
+          <h2 class="reveal">Welcome back 👋</h2>
+          <p class="reveal">Here's where you left off.</p>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="resetDemo()">↺ Reset Demo Data</button>
+      </div>
+      <div class="dash-stat-row mt-32" id="stat-row"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container dash-grid">
+      <div>
+        <h3 class="mb-24 reveal">Continue Learning</h3>
+        <div id="continue-list" class="mb-48"></div>
+
+        <h3 class="mb-24 reveal">Recommended Next</h3>
+        <div class="pb-grid" id="recommend-grid" style="grid-template-columns:repeat(2,1fr);"></div>
+      </div>
+
+      <div>
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">🔥 Learning Streak</h4>
+          <div class="flex items-center gap-12">
+            <span class="streak-flame">🔥</span>
+            <div><div style="font-family:'Plus Jakarta Sans'; font-weight:800; font-size:1.6rem; color:var(--navy);" id="streak-num">0</div><div style="font-size:12px; color:var(--ink-soft);">day streak</div></div>
+          </div>
+        </div>
+
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">🔖 Saved Playbooks</h4>
+          <div id="saved-list"><p style="font-size:13.5px; color:var(--ink-faint);">Nothing saved yet — bookmark a Playbook to see it here.</p></div>
+        </div>
+
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">📅 Upcoming Sessions</h4>
+          <div id="upcoming-events"></div>
+          <a href="events.html" class="btn btn-outline btn-sm btn-block mt-16">View All Events →</a>
+        </div>
+
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">🏅 Achievements</h4>
+          <div id="achievements-list" class="flex gap-8" style="flex-wrap:wrap;"></div>
+        </div>
+
+        <div class="dash-side-card card reveal" style="border:1.5px dashed var(--navy-10);">
+          <span class="pill pill-sample mb-8" style="display:inline-block;">Coming Soon</span>
+          <h4 class="mb-8">🤝 Mentorship Status</h4>
+          <p style="font-size:13px;">Mentor matching is launching in phases. Join the waiting list from the Mentorship Network program page.</p>
+          <a href="program.html?id=mentorship-network" class="btn btn-outline btn-sm btn-block mt-8">View Mentorship Network</a>
+        </div>
+
+        <div class="dash-side-card card reveal" style="border:1.5px dashed var(--navy-10);">
+          <span class="pill pill-sample mb-8" style="display:inline-block;">Sample Preview</span>
+          <h4 class="mb-8">🎓 Certificates</h4>
+          <p style="font-size:13px;">Complete every Playbook in a Learning Path to preview a sample certificate — real, issued certificates launch alongside full accounts.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+function pbMiniCard(p){
+  return `<a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
+    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}</div>
+    <div class="pb-body">
+      <div class="pb-meta"><span class="pill pill-blue">⏱ ${p.readTime}</span></div>
+      <h4>${p.title}</h4><p>${p.dek}</p>
+      <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
+    </div>
+  </a>`;
+}
+
+function resetDemo(){
+  if(confirm('Reset all demo progress, bookmarks, and streak data stored in this browser?')){
+    localStorage.removeItem(STORE_KEY);
+    showToast('Demo data reset');
+    setTimeout(()=>location.reload(), 700);
+  }
+}
+
+function renderDashboard(){
+  const s = getState();
+  const completedPlaybooks = s.completed.map(getPlaybook).filter(Boolean);
+  const savedPlaybooks = s.bookmarks.filter(b=>!b.startsWith('program-')&&!b.startsWith('event-')).map(getPlaybook).filter(Boolean);
+  const enrolledPrograms = s.bookmarks.filter(b=>b.startsWith('program-')).map(b=>getProgram(b.replace('program-',''))).filter(Boolean);
+
+  document.getElementById('stat-row').innerHTML = `
+    <div class="dash-stat card reveal"><div class="num">${s.streak||0}</div><div class="lbl">Day Streak 🔥</div></div>
+    <div class="dash-stat card reveal reveal-d1"><div class="num">${completedPlaybooks.length}</div><div class="lbl">Playbooks Completed</div></div>
+    <div class="dash-stat card reveal reveal-d2"><div class="num">${savedPlaybooks.length}</div><div class="lbl">Saved Playbooks</div></div>
+    <div class="dash-stat card reveal reveal-d3"><div class="num">${enrolledPrograms.length}</div><div class="lbl">Programs Enrolled</div></div>`;
+
+  document.getElementById('streak-num').textContent = s.streak || 0;
+
+  // Continue learning: recently viewed, not yet complete
+  const continueSlugs = (s.recentlyViewed||[]).filter(slug=>!s.completed.includes(slug)).slice(0,3).map(getPlaybook).filter(Boolean);
+  document.getElementById('continue-list').innerHTML = continueSlugs.length ? continueSlugs.map(p=>`
+    <a href="playbook.html?slug=${p.slug}" class="card hoverable reveal flex items-center gap-16 mb-16" style="padding:18px 22px;">
+      <div style="font-size:28px;">${p.emoji}</div>
+      <div style="flex:1;"><h4 style="font-size:15.5px; margin-bottom:4px;">${p.title}</h4><p style="margin:0; font-size:13px;">${p.category} · ${p.readTime}</p></div>
+      <span style="color:var(--blue); font-weight:700;">Continue →</span>
+    </a>`).join('') : `<div class="empty-state"><div class="ic">📖</div><p>Nothing in progress yet — start a Playbook to see it here.</p><a href="playbooks.html" class="btn btn-primary mt-16">Browse Playbooks</a></div>`;
+
+  // Recommended: first incomplete playbooks from journeys already touched, else first 4 overall
+  let recommended = PLAYBOOKS.filter(p=>!s.completed.includes(p.slug) && s.recentlyViewed.includes(p.slug)===false).slice(0,4);
+  if(completedPlaybooks.length){
+    const touchedJourneys = new Set(completedPlaybooks.flatMap(p=>p.journeys));
+    recommended = PLAYBOOKS.filter(p=>!s.completed.includes(p.slug) && p.journeys.some(j=>touchedJourneys.has(j))).slice(0,4);
+  }
+  if(!recommended.length) recommended = PLAYBOOKS.slice(0,4);
+  document.getElementById('recommend-grid').innerHTML = recommended.map(pbMiniCard).join('');
+
+  // Saved
+  document.getElementById('saved-list').innerHTML = savedPlaybooks.length ? savedPlaybooks.map(p=>`
+    <a href="playbook.html?slug=${p.slug}" class="flex items-center gap-12 mb-12" style="text-decoration:none;">
+      <span style="font-size:20px;">${p.emoji}</span><span style="font-size:13.5px; font-weight:600; color:var(--navy);">${p.title}</span>
+    </a>`).join('') : `<p style="font-size:13.5px; color:var(--ink-faint);">Nothing saved yet — bookmark a Playbook to see it here.</p>`;
+
+  // Upcoming events (registered ones first, else next 2)
+  const registeredEvents = EVENTS.filter(e=>s.bookmarks.includes('event-'+e.id));
+  const upcoming = (registeredEvents.length ? registeredEvents : EVENTS).slice(0,2);
+  document.getElementById('upcoming-events').innerHTML = upcoming.map(e=>{
+    const {dateStr, timeStr} = formatEventLocalTime(e.dateISO);
+    return `<div class="mb-12" style="padding-bottom:12px; border-bottom:1px solid var(--navy-06);">
+      <div style="font-size:13.5px; font-weight:700; color:var(--navy);">${e.title}</div>
+      <div style="font-size:12px; color:var(--ink-faint);">${dateStr} · ${timeStr}</div>
+    </div>`;
+  }).join('');
+
+  // Achievements (computed honestly from real local actions)
+  const achievements = [
+    {id:'first', label:'First Playbook', icon:'🌱', unlocked: completedPlaybooks.length>=1},
+    {id:'five', label:'5 Playbooks Done', icon:'⭐', unlocked: completedPlaybooks.length>=5},
+    {id:'streak3', label:'3-Day Streak', icon:'🔥', unlocked: (s.streak||0)>=3},
+    {id:'saver', label:'First Bookmark', icon:'🔖', unlocked: savedPlaybooks.length>=1},
+    {id:'quiz', label:'Quiz Ace', icon:'🎯', unlocked: Object.values(s.quizScores||{}).some(sc=>{ const [a,b]=sc.split('/').map(Number); return a===b; })},
+  ];
+  document.getElementById('achievements-list').innerHTML = achievements.map(a=>`
+    <div class="pill ${a.unlocked?'pill-success':'pill-navy'}" style="opacity:${a.unlocked?1:.4};" title="${a.unlocked?'Unlocked!':'Locked'}">${a.icon} ${a.label}</div>`).join('');
+
+  setTimeout(initReveal, 30);
+}
+
+renderDashboard();
+initPage('dashboard');
+</script>
+</body>
+</html>

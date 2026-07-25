@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adulting Readiness Assessment — WRLD.</title>
+<meta name="description" content="A 10-15 minute guided assessment that builds your personal WRLD Passport — a roadmap for what to learn next.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+
+  <!-- INTRO -->
+  <section class="section" id="view-intro">
+    <div class="container assess-shell text-center">
+      <div class="eyebrow reveal">🌍 WRLD's Signature Experience</div>
+      <h1 class="reveal" style="font-size:clamp(1.9rem,4.5vw,2.8rem);">The Adulting Readiness Assessment</h1>
+      <p class="reveal" style="font-size:var(--fs-md); max-width:600px; margin:16px auto 32px;">This isn't a test, and there's no passing or failing score. It's a friendly check-in across the parts of adulthood school doesn't usually cover — and by the end, you'll have a personalized roadmap for what to explore next.</p>
+      <div class="flex gap-16 reveal" style="justify-content:center; flex-wrap:wrap; margin-bottom:36px;">
+        <span class="pill pill-blue">🕐 10–15 minutes</span>
+        <span class="pill pill-yellow">💾 Save & continue anytime</span>
+        <span class="pill pill-navy">🔒 Stored only in your browser</span>
+      </div>
+      <div class="assess-orbit-line reveal" style="max-width:520px; margin:0 auto 32px; text-align:left;">
+        <svg width="44" height="44" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+        <p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">"There's no wrong answer here — I just want to understand where you're starting from, so I can point you toward what'll actually help. Ready when you are." <br><span style="color:var(--ink-faint); font-weight:400;">— Orbit</span></p>
+      </div>
+      <div id="resume-banner" class="sample-banner reveal" style="display:none; max-width:520px; margin:0 auto 24px; text-align:left;"></div>
+      <button class="btn btn-primary btn-lg reveal" id="start-btn" onclick="startAssessment()">🌎 Begin the Assessment</button>
+      <p class="reveal mt-16" style="font-size:12.5px; color:var(--ink-faint);">This is a self-reflection tool, not a clinical or diagnostic assessment.</p>
+    </div>
+  </section>
+
+  <!-- QUESTIONS -->
+  <section class="section hidden" id="view-questions">
+    <div class="container assess-shell">
+      <div class="assess-progress-track"><div class="assess-progress-fill" id="assess-progress-fill" style="width:0%;"></div></div>
+      <div class="flex justify-between mb-24">
+        <span style="font-size:12.5px; font-weight:700; color:var(--ink-faint);" id="section-counter">Section 1 of 8</span>
+        <span style="font-size:12.5px; font-weight:700; color:var(--ink-faint);" id="time-remaining">~12 min left</span>
+      </div>
+      <div class="assess-orbit-line" id="orbit-line"></div>
+      <div class="assess-card" id="question-card"></div>
+      <div class="flex justify-between mt-24">
+        <button class="btn btn-outline" id="back-btn" onclick="prevSection()">← Back</button>
+        <button class="btn btn-primary" id="next-btn" onclick="nextSection()">Continue →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTS / PASSPORT -->
+  <section class="section hidden" id="view-results">
+    <div class="container">
+      <div class="text-center mb-32 no-print">
+        <div class="eyebrow reveal">🎉 Complete!</div>
+        <h2 class="reveal">Your WRLD Passport</h2>
+        <p class="reveal">Here's where you're starting from — and exactly where to go next.</p>
+      </div>
+
+      <div class="passport-card reveal" id="passport-card">
+        <div id="passport-content"></div>
+      </div>
+
+      <div class="flex gap-16 justify-center mt-32 no-print" style="flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Download / Print My Passport</button>
+        <button class="btn btn-outline" onclick="retakeAssessment()">↺ Retake Assessment</button>
+        <a href="dashboard.html" class="btn btn-outline">📊 View My Dashboard</a>
+      </div>
+
+      <div class="section-head center reveal mt-48">
+        <div class="eyebrow blue">📚 Your Personal Roadmap</div>
+        <h2>Recommended, just for you</h2>
+        <p>Based on your responses, here's where WRLD suggests starting.</p>
+      </div>
+      <div class="path-track" id="roadmap-track" style="max-width:700px;"></div>
+
+      <div class="section-head center reveal mt-48">
+        <div class="eyebrow">🔗 More Ways to Explore</div>
+        <h2>Recommended resources</h2>
+      </div>
+      <div class="pb-grid" id="recommend-grid" style="grid-template-columns:repeat(3,1fr);"></div>
+    </div>
+  </section>
+
+</main>
+<div id="site-footer" class="no-print"></div>
+<script src="data.js"></script>
+<script src="illustrations.js"></script>
+<script src="app.js"></script>
+<script>
+/* ===================================================================
+   ASSESSMENT DATA — 8 sections, clustering the 26 confidence categories
+   listed in the WRLD brief, 3 mixed-format questions each.
+   =================================================================== */
+const ASSESS_SECTIONS = [
+  {key:'career', title:'Career & Work', icon:'💼', categories:'Career · Resume · Interview Skills · Networking',
+   orbit:"Let's start with work — resumes, interviews, all of it.",
+   qs:[
+    {type:'scale', q:'How confident do you feel building a resume that actually gets noticed?'},
+    {type:'mc', q:"You're offered an interview for a role you're excited about. What's your first move?", options:[
+      {t:'Panic a little and hope for the best', v:0},{t:'Google generic interview tips the night before', v:2},
+      {t:'Prepare STAR-method answers and research the company in advance', v:4},{t:"Ask someone who's interviewed there to review my answers", v:3}]},
+    {type:'mc', q:"Quick check: what does the “R” in the STAR interview method stand for?", options:[
+      {t:'Reason', v:0},{t:'Result', v:4},{t:'Response', v:1},{t:'Requirement', v:0}]},
+  ]},
+  {key:'money', title:'Money & Finance', icon:'💰', categories:'Financial Literacy · Budgeting · Credit · Taxes',
+   orbit:"Money stuff next — no judgment here, just an honest check-in.",
+   qs:[
+    {type:'scale', q:'How confident are you managing a monthly budget?'},
+    {type:'mc', q:'Your paycheque changes month to month. How do you handle budgeting?', options:[
+      {t:"I don't really budget, I just spend and see what's left", v:0},{t:'I budget off my best month and hope it works out', v:1},
+      {t:'I budget off my lowest realistic month, and save extra in good months', v:4},{t:'I only save when there\'s clearly extra', v:2}]},
+    {type:'mc', q:'Quick check: what makes up the largest share of a typical credit score?', options:[
+      {t:'Payment history', v:4},{t:'Credit mix', v:0},{t:'New credit inquiries', v:0},{t:'Length of history', v:1}]},
+  ]},
+  {key:'school', title:'School & Learning', icon:'🎓', categories:'Scholarships · University · Technology & AI Literacy',
+   orbit:"How are you feeling about school, scholarships, and staying current with tech?",
+   qs:[
+    {type:'scale', q:'How confident do you feel navigating scholarships or financial aid?'},
+    {type:'mc', q:'You need to use AI tools for a school project. What\'s your approach?', options:[
+      {t:'Avoid AI entirely to be safe', v:2},{t:'Use it to do the whole project without disclosing it', v:0},
+      {t:'Use it thoughtfully as a tool, staying clear on my school\'s guidelines', v:4},{t:'Not totally sure what the guidelines even are', v:1}]},
+    {type:'scale', q:'How comfortable are you researching and applying to programs (university, certificates, scholarships)?'},
+  ]},
+  {key:'home', title:'Home & Independence', icon:'🏠', categories:'Housing · Transportation',
+   orbit:"Let's talk about the practical, grown-up logistics of daily life.",
+   qs:[
+    {type:'scale', q:'How confident do you feel about eventually renting your own place?'},
+    {type:'mc', q:'Quick check: what does a security deposit typically cover?', options:[
+      {t:'Any wear and tear at all', v:0},{t:'Damage beyond normal wear and tear', v:4},{t:'Nothing, ever', v:0},{t:'Only pet-related damage', v:1}]},
+    {type:'scale', q:'How confident are you navigating transportation (transit, licensing, or budgeting for a car)?'},
+  ]},
+  {key:'health', title:'Health & Wellness', icon:'🌿', categories:'Physical Health · Mental Wellness',
+   orbit:"This section's about how you're actually doing, day to day.",
+   qs:[
+    {type:'scale', q:'How confident do you feel managing stress or anxiety before big moments?'},
+    {type:'mc', q:'You\'ve had a stressful week and it\'s starting to affect your sleep. What do you do?', options:[
+      {t:'Push through and ignore it', v:1},{t:'Try a calming routine and talk to someone I trust', v:4},
+      {t:'Isolate until it passes', v:1},{t:'Not sure what would actually help', v:2}]},
+    {type:'scale', q:'How confident are you managing your physical health day-to-day (sleep, movement, eating)?'},
+  ]},
+  {key:'relationships', title:'Relationships & Communication', icon:'💬', categories:'Relationships · Communication',
+   orbit:"People are hard sometimes. Let's see how this feels for you.",
+   qs:[
+    {type:'scale', q:'How confident do you feel setting boundaries in relationships?'},
+    {type:'scale', q:'How confident are you communicating clearly during a disagreement?'},
+    {type:'mc', q:'A friend keeps canceling plans last-minute. What\'s your move?', options:[
+      {t:'Say nothing and quietly feel resentful', v:1},{t:'Bring it up honestly and see how they respond', v:4},
+      {t:'Stop making plans with them, without saying why', v:2},{t:'Overreact in the moment', v:0}]},
+  ]},
+  {key:'growth', title:'Growth & Leadership', icon:'🚀', categories:'Leadership · Time Management · Goal Setting · Organization',
+   orbit:"Almost there — let's talk about how you lead and organize your own life.",
+   qs:[
+    {type:'scale', q:'How confident are you managing your time across school, work, and life?'},
+    {type:'scale', q:'How confident do you feel setting and following through on personal goals?'},
+    {type:'mc', q:'You\'re asked to lead a small group project. How do you approach it?', options:[
+      {t:'Do most of the work myself to make sure it\'s done right', v:2},{t:'Assign roles, check in regularly, adjust as needed', v:4},
+      {t:'Let it figure itself out', v:0},{t:'Feel anxious and avoid taking charge', v:1}]},
+  ]},
+  {key:'community', title:'Community & Purpose', icon:'🌍', categories:'Community · Volunteering · Entrepreneurship · Life Skills',
+   orbit:"Last section! This one's about belonging and everyday independence.",
+   qs:[
+    {type:'scale', q:'How connected do you feel to a community right now?'},
+    {type:'scale', q:'How confident are you handling everyday life skills independently (cooking, chores, errands)?'},
+    {type:'mc', q:'You have an idea for a small side project. What\'s your first step?', options:[
+      {t:'Wait until conditions feel perfect', v:1},{t:'Talk myself out of it', v:0},
+      {t:'Test it cheaply and see if anyone\'s interested', v:4},{t:'Jump in fully without testing first', v:2}]},
+  ]},
+];
+const SCALE_LABELS = ['Not at all','A little','Somewhat','Confident','Very confident'];
+
+const SECTION_RECS = {
+  career:{playbooks:['resume','interview-skills','networking'], program:'career-bootcamp', path:'first-job'},
+  money:{playbooks:['budgeting','credit-scores'], program:'financial-literacy-academy', path:'financial'},
+  school:{playbooks:['scholarships','study-skills'], program:null, path:'university'},
+  home:{playbooks:['apartment-renting'], program:null, path:null},
+  health:{playbooks:['managing-anxiety','mental-wellness'], program:null, path:null},
+  relationships:{playbooks:['networking'], program:null, path:null},
+  growth:{playbooks:['time-management','graduation-planning'], program:'future-leaders', path:null},
+  community:{playbooks:['scholarships'], program:'volunteer-hub', path:null},
+};
+
+const STAGES = [
+  {min:0, label:'Explorer', icon:'🌱', desc:'You\'re just starting to explore what adulthood involves — and that\'s exactly the right place to begin.'},
+  {min:40, label:'Navigator', icon:'🧭', desc:'You\'ve got some direction already. A bit of focused learning will build real momentum.'},
+  {min:60, label:'Builder', icon:'🛠️', desc:'You\'re actively building real skills. A few targeted Playbooks will round things out.'},
+  {min:80, label:'Trailblazer', icon:'🚀', desc:'You\'re genuinely ahead of the curve. Consider mentoring others through the Mentorship Network.'},
+];
+function getStage(pct){ return STAGES.slice().reverse().find(s=>pct>=s.min); }
+
+/* ===================================================================
+   STATE & FLOW
+   =================================================================== */
+const ASSESS_KEY = 'wrld_assessment_v1';
+function getAssessState(){
+  try{ const raw = localStorage.getItem(ASSESS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  return {answers:{}, currentSection:0, completed:false};
+}
+function setAssessState(s){ localStorage.setItem(ASSESS_KEY, JSON.stringify(s)); }
+
+let assess = getAssessState();
+
+function startAssessment(){
+  document.getElementById('view-intro').classList.add('hidden');
+  document.getElementById('view-questions').classList.remove('hidden');
+  renderSection();
+}
+function retakeAssessment(){
+  assess = {answers:{}, currentSection:0, completed:false};
+  setAssessState(assess);
+  document.getElementById('view-results').classList.add('hidden');
+  document.getElementById('view-intro').classList.remove('hidden');
+  window.scrollTo({top:0});
+}
+
+function renderSection(){
+  const sec = ASSESS_SECTIONS[assess.currentSection];
+  const pct = Math.round((assess.currentSection/ASSESS_SECTIONS.length)*100);
+  document.getElementById('assess-progress-fill').style.width = pct+'%';
+  document.getElementById('section-counter').textContent = `Section ${assess.currentSection+1} of ${ASSESS_SECTIONS.length}`;
+  const minsLeft = Math.max(1, Math.round((ASSESS_SECTIONS.length-assess.currentSection)*1.5));
+  document.getElementById('time-remaining').textContent = `~${minsLeft} min left`;
+  document.getElementById('orbit-line').innerHTML = `
+    <svg width="40" height="40" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+    <p style="margin:0; font-size:13.5px; color:var(--navy); font-weight:500;">${sec.orbit}</p>`;
+
+  document.getElementById('question-card').innerHTML = `
+    <div class="eyebrow blue mb-16">${sec.icon} ${sec.title}</div>
+    <p style="font-size:12.5px; color:var(--ink-faint); margin-bottom:24px; text-transform:uppercase; letter-spacing:.04em;">${sec.categories}</p>
+    ${sec.qs.map((q,qi)=>renderQuestion(sec.key, q, qi)).join('')}`;
+
+  wireQuestionInputs(sec.key);
+  document.getElementById('back-btn').style.visibility = assess.currentSection===0 ? 'hidden' : 'visible';
+  document.getElementById('next-btn').textContent = assess.currentSection===ASSESS_SECTIONS.length-1 ? 'See My Passport →' : 'Continue →';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function renderQuestion(sectionKey, q, qi){
+  const id = `${sectionKey}-${qi}`;
+  const saved = assess.answers[id];
+  if(q.type==='scale'){
+    return `<div class="mb-32">
+      <h5 style="font-family:'Plus Jakarta Sans'; font-weight:700; margin-bottom:4px;">${q.q}</h5>
+      <div class="scale-row" data-qid="${id}" data-type="scale">
+        ${SCALE_LABELS.map((lbl,i)=>`<div class="scale-opt ${saved===i?'selected':''}" data-val="${i}">${lbl}</div>`).join('')}
+      </div>
+    </div>`;
+  }
+  return `<div class="mb-32">
+    <h5 style="font-family:'Plus Jakarta Sans'; font-weight:700; margin-bottom:12px;">${q.q}</h5>
+    <div data-qid="${id}" data-type="mc">
+      ${q.options.map((o,oi)=>`<button type="button" class="mc-choice ${saved===o.v && saved!==undefined?'selected':''}" data-val="${o.v}">${o.t}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function wireQuestionInputs(sectionKey){
+  document.querySelectorAll('[data-qid]').forEach(group=>{
+    const id = group.dataset.qid;
+    const type = group.dataset.type;
+    const selector = type==='scale' ? '.scale-opt' : '.mc-choice';
+    group.querySelectorAll(selector).forEach(el=>{
+      el.addEventListener('click', ()=>{
+        group.querySelectorAll(selector).forEach(e=>e.classList.remove('selected'));
+        el.classList.add('selected');
+        assess.answers[id] = parseInt(el.dataset.val,10);
+        setAssessState(assess);
+      });
+    });
+  });
+}
+
+function nextSection(){
+  if(assess.currentSection < ASSESS_SECTIONS.length-1){
+    assess.currentSection++;
+    setAssessState(assess);
+    renderSection();
+  } else {
+    finishAssessment();
+  }
+}
+function prevSection(){
+  if(assess.currentSection>0){ assess.currentSection--; setAssessState(assess); renderSection(); }
+}
+
+/* ===================================================================
+   SCORING + PASSPORT
+   =================================================================== */
+function computeScores(){
+  const sectionScores = {};
+  let totalEarned = 0, totalMax = 0;
+  ASSESS_SECTIONS.forEach(sec=>{
+    let earned = 0, max = sec.qs.length*4;
+    sec.qs.forEach((q,qi)=>{ const v = assess.answers[`${sec.key}-${qi}`]; earned += (v!==undefined ? v : 0); });
+    sectionScores[sec.key] = Math.round((earned/max)*100);
+    totalEarned += earned; totalMax += max;
+  });
+  const overall = Math.round((totalEarned/totalMax)*100);
+  return {sectionScores, overall};
+}
+
+function finishAssessment(){
+  const {sectionScores, overall} = computeScores();
+  assess.completed = true;
+  assess.sectionScores = sectionScores;
+  assess.overall = overall;
+  assess.completedAt = new Date().toISOString();
+  setAssessState(assess);
+
+  // Save into main dashboard state too, so Dashboard/Orbit can reference it
+  const s = getState();
+  s.assessment = {overall, sectionScores, stage: getStage(overall).label, completedAt: assess.completedAt};
+  setState(s);
+
+  document.getElementById('view-questions').classList.add('hidden');
+  document.getElementById('view-results').classList.remove('hidden');
+  renderPassport(sectionScores, overall);
+  launchConfetti();
+  setGuideMessage(`Passport complete! You're a ${getStage(overall).label} ${getStage(overall).icon} — check out your personal roadmap below.`);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function radarSVG(sectionScores){
+  const keys = ASSESS_SECTIONS.map(s=>s.key);
+  const n = keys.length;
+  const cx=190, cy=190, R=140;
+  const pts = keys.map((k,i)=>{
+    const angle = (Math.PI*2*i/n) - Math.PI/2;
+    const r = R * (sectionScores[k]/100);
+    return [cx + r*Math.cos(angle), cy + r*Math.sin(angle)];
+  });
+  const ringPts = (frac)=>keys.map((k,i)=>{ const angle=(Math.PI*2*i/n)-Math.PI/2; return `${cx+R*frac*Math.cos(angle)},${cy+R*frac*Math.sin(angle)}`; }).join(' ');
+  const labelPts = keys.map((k,i)=>{
+    const angle=(Math.PI*2*i/n)-Math.PI/2; const r=R+34;
+    return {x:cx+r*Math.cos(angle), y:cy+r*Math.sin(angle), label:ASSESS_SECTIONS[i].icon};
+  });
+  return `<svg class="radar-svg" viewBox="0 0 380 380" xmlns="http://www.w3.org/2000/svg">
+    ${[0.25,0.5,0.75,1].map(f=>`<polygon points="${ringPts(f)}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1"/>`).join('')}
+    <polygon points="${pts.map(p=>p.join(',')).join(' ')}" fill="rgba(245,207,87,.35)" stroke="#F5CF57" stroke-width="2.5"/>
+    ${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="#F5CF57"/>`).join('')}
+    ${labelPts.map(l=>`<text x="${l.x}" y="${l.y}" font-size="20" text-anchor="middle" dominant-baseline="middle">${l.label}</text>`).join('')}
+  </svg>`;
+}
+
+function progressRing(pct, color){
+  const r=32, c=2*Math.PI*r;
+  const offset = c - (pct/100)*c;
+  return `<svg width="80" height="80" viewBox="0 0 80 80"><circle cx="40" cy="40" r="${r}" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="8"/><circle cx="40" cy="40" r="${r}" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${offset}" transform="rotate(-90 40 40)"/><text x="40" y="46" font-size="18" font-weight="800" text-anchor="middle" fill="white" font-family="Plus Jakarta Sans">${pct}</text></svg>`;
+}
+
+function renderPassport(sectionScores, overall){
+  const stage = getStage(overall);
+  const ranked = ASSESS_SECTIONS.map(s=>({...s, score:sectionScores[s.key]})).sort((a,b)=>b.score-a.score);
+  const strengths = ranked.slice(0,3);
+  const growth = ranked.slice(-3).reverse();
+
+  document.getElementById('passport-content').innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:24px; margin-bottom:32px;">
+      <div>
+        <div class="passport-stage-badge mb-16">${stage.icon} ${stage.label} Stage</div>
+        <h2 style="color:white; font-size:1.8rem; margin-bottom:8px;">Your Adulting Readiness Passport</h2>
+        <p style="color:#C9DCE3; max-width:420px;">${stage.desc}</p>
+      </div>
+      <div style="text-align:center;">
+        ${progressRing(overall, '#F5CF57')}
+        <div style="font-size:11px; color:#C9DCE3; margin-top:6px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;">Overall Score</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center; margin-bottom:32px;">
+      ${radarSVG(sectionScores)}
+      <div>
+        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:16px;">
+          ${ASSESS_SECTIONS.map(s=>`
+            <div style="text-align:center;">
+              ${progressRing(sectionScores[s.key], '#2EA8C7')}
+              <div style="font-size:11px; color:#C9DCE3; margin-top:4px;">${s.icon} ${s.title}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
+      <div style="background:rgba(255,255,255,.06); border-radius:16px; padding:22px;">
+        <h4 style="color:#F5CF57; font-size:13px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:14px;">🌟 Top Strengths</h4>
+        ${strengths.map(s=>`<div style="margin-bottom:10px; color:white; font-size:14px;">${s.icon} ${s.title} — ${s.score}%</div>`).join('')}
+      </div>
+      <div style="background:rgba(255,255,255,.06); border-radius:16px; padding:22px;">
+        <h4 style="color:#F5CF57; font-size:13px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:14px;">🎯 Focus Areas</h4>
+        ${growth.map(s=>`<div style="margin-bottom:10px; color:white; font-size:14px;">${s.icon} ${s.title} — ${s.score}%</div>`).join('')}
+      </div>
+    </div>
+
+    <div style="background:rgba(255,255,255,.08); border-radius:16px; padding:22px;">
+      <h4 style="color:#F5CF57; font-size:13px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px;">🚀 Your Next Step</h4>
+      <p style="color:white; margin:0; font-size:15px;">Start with <strong>${getPlaybook(SECTION_RECS[growth[0].key].playbooks[0]).title}</strong> — it directly builds your ${growth[0].title.toLowerCase()} confidence.</p>
+    </div>
+    <p style="text-align:center; font-size:11px; color:#8fa9b2; margin-top:24px;">This is a self-reflection tool for planning your learning — not a clinical or diagnostic assessment. Completed ${new Date(assess.completedAt).toLocaleDateString()}.</p>
+  `;
+
+  // Roadmap track
+  const roadmapSteps = [];
+  growth.forEach(g=>{
+    const rec = SECTION_RECS[g.key];
+    rec.playbooks.forEach(slug=>{ if(getPlaybook(slug) && !roadmapSteps.find(r=>r.slug===slug)) roadmapSteps.push({slug, section:g.title}); });
+  });
+  document.getElementById('roadmap-track').innerHTML = roadmapSteps.slice(0,6).map((r,i)=>{
+    const pb = getPlaybook(r.slug);
+    return `<div class="path-node reveal">
+      <div class="path-dot">${pb.emoji}</div>
+      <a href="playbook.html?slug=${pb.slug}" class="path-card">
+        <div style="font-size:11px; font-weight:700; color:var(--ink-faint); text-transform:uppercase;">Because of your ${r.section} score</div>
+        <h4 style="margin:4px 0 4px;">${pb.title}</h4>
+        <p style="margin:0; font-size:13.5px;">${pb.dek}</p>
+      </a>
+    </div>`;
+  }).join('') + `<div class="path-node reveal"><div class="path-dot" style="background:var(--yellow); border-color:var(--yellow);">🎓</div><div class="path-card" style="background:var(--success-bg);"><h4 style="margin-bottom:4px;">Roadmap Milestone</h4><p style="margin:0; font-size:13.5px;"><span class="pill pill-sample">Sample</span> Complete these Playbooks to level up your Passport stage.</p></div></div>`;
+
+  // Recommended resources grid (programs + a couple more playbooks)
+  const progRec = growth.map(g=>SECTION_RECS[g.key].program).filter(Boolean);
+  const uniqueProgIds = [...new Set(progRec)];
+  document.getElementById('recommend-grid').innerHTML = uniqueProgIds.slice(0,3).map(id=>{
+    const p = getProgram(id);
+    return `<a href="program.html?id=${p.id}" class="card hoverable" style="padding:24px; display:block;">
+      <div class="pillar-icon" style="background:var(--sky); margin-bottom:14px;">${p.icon}</div>
+      <h4 style="margin-bottom:6px;">${p.title}</h4><p style="font-size:13px;">${p.tagline}</p>
+      <span class="badge-zoom mt-8" style="display:inline-flex;">🎥 Live via Zoom</span>
+    </a>`;
+  }).join('') || `<div class="empty-state"><p>Your Playbook roadmap above is the best place to start.</p></div>`;
+}
+
+/* ===================================================================
+   INIT
+   =================================================================== */
+function initAssessmentPage(){
+  if(assess.completed){
+    document.getElementById('view-intro').classList.add('hidden');
+    document.getElementById('view-results').classList.remove('hidden');
+    renderPassport(assess.sectionScores, assess.overall);
+  } else if(Object.keys(assess.answers).length>0){
+    document.getElementById('resume-banner').style.display='flex';
+    document.getElementById('resume-banner').innerHTML = `<span>💾</span><div>You have a saved assessment in progress (Section ${assess.currentSection+1} of ${ASSESS_SECTIONS.length}). <a href="#" onclick="event.preventDefault(); startAssessment();" style="font-weight:700; color:var(--blue-dark);">Continue where you left off</a>.</div>`;
+  }
+}
+initPage('assessment');
+initAssessmentPage();
+</script>
+</body>
+</html>

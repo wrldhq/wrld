@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">Worksheet — WRLD.</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-xs no-print">
+    <div class="container flex justify-between items-center" style="flex-wrap:wrap; gap:16px;">
+      <a href="downloads.html" style="color:var(--blue-dark); font-weight:600; font-size:14px;">← Download Center</a>
+      <div class="flex gap-12">
+        <button class="btn btn-outline btn-sm" onclick="sharePage()">🔗 Share</button>
+        <button class="btn btn-primary btn-sm" onclick="printPage()">🖨️ Print / Save as PDF</button>
+      </div>
+    </div>
+  </section>
+  <div id="not-found" class="section text-center hidden"><div class="container"><h2>Worksheet not found</h2><a href="downloads.html" class="btn btn-primary mt-24">← Back to Downloads</a></div></div>
+  <div class="worksheet-page" id="worksheet-page"></div>
+</main>
+<div class="no-print" id="site-footer"></div>
+<script src="data.js"></script>
+<script>
+/* ===================================================================
+   WORKSHEET CONTENT SPECS
+   =================================================================== */
+const WORKSHEET_SPECS = {
+  'resume-template':{subtitle:'Fill in each section, then transfer into your digital resume.', sections:[
+    {kind:'fields', label:'Header', fields:['Full Name','Email','Phone','City, Province/State','LinkedIn (optional)']},
+    {kind:'lines', label:'Summary (1–2 sentences)', count:2},
+    {kind:'block-repeat', label:'Experience', count:3, fields:['Title / Role','Organization','Dates'], bullets:3},
+    {kind:'block-repeat', label:'Education', count:1, fields:['School','Program','Graduation Date'], bullets:1},
+    {kind:'lines', label:'Skills (comma-separated)', count:2},
+  ]},
+  'cover-letter-template':{subtitle:'Draft your base letter here, then personalize the opening and closing per application.', sections:[
+    {kind:'fields', label:'Header', fields:['Your Name','Date','Company / Hiring Manager Name']},
+    {kind:'lines', label:'Opening — what specifically draws you to this role/company', count:4},
+    {kind:'lines', label:'Middle — one story that proves you can do the job', count:6},
+    {kind:'lines', label:'Close — enthusiasm + thank you', count:3},
+  ]},
+  'scholarship-tracker':{subtitle:'One row per scholarship. Update Status as you go.', sections:[
+    {kind:'table', label:'Scholarship Tracker', columns:['Scholarship Name','Amount','Deadline','Requirements','Status'], rows:8},
+  ]},
+  'budget-planner':{subtitle:'Fill in your real numbers — this only works if it\'s honest.', sections:[
+    {kind:'table', label:'Monthly Income', columns:['Source','Amount'], rows:3},
+    {kind:'table', label:'Needs (Target: 50%)', columns:['Expense','Budgeted','Actual'], rows:5},
+    {kind:'table', label:'Wants (Target: 30%)', columns:['Expense','Budgeted','Actual'], rows:5},
+    {kind:'table', label:'Savings & Debt (Target: 20%)', columns:['Goal','Budgeted','Actual'], rows:3},
+  ]},
+  'expense-tracker':{subtitle:'Track every purchase for one full week — no judgment, just data.', sections:[
+    {kind:'table', label:'Weekly Expense Log', columns:['Day','Item','Category','Amount'], rows:14},
+  ]},
+  'interview-worksheet':{subtitle:'Prep your STAR answers before the interview, not during it.', sections:[
+    {kind:'block-repeat', label:'STAR Answer Prep', count:4, fields:['Question','Situation','Task','Action','Result']},
+    {kind:'lines', label:'Questions I want to ask them', count:3},
+  ]},
+  'networking-planner':{subtitle:'Keep a running list of your network — update it after every conversation.', sections:[
+    {kind:'table', label:'Contacts', columns:['Name','How You Know Them','Last Contact','Follow-up Date','Notes'], rows:8},
+  ]},
+  'career-roadmap':{subtitle:'Map your near-term and longer-term direction on one page.', sections:[
+    {kind:'boxes', label:'Goals', boxes:[{title:'1-Year Goal', lines:3},{title:'3-Year Goal', lines:3}]},
+    {kind:'lines', label:'Skills I want to build', count:4},
+    {kind:'table', label:'Milestones', columns:['Milestone','Target Date','Status'], rows:5},
+  ]},
+  'goal-setting-workbook':{subtitle:'Use the SMART framework: Specific, Measurable, Achievable, Relevant, Time-bound.', sections:[
+    {kind:'block-repeat', label:'Goal Worksheet', count:2, fields:['Goal','Specific — exactly what will you do?','Measurable — how will you know it\'s done?','Achievable — is this realistic right now?','Relevant — why does this matter to you?','Time-bound — target date']},
+  ]},
+  'apartment-checklist':{subtitle:'Bring this with you to every viewing.', sections:[
+    {kind:'checklist', label:'Before You Sign', items:['Confirm total monthly cost (rent + utilities + fees)','Ask about the security deposit and what it covers','Check water pressure and all faucets','Test all light switches and outlets','Check for signs of pests or water damage','Confirm what\'s included (appliances, parking, laundry)','Read the full lease before signing anything','Ask about the process for repairs and maintenance','Confirm move-in and move-out policies','Ask current tenants (if possible) about their experience']},
+    {kind:'table', label:'Comparing Options', columns:['Address','Rent','Utilities Est.','Commute','Notes'], rows:3},
+  ]},
+  'grocery-budget-sheet':{subtitle:'Plan before you shop — it\'s the easiest way to avoid overspending.', sections:[
+    {kind:'table', label:'Weekly Grocery Budget', columns:['Category','Budgeted','Actual'], rows:8},
+  ]},
+  'student-planner':{subtitle:'Block time for studying, rest, and everything in between.', sections:[
+    {kind:'table', label:'This Week', columns:['Day','Morning','Afternoon','Evening'], rows:7},
+    {kind:'lines', label:'Top 3 priorities this week', count:3},
+  ]},
+  'habit-tracker':{subtitle:'Pick one habit. Track it daily for 30 days.', sections:[
+    {kind:'fields', label:'Habit', fields:['The habit I\'m building','Why it matters to me']},
+    {kind:'table', label:'30-Day Tracker (check off each day)', columns:['Week 1 (Mon–Sun)','Week 2 (Mon–Sun)','Week 3 (Mon–Sun)','Week 4 (Mon–Sun)'], rows:1},
+  ]},
+  'emergency-fund-calculator':{subtitle:'Work out a realistic first savings goal.', sections:[
+    {kind:'table', label:'Essential Monthly Expenses', columns:['Expense','Amount'], rows:6},
+    {kind:'fields', label:'Your Numbers', fields:['Total monthly essential expenses','Your first goal (start with $300–500)','Current savings','Gap to close','Amount to save per paycheque to reach goal in 3 months']},
+  ]},
+  'tax-checklist':{subtitle:'Gather these before you sit down to file.', sections:[
+    {kind:'checklist', label:'Documents to Gather', items:['Wage statement(s) from every employer (W-2, T4, or equivalent)','Records of any freelance/gig income','Interest or investment income statements','Tuition or education receipts (if applicable)','Receipts for any eligible deductions','Last year\'s tax return (if available)','Banking info for direct deposit of any refund','Your filing deadline, noted somewhere visible']},
+  ]},
+  'first-paycheque-breakdown':{subtitle:'Use your actual pay stub to fill this in.', sections:[
+    {kind:'table', label:'Paycheque Breakdown', columns:['Line Item','Amount'], rows:8},
+    {kind:'lines', label:'Questions I still have about my paycheque', count:3},
+  ]},
+  'salary-negotiation-worksheet':{subtitle:'Prep before the conversation, not during it.', sections:[
+    {kind:'fields', label:'Your Numbers', fields:['Market rate research (low–high range)','Your target number','Your minimum acceptable number']},
+    {kind:'lines', label:'Your negotiation script', count:5},
+    {kind:'lines', label:'Other things you could ask for besides base pay', count:3},
+  ]},
+  'career-planner':{subtitle:'Connect where you are now to where you want to go.', sections:[
+    {kind:'fields', label:'Current Snapshot', fields:['Current role / situation','Target role / direction']},
+    {kind:'lines', label:'Skills gap — what\'s missing between here and there', count:4},
+    {kind:'table', label:'Action Steps', columns:['Action','Target Date','Status'], rows:5},
+  ]},
+  'volunteer-log':{subtitle:'Log every opportunity — useful for applications and reflection alike.', sections:[
+    {kind:'table', label:'Volunteer Log', columns:['Date','Organization','Role','Hours'], rows:8},
+    {kind:'lines', label:'What I learned from this experience', count:3},
+  ]},
+};
+
+function getParam(name){ return new URLSearchParams(location.search).get(name); }
+function linesHTML(n){ return Array.from({length:n}, ()=>`<div class="ws-field"></div>`).join(''); }
+function fieldsHTML(fields){
+  return `<div class="ws-row" style="grid-template-columns:repeat(${Math.min(fields.length,2)},1fr);">${fields.map(f=>`<div><label style="font-size:12px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.04em;">${f}</label><div class="ws-field"></div></div>`).join('')}</div>`;
+}
+function tableHTML(columns, rows){
+  return `<table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
+    <thead><tr>${columns.map(c=>`<th style="text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); border-bottom:2px solid var(--navy); padding:8px 10px;">${c}</th>`).join('')}</tr></thead>
+    <tbody>${Array.from({length:rows}, ()=>`<tr>${columns.map(()=>`<td style="border-bottom:1px solid var(--navy-06); padding:14px 10px; height:20px;"></td>`).join('')}</tr>`).join('')}</tbody>
+  </table>`;
+}
+function checklistHTML(items){
+  return items.map(i=>`<div class="flex gap-12 items-center" style="padding:8px 0; border-bottom:1px solid var(--navy-06);"><div style="width:20px; height:20px; border:2px solid var(--navy-10); border-radius:6px; flex-shrink:0;"></div><span style="font-size:14.5px;">${i}</span></div>`).join('');
+}
+function boxesHTML(boxes){
+  return `<div class="flex gap-16" style="flex-wrap:wrap;">${boxes.map(b=>`
+    <div style="flex:1; min-width:220px; border:1.5px solid var(--navy-10); border-radius:14px; padding:18px;">
+      <h4 style="font-size:14px; margin-bottom:12px;">${b.title}</h4>${linesHTML(b.lines)}
+    </div>`).join('')}</div>`;
+}
+function blockRepeatHTML(count, fields, bullets){
+  let out = '';
+  for(let i=0;i<count;i++){
+    out += `<div style="border-left:3px solid var(--blue-15); padding-left:18px; margin-bottom:22px;">
+      <div style="font-size:12px; font-weight:700; color:var(--blue-dark); margin-bottom:8px;">#${i+1}</div>
+      ${fieldsHTML(fields)}
+      ${bullets ? Array.from({length:bullets},()=>`<div class="ws-field" style="margin-top:6px;"></div>`).join('') : ''}
+    </div>`;
+  }
+  return out;
+}
+function renderSection(s){
+  let body = '';
+  if(s.kind==='fields') body = fieldsHTML(s.fields);
+  else if(s.kind==='lines') body = linesHTML(s.count);
+  else if(s.kind==='table') body = tableHTML(s.columns, s.rows);
+  else if(s.kind==='checklist') body = checklistHTML(s.items);
+  else if(s.kind==='boxes') body = boxesHTML(s.boxes);
+  else if(s.kind==='block-repeat') body = blockRepeatHTML(s.count, s.fields, s.bullets);
+  return `<div class="mb-32"><h3 style="font-size:15px; text-transform:uppercase; letter-spacing:.04em; color:var(--blue-dark); margin-bottom:14px;">${s.label}</h3>${body}</div>`;
+}
+
+function loadWorksheet(){
+  const type = getParam('type');
+  const meta = getDownload(type);
+  const spec = WORKSHEET_SPECS[type];
+  if(!meta || !spec){ document.getElementById('not-found').classList.remove('hidden'); return; }
+  document.title = meta.title+' — WRLD Download Center';
+  document.getElementById('worksheet-page').innerHTML = `
+    <div class="worksheet-header">
+      <div>
+        <div style="font-family:'Plus Jakarta Sans'; font-weight:800; font-size:1.6rem; color:var(--navy);">${meta.icon} ${meta.title}</div>
+        <p style="margin-top:6px; max-width:520px;">${spec.subtitle}</p>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:'Plus Jakarta Sans'; font-weight:800; font-size:1.3rem; color:var(--blue);">wrld<span style="color:var(--yellow)">.</span></div>
+        <div style="font-size:11px; color:var(--ink-faint); margin-top:4px;">wrld — free resources for adulthood</div>
+      </div>
+    </div>
+    ${spec.sections.map(renderSection).join('')}
+    <div style="margin-top:40px; padding-top:20px; border-top:1px solid var(--navy-06); font-size:11px; color:var(--ink-faint); text-align:center;">Free to use, print, and share. Part of the WRLD Playbook Library — more at wrld. resources.</div>`;
+}
+loadWorksheet();
+</script>
+<script src="app.js"></script>
+<script>initPage('downloads');</script>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">Program — WRLD.</title>
+<meta name="description" id="page-desc" content="A free WRLD digital program.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <div id="not-found" class="section text-center hidden">
+    <div class="container"><h2>Program not found</h2><a href="programs.html" class="btn btn-primary mt-24">← Back to Programs</a></div>
+  </div>
+
+  <div id="program-root" class="hidden">
+    <section class="section-sm surface-cream">
+      <div class="container">
+        <p class="mb-16" style="font-size:13px;"><a href="programs.html" style="color:var(--blue-dark); font-weight:600;">← All Programs</a></p>
+        <div class="flex justify-between items-start" style="flex-wrap:wrap; gap:32px;">
+          <div style="flex:1; min-width:300px;">
+            <div class="flex gap-8 mb-16" id="prog-badges" style="flex-wrap:wrap;"></div>
+            <h1 id="prog-title" style="font-size:clamp(1.8rem,4vw,2.6rem); max-width:700px;"></h1>
+            <p id="prog-tagline" style="font-size:var(--fs-md); max-width:640px; margin-top:14px;"></p>
+            <div class="flex gap-24 mt-24" style="flex-wrap:wrap;" id="prog-meta-row"></div>
+          </div>
+          <div class="card" style="padding:28px; min-width:280px; max-width:320px;">
+            <div id="enroll-box"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container article-layout">
+        <div class="article-body">
+          <h2 id="sec-overview">Overview</h2>
+          <p id="prog-overview"></p>
+
+          <div class="callout callout-note" id="whofor-callout">
+            <div class="ic">🙋</div>
+            <div><h5>Who This Is For</h5><p id="prog-whofor"></p></div>
+          </div>
+
+          <h2 id="sec-included">What's Included</h2>
+          <div class="flex gap-10 mb-24" style="flex-wrap:wrap;" id="prog-included"></div>
+
+          <div class="lesson-table-wrap mb-32">
+            <table class="lesson-table">
+              <tbody>
+                <tr><td style="font-weight:700; width:220px;">Prerequisites</td><td id="prog-prereqs"></td></tr>
+                <tr><td style="font-weight:700;">Expected Commitment</td><td id="prog-commitment"></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h2 id="sec-outcomes">What You'll Walk Away With</h2>
+          <ul id="prog-outcomes"></ul>
+
+          <h2 id="sec-curriculum">Curriculum</h2>
+          <div id="prog-modules"></div>
+
+          <h2 id="prog-projects-h">Projects &amp; Assignments</h2>
+          <ul id="prog-projects"></ul>
+
+          <h2 id="sec-instructor">Meet Your Instructor</h2>
+          <div id="prog-instructor"></div>
+
+          <h2 id="sec-certificate">Certificate of Completion</h2>
+          <div class="card" style="padding:26px; display:flex; gap:20px; align-items:center; border:1.5px dashed var(--navy-10);">
+            <div style="font-size:40px;">🎓</div>
+            <div>
+              <span class="pill pill-sample mb-8" style="display:inline-block;">Sample Preview</span>
+              <p style="margin:0;">Everyone who completes this program's modules and projects receives a WRLD Certificate of Completion — shareable on LinkedIn and downloadable as a PDF. Certificate design shown here is a preview; issuance begins as each cohort completes.</p>
+            </div>
+          </div>
+
+          <h2 id="sec-downloads">Downloads Included</h2>
+          <div class="flex gap-12" style="flex-wrap:wrap;" id="prog-downloads"></div>
+
+          <h2 id="sec-faq">Frequently Asked Questions</h2>
+          <div id="prog-faq"></div>
+
+          <h2 id="sec-progress">Track Your Progress</h2>
+          <p>Once you enroll (or bookmark this program), your module progress will appear on your <a href="dashboard.html" style="color:var(--blue-dark); font-weight:600;">Dashboard</a>.</p>
+          <div id="prog-progress" class="card" style="padding:26px; margin-top:16px;"></div>
+
+          <div class="callout callout-tip mt-32">
+            <div class="ic">💬</div>
+            <div><h5>Have questions before you enroll?</h5><p>Join the discussion thread for this program in the <a href="community.html" style="color:var(--blue-dark); font-weight:600;">WRLD Community</a> — ask current and past participants directly.</p></div>
+          </div>
+        </div>
+        <aside class="toc no-print">
+          <h5>This Program</h5>
+          <a href="#sec-overview">Overview</a>
+          <a href="#sec-included">What's Included</a>
+          <a href="#sec-curriculum">Curriculum</a>
+          <a href="#prog-projects-h">Projects</a>
+          <a href="#sec-certificate">Certificate</a>
+          <a href="#sec-faq">FAQ</a>
+          <div class="toc-actions">
+            <a href="playbooks.html" class="btn btn-outline btn-sm btn-block">📘 Related Playbooks</a>
+            <a href="community.html" class="btn btn-outline btn-sm btn-block">💬 Community Discussion</a>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section surface-sky">
+      <div class="container text-center">
+        <div class="eyebrow blue">🔁 Every Program Connects</div>
+        <h2>This program pulls from the Playbook Library</h2>
+        <p style="max-width:600px; margin:0 auto 32px;">Modules reference real WRLD Playbooks so you can review any lesson in depth, anytime.</p>
+        <a href="playbooks.html" class="btn btn-primary">Explore the Playbook Library →</a>
+      </div>
+    </section>
+  </div>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+function getParam(name){ return new URLSearchParams(location.search).get(name); }
+
+function loadProgram(){
+  const id = getParam('id');
+  const p = getProgram(id);
+  if(!p){ document.getElementById('not-found').classList.remove('hidden'); return; }
+  document.getElementById('program-root').classList.remove('hidden');
+  document.title = p.title+' — WRLD Programs';
+  document.getElementById('page-desc').setAttribute('content', p.tagline);
+
+  document.getElementById('prog-badges').innerHTML = `
+    <span class="badge-zoom">🎥 Live via Zoom</span>
+    <span class="pill pill-blue">🌍 Worldwide</span>
+    <span class="pill pill-yellow">${p.difficulty}</span>`;
+  document.getElementById('prog-title').textContent = p.icon+'  '+p.title;
+  document.getElementById('prog-tagline').textContent = p.tagline;
+  document.getElementById('prog-meta-row').innerHTML = `
+    <div><div style="font-size:12px; color:var(--ink-faint); font-weight:600;">DURATION</div><div style="font-weight:700; color:var(--navy);">${p.duration}</div></div>
+    <div><div style="font-size:12px; color:var(--ink-faint); font-weight:600;">FORMAT</div><div style="font-weight:700; color:var(--navy);">${p.format}</div></div>`;
+  document.getElementById('prog-overview').textContent = p.overview;
+  document.getElementById('prog-whofor').textContent = p.whoFor || 'This program is open to anyone interested in the topic — no specific background required.';
+  document.getElementById('prog-prereqs').textContent = p.prerequisites || 'None.';
+  document.getElementById('prog-commitment').textContent = p.commitment || 'Varies — see duration above.';
+  document.getElementById('prog-included').innerHTML = [
+    {ic:'🎥', t:'Live Zoom Sessions'}, {ic:'📓', t:'Digital Workbook'}, {ic:'🎬', t:'Replay Library'},
+    {ic:'💬', t:'Community Discussion Space'}, {ic:'🎓', t:'Certificate of Completion'},
+  ].map(x=>`<span class="pill pill-blue">${x.ic} ${x.t}</span>`).join('');
+  document.getElementById('prog-outcomes').innerHTML = p.outcomes.map(o=>`<li>${o}</li>`).join('');
+  document.getElementById('prog-modules').innerHTML = p.modules.map((m,i)=>`
+    <div class="module-item flex gap-16 items-start">
+      <div class="module-num">${i+1}</div>
+      <div><h4 style="font-size:16px; margin-bottom:4px;">${m.title}</h4><p style="margin:0; font-size:14.5px;">${m.desc}</p></div>
+    </div>`).join('');
+
+  if(p.projects && p.projects.length){
+    document.getElementById('prog-projects').innerHTML = p.projects.map(pr=>`<li>${pr}</li>`).join('');
+  } else {
+    document.getElementById('prog-projects-h').style.display='none';
+    document.getElementById('prog-projects').style.display='none';
+  }
+
+  document.getElementById('prog-instructor').innerHTML = `
+    <div class="person-card">
+      <svg class="person-avatar" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="${p.color==='yellow'?'#F5CF57':'#2EA8C7'}"/><circle cx="50" cy="42" r="16" fill="#1F3D4D"/><path d="M22 88c4-22 24-30 28-30s24 8 28 30z" fill="#1F3D4D"/></svg>
+      <div>
+        <span class="pill pill-sample mb-8" style="display:inline-block;">Sample instructor profile</span>
+        <div style="font-weight:700; color:var(--navy);">WRLD Facilitator Team</div>
+        <p style="margin:0; font-size:13.5px;">Live sessions are hosted by WRLD's instructional team and guest practitioners. Individual instructor bios will populate here as facilitators are confirmed for each cohort.</p>
+      </div>
+    </div>`;
+
+  document.getElementById('prog-downloads').innerHTML = (p.downloads||[]).map(dt=>{
+    const d = getDownload(dt);
+    return d ? `<a href="worksheet.html?type=${d.type}" target="_blank" class="pill pill-blue" style="padding:10px 16px; font-size:13px;">${d.icon} ${d.title}</a>` : '';
+  }).join('');
+
+  document.getElementById('prog-faq').innerHTML = p.faqs.map(f=>`
+    <div class="accordion-item"><button class="accordion-trigger">${f.q}<span class="chev">▾</span></button><div class="accordion-panel"><div class="accordion-panel-inner">${f.a}</div></div></div>`).join('');
+  initAccordions();
+
+  // Progress tracker (mock — tied to bookmark/enrollment state)
+  const enrolled = getState().bookmarks.includes('program-'+p.id);
+  document.getElementById('prog-progress').innerHTML = enrolled ? `
+    <div class="flex justify-between items-center mb-8"><span style="font-weight:700; color:var(--navy);">Your progress</span><span style="color:var(--blue); font-weight:700;">Module 1 of ${p.modules.length}</span></div>
+    <div class="progress-bar"><div style="width:${Math.round(100/p.modules.length)}%;"></div></div>
+    <p class="mt-16" style="font-size:13px;">You're enrolled! Progress updates as you complete each module's Playbook and project.</p>` :
+    `<p style="margin:0;">You haven't enrolled yet — click "Enroll for Free" to start tracking your progress here.</p>`;
+
+  // Enroll box
+  const enrollBoxEl = document.getElementById('enroll-box');
+  function renderEnrollBox(){
+    const isEnrolled = getState().bookmarks.includes('program-'+p.id);
+    if(p.sampleStatus==='coming-soon'){
+      enrollBoxEl.innerHTML = `
+        <span class="pill pill-sample mb-16" style="display:inline-block;">Coming Soon</span>
+        <h4 style="margin-bottom:10px;">Join the waiting list</h4>
+        <p style="font-size:13.5px; margin-bottom:18px;">This program is opening in phases. Join the list and we'll notify you the moment enrollment opens.</p>
+        <button class="btn btn-primary btn-block" id="waitlist-btn">${isEnrolled?'✓ On the Waiting List':'Join Waiting List'}</button>`;
+      document.getElementById('waitlist-btn').addEventListener('click', ()=>{
+        const s = getState(); const key='program-'+p.id;
+        if(!s.bookmarks.includes(key)){ s.bookmarks.push(key); setState(s); showToast('📝 Added to the waiting list'); renderEnrollBox(); }
+      });
+    } else {
+      enrollBoxEl.innerHTML = `
+        <div style="font-size:13px; font-weight:700; color:var(--success); margin-bottom:12px;">● 100% Free</div>
+        <h4 style="margin-bottom:10px;">${isEnrolled?"You're enrolled!":'Ready to start?'}</h4>
+        <p style="font-size:13.5px; margin-bottom:18px;">Live cohorts run continuously — enroll anytime and join the next available session.</p>
+        <button class="btn btn-primary btn-block" id="enroll-btn">${isEnrolled?'✓ Enrolled — View Dashboard':'Enroll for Free'}</button>
+        <a href="events.html" class="btn btn-outline btn-block mt-8">📅 See Upcoming Sessions</a>`;
+      document.getElementById('enroll-btn').addEventListener('click', ()=>{
+        if(isEnrolled){ location.href='dashboard.html'; return; }
+        const s = getState(); const key='program-'+p.id;
+        if(!s.bookmarks.includes(key)) s.bookmarks.push(key);
+        setState(s);
+        showToast('🎉 Enrolled! Check your Dashboard for next steps.');
+        launchConfetti();
+        renderEnrollBox();
+        loadProgram();
+      });
+    }
+  }
+  renderEnrollBox();
+  setGuideMessage(enrolled ? `You're enrolled in ${p.title} — see your Dashboard for next steps 📊` : `${p.title} runs entirely live via Zoom, worldwide. Questions? Ask away.`);
+  setTimeout(initReveal, 30);
+}
+initPage('programs');
+loadProgram();
+</script>
+</body>
+</html>

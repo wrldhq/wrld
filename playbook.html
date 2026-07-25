@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">Playbook — WRLD.</title>
+<meta name="description" id="page-desc" content="A free WRLD Playbook.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <div id="not-found" class="section text-center hidden">
+    <div class="container"><h2>Playbook not found</h2><p class="mt-16">That Playbook doesn't exist yet.</p><a href="playbooks.html" class="btn btn-primary mt-24">← Back to Library</a></div>
+  </div>
+
+  <div id="playbook-root" class="hidden">
+    <!-- ARTICLE HERO -->
+    <section class="article-hero">
+      <div class="container">
+        <p class="mb-16" style="font-size:13px;"><a href="playbooks.html" style="color:var(--blue-dark); font-weight:600;">← Playbook Library</a></p>
+        <div class="article-meta-row" id="hero-meta"></div>
+        <h1 id="pb-title" style="font-size:clamp(1.8rem,4vw,2.6rem); max-width:820px;"></h1>
+        <p id="pb-dek" style="font-size:var(--fs-md); max-width:680px; margin-top:14px;"></p>
+        <div class="flex gap-12 mt-24" style="flex-wrap:wrap;" id="hero-actions"></div>
+      </div>
+    </section>
+
+    <!-- ARTICLE BODY -->
+    <section class="section">
+      <div class="container">
+        <div class="article-layout">
+          <div class="article-body">
+
+            <div class="sample-banner" style="display:none;" id="author-banner"></div>
+
+            <h2 id="toc-objectives-h">Learning Objectives</h2>
+            <ul id="objectives-list"></ul>
+
+            <div class="pb-hero-illustration mb-32" id="pb-hero-illustration"></div>
+
+            <div id="sections-container"></div>
+
+            <div id="practice-block" style="display:none;">
+              <h2 id="toc-practice-h">Practice Exercises</h2>
+              <p>Learning sticks when you actually do it. Try these before moving on — they save automatically, just like the checklist below.</p>
+              <div id="practice-container" class="mt-24"></div>
+            </div>
+
+            <h2 id="toc-checklist-h">Action Checklist</h2>
+            <p>Check these off as you go — your progress saves automatically to your Dashboard.</p>
+            <div id="checklist-container" class="mt-24"></div>
+
+            <h2 id="toc-reflection-h">Reflection Questions</h2>
+            <p>There's no submit button here — just sit with these for a minute. The best learning happens when you connect it to your own life.</p>
+            <div id="reflection-container"></div>
+
+            <h2 id="toc-quiz-h">Quick Quiz</h2>
+            <p>Four or five questions to check what stuck. No pressure — you can retake it anytime.</p>
+            <div id="quiz-container" class="card" style="padding:28px; margin-top:20px;"></div>
+
+            <h2 id="toc-faq-h">Frequently Asked Questions</h2>
+            <div id="faq-container"></div>
+
+            <h2 id="toc-takeaways-h">Key Takeaways</h2>
+            <div class="callout callout-tip"><div class="ic">✅</div><div><ul id="takeaways-list" style="margin:0;"></ul></div></div>
+
+            <div class="text-center mt-48">
+              <button class="btn btn-primary btn-lg" id="mark-complete-btn">✓ Mark This Playbook Complete</button>
+            </div>
+          </div>
+
+          <aside class="toc no-print" id="toc-aside">
+            <h5>On This Page</h5>
+            <a href="#toc-objectives-h">Learning Objectives</a>
+            <a href="#toc-practice-h">Practice Exercises</a>
+            <a href="#toc-checklist-h">Action Checklist</a>
+            <a href="#toc-reflection-h">Reflection</a>
+            <a href="#toc-quiz-h">Quiz</a>
+            <a href="#toc-faq-h">FAQ</a>
+            <a href="#toc-takeaways-h">Key Takeaways</a>
+            <div class="toc-actions">
+              <button class="btn btn-outline btn-sm btn-block" id="toc-bookmark" data-bookmark-slug="">🔖 Save for later</button>
+              <button class="btn btn-outline btn-sm btn-block" onclick="sharePage()">🔗 Share</button>
+              <button class="btn btn-outline btn-sm btn-block no-print" onclick="printPage()">🖨️ Print</button>
+              <a class="btn btn-yellow btn-sm btn-block" id="toc-download">⬇️ Worksheet</a>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTINUE LEARNING -->
+    <section class="section surface-sky">
+      <div class="container">
+        <div class="section-head center reveal">
+          <div class="eyebrow">➡️ Continue Learning</div>
+          <h2 id="next-title">Keep going</h2>
+        </div>
+        <div id="next-card-wrap" style="max-width:640px; margin:0 auto;"></div>
+
+        <div class="section-head center reveal mt-48">
+          <div class="eyebrow blue">🔗 Related Playbooks</div>
+          <h2>You might also want to read</h2>
+        </div>
+        <div class="pb-grid" id="related-grid"></div>
+      </div>
+    </section>
+  </div>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="illustrations.js"></script>
+<script src="app.js"></script>
+<script>
+function getParam(name){ return new URLSearchParams(location.search).get(name); }
+
+function calloutIcon(type){ return {tip:'💡', example:'✨', warn:'⚠️', note:'📌', mistake:'❌', protip:'🌟', fact:'🧠'}[type] || '💡'; }
+function calloutClass(type){ return `callout-${type}`; }
+function calloutTitle(type){ return {tip:'Tip', example:'Example', warn:'Heads up', note:'Note', mistake:'Common Mistake', protip:'Pro Tip', fact:'Did You Know?'}[type] || 'Note'; }
+
+let miniCheckCounter = 0;
+function renderMiniCheck(m){
+  const id = 'mc-'+(miniCheckCounter++);
+  setTimeout(()=>{
+    const wrap = document.getElementById(id);
+    if(!wrap) return;
+    wrap.querySelectorAll('.mc-opt').forEach((btn,oi)=>{
+      btn.addEventListener('click', ()=>{
+        wrap.querySelectorAll('.mc-opt').forEach(b=>b.classList.remove('correct','incorrect'));
+        wrap.querySelectorAll('.mc-opt').forEach((b,i)=>{ if(i===m.correct) b.classList.add('correct'); else if(i===oi) b.classList.add('incorrect'); });
+        const fb = wrap.querySelector('.mc-feedback'); fb.textContent = '💡 '+m.explain; fb.classList.add('show');
+      });
+    });
+  }, 0);
+  return `<div class="mini-check" id="${id}">
+    <div class="mc-label">🧠 Quick Check</div>
+    <div class="mc-q">${m.q}</div>
+    ${m.options.map(o=>`<button type="button" class="mc-opt">${o}</button>`).join('')}
+    <div class="mc-feedback"></div>
+  </div>`;
+}
+
+function renderLessonTable(t){
+  return `<div class="lesson-table-wrap"><table class="lesson-table"><thead><tr>${t.headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function renderLessonTimeline(steps){
+  return `<div class="lesson-timeline">${steps.map(s=>`<div class="lesson-timeline-step"><div class="lt-label">${s.label}</div><p>${s.text}</p></div>`).join('')}</div>`;
+}
+
+function pbCard(p){
+  return `<a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
+    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}</div>
+    <div class="pb-body">
+      <div class="pb-meta"><span class="pill pill-blue">⏱ ${p.readTime}</span><span class="pill pill-yellow">${p.difficulty}</span></div>
+      <h4>${p.title}</h4><p>${p.dek}</p>
+      <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
+    </div>
+  </a>`;
+}
+
+function loadPlaybook(){
+  const slug = getParam('slug');
+  const p = getPlaybook(slug);
+  if(!p){ document.getElementById('not-found').classList.remove('hidden'); return; }
+  document.getElementById('playbook-root').classList.remove('hidden');
+  document.title = p.title+' — WRLD Playbooks';
+  document.getElementById('page-title').textContent = p.title+' — WRLD Playbooks';
+  document.getElementById('page-desc').setAttribute('content', p.dek);
+
+  document.getElementById('hero-meta').innerHTML = `
+    <span class="pill pill-navy">${PILLARS[p.pillar].icon} ${p.category}</span>
+    <span class="pill pill-blue">⏱ ${p.readTime}</span>
+    <span class="pill pill-yellow">🎯 ${p.completionTime}</span>
+    <span class="pill ${p.difficulty==='Beginner'?'pill-success':p.difficulty==='Advanced'?'pill-sample':'pill-yellow'}">${p.difficulty}</span>`;
+  document.getElementById('pb-title').textContent = p.emoji+'  '+p.title;
+  document.getElementById('pb-dek').textContent = p.dek;
+  document.getElementById('hero-actions').innerHTML = `
+    <button class="btn btn-outline" data-bookmark-slug="${p.slug}" onclick="toggleBookmark('${p.slug}')">🔖 Save for later</button>
+    <button class="btn btn-outline" onclick="sharePage('${p.title}')">🔗 Share</button>
+    <button class="btn btn-outline no-print" onclick="printPage()">🖨️ Print</button>
+    <a class="btn btn-yellow" href="worksheet.html?type=${p.download}" target="_blank">⬇️ Download Worksheet</a>`;
+  document.getElementById('author-banner').style.display='flex';
+  document.getElementById('author-banner').innerHTML = `<span>✍️</span><div><strong>${p.author}</strong> · Updated ${p.dateUpdated} — every Playbook is reviewed and refreshed regularly.</div>`;
+
+  document.getElementById('objectives-list').innerHTML = p.objectives.map(o=>`<li>${o}</li>`).join('');
+
+  const heroIllEl = document.getElementById('pb-hero-illustration');
+  const heroSVG = p.heroIllustration ? renderIllustration(p.heroIllustration) : '';
+  if(heroSVG){ heroIllEl.innerHTML = heroSVG; } else { heroIllEl.style.display='none'; }
+
+  document.getElementById('sections-container').innerHTML = p.sections.map(s=>{
+    if(s.mini) return renderMiniCheck(s);
+    return `
+    <h3>${s.h}</h3>
+    ${s.p.map(par=>`<p>${par}</p>`).join('')}
+    ${s.list?`<ul>${s.list.map(li=>`<li>${li}</li>`).join('')}</ul>`:''}
+    ${s.table?renderLessonTable(s.table):''}
+    ${s.timeline?renderLessonTimeline(s.timeline):''}
+    ${s.callout?`<div class="callout ${calloutClass(s.callout.type)}"><div class="ic">${calloutIcon(s.callout.type)}</div><div><h5>${s.callout.title||calloutTitle(s.callout.type)}</h5><p>${s.callout.text}</p></div></div>`:''}
+  `;
+  }).join('');
+
+  if(p.practiceExercises && p.practiceExercises.length){
+    document.getElementById('practice-block').style.display='block';
+    renderChecklist('practice-container', p.practiceExercises, 'practice-'+p.slug);
+  }
+
+  document.getElementById('reflection-container').innerHTML = p.reflection.map(q=>`
+    <div class="callout callout-note"><div class="ic">💭</div><p style="margin:0;">${q}</p></div>`).join('');
+
+  document.getElementById('faq-container').innerHTML = p.faq.map((f,i)=>`
+    <div class="accordion-item">
+      <button class="accordion-trigger">${f.q}<span class="chev">▾</span></button>
+      <div class="accordion-panel"><div class="accordion-panel-inner">${f.a}</div></div>
+    </div>`).join('');
+
+  document.getElementById('takeaways-list').innerHTML = p.takeaways.map(t=>`<li>${t}</li>`).join('');
+
+  document.getElementById('toc-bookmark').dataset.bookmarkSlug = p.slug;
+  document.getElementById('toc-bookmark').onclick = ()=>toggleBookmark(p.slug);
+  document.getElementById('toc-download').href = `worksheet.html?type=${p.download}`;
+  document.getElementById('toc-download').target = '_blank';
+
+  renderChecklist('checklist-container', p.checklist, 'pb-'+p.slug, ()=>markComplete(p.slug, p.title));
+  renderQuiz('quiz-container', p.quiz, 'pb-'+p.slug);
+  initAccordions();
+
+  // Mark complete button
+  const completeBtn = document.getElementById('mark-complete-btn');
+  function syncCompleteBtn(){
+    if(isComplete(p.slug)){ completeBtn.textContent = '✅ Playbook Completed'; completeBtn.classList.remove('btn-primary'); completeBtn.classList.add('btn-outline'); }
+  }
+  syncCompleteBtn();
+  completeBtn.addEventListener('click', ()=>{
+    markComplete(p.slug, p.title);
+    syncCompleteBtn();
+    const next = p.nextInJourney ? getPlaybook(p.nextInJourney) : null;
+    setGuideMessage(next ? `Nice! Ready for "${next.title}" next, or take a break — up to you 🌟` : `That's a big one done — check your Dashboard to see how far you've come 🎉`);
+  });
+
+  // Next in journey
+  const nextSlug = p.nextInJourney;
+  if(nextSlug){
+    const next = getPlaybook(nextSlug);
+    document.getElementById('next-title').textContent = 'Up next: '+next.title;
+    document.getElementById('next-card-wrap').innerHTML = pbCard(next);
+  } else {
+    document.getElementById('next-title').textContent = "You've completed this journey path 🎉";
+    document.getElementById('next-card-wrap').innerHTML = `<div class="card text-center" style="padding:32px;"><p>Great work reaching the end of this sequence. Explore another Learning Path to keep building.</p><a href="learning-paths.html" class="btn btn-primary mt-16">View Learning Paths →</a></div>`;
+  }
+
+  // Related — same category, excluding self
+  const related = PLAYBOOKS.filter(r=>r.slug!==p.slug && (r.category===p.category || r.pillar===p.pillar)).slice(0,3);
+  document.getElementById('related-grid').innerHTML = related.map(pbCard).join('');
+
+  trackView(p.slug);
+  setGuideMessage(isComplete(p.slug)
+    ? `You've already completed "${p.title}" — feel free to revisit anytime 🌱`
+    : `This one takes about ${p.completionTime}. Take your time — I'll be here 🌎`);
+  setTimeout(()=>{ initReveal(); syncBookmarkButtons(); }, 30);
+}
+
+initPage('playbooks');
+loadPlaybook();
+</script>
+</body>
+</html>

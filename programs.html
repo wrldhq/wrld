@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Programs — WRLD.</title>
+<meta name="description" content="8 free, fully digital WRLD programs — live via Zoom, worldwide, with replay libraries and certificates of completion.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-cream">
+    <div class="container text-center">
+      <div class="eyebrow reveal">💻 Live Digital Programs</div>
+      <h2 class="reveal">Structured, free, and entirely online.</h2>
+      <p class="reveal" style="max-width:640px; margin:0 auto;">Every WRLD program runs live via Zoom, welcomes participants from anywhere in the world, and records every session for replay. No travel, no cost, no catch.</p>
+      <div class="flex gap-12 mt-32" style="justify-content:center; flex-wrap:wrap;">
+        <span class="badge-zoom reveal">🎥 Live via Zoom</span>
+        <span class="pill pill-blue reveal">🌍 Worldwide access</span>
+        <span class="pill pill-yellow reveal">🕐 Time-zone friendly</span>
+        <span class="pill pill-navy reveal">🎓 Certificate of completion</span>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <div class="programs-grid" id="programs-grid" style="display:grid; grid-template-columns:repeat(2,1fr); gap:24px;"></div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+document.getElementById('programs-grid').innerHTML = PROGRAMS.map((p,i)=>`
+  <a href="program.html?id=${p.id}" class="card hoverable reveal reveal-d${(i%4)+1}" style="padding:30px; display:block;">
+    <div class="flex justify-between items-center mb-16">
+      <div class="pillar-icon" style="background:var(--sky); margin-bottom:0;">${p.icon}</div>
+      ${p.sampleStatus==='coming-soon' ? '<span class="pill pill-sample">Enrollment opening soon</span>' : '<span class="badge-zoom">🎥 Live via Zoom</span>'}
+    </div>
+    <h3 style="font-size:1.3rem; margin-bottom:8px;">${p.title}</h3>
+    <p style="margin-bottom:16px;">${p.tagline}</p>
+    <div class="flex gap-8" style="flex-wrap:wrap; margin-bottom:18px;">
+      <span class="pill pill-navy">${p.duration}</span>
+      <span class="pill pill-yellow">${p.difficulty}</span>
+    </div>
+    <span style="color:var(--blue); font-weight:700; font-size:14px;">View program →</span>
+  </a>`).join('');
+initPage('programs');
+</script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learning Paths — WRLD.</title>
+<meta name="description" content="Guided, sequential Learning Paths through the WRLD Playbook Library — First Job, Financial Confidence, and University journeys.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container text-center">
+      <div class="eyebrow reveal">🧭 Learning Paths</div>
+      <h2 class="reveal">Guided journeys, not a pile of resources.</h2>
+      <p class="reveal" style="max-width:640px; margin:0 auto;">Every Playbook naturally leads to the next. Pick a journey below and follow it start to finish — or jump to whichever step matches where you are right now.</p>
+    </div>
+  </section>
+
+  <div id="paths-container"></div>
+
+  <section class="section surface-cream">
+    <div class="container">
+      <div class="section-head center reveal">
+        <div class="eyebrow blue">🔜 More Journeys, On Their Way</div>
+        <h2>Coming soon</h2>
+        <p>These Learning Paths are on our roadmap — shown honestly as upcoming, not populated with placeholder lessons.</p>
+      </div>
+      <div class="programs-grid" id="coming-soon-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px;"></div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+function renderPath(lp, i){
+  const steps = lp.steps.map(getPlaybook).filter(Boolean);
+  const done = steps.filter(s=>isComplete(s.slug)).length;
+  const pct = Math.round((done/steps.length)*100);
+  return `
+  <section class="section ${i%2===1?'surface-sky':''}" id="${lp.key}">
+    <div class="container">
+      <div class="flex justify-between items-start mb-32" style="flex-wrap:wrap; gap:20px;">
+        <div>
+          <div class="eyebrow reveal" style="background:${lp.color==='yellow'?'var(--yellow)':lp.color==='navy'?'var(--navy-10)':'var(--blue-15)'};">${lp.icon} Learning Path</div>
+          <h2 class="reveal">${lp.title}</h2>
+          <p class="reveal" style="max-width:560px;">${lp.desc}</p>
+        </div>
+        <div class="card reveal" style="padding:20px 24px; min-width:220px;">
+          <div class="flex justify-between mb-8"><span style="font-weight:700; font-size:13px; color:var(--navy);">Your progress</span><span style="font-weight:700; font-size:13px; color:var(--blue);">${done}/${steps.length}</span></div>
+          <div class="progress-bar"><div style="width:${pct}%;"></div></div>
+        </div>
+      </div>
+      <div class="path-track">
+        ${steps.map((s,si)=>`
+        <div class="path-node ${isComplete(s.slug)?'done':''} reveal reveal-d${(si%4)+1}">
+          <div class="path-dot">${isComplete(s.slug)?'✓':s.emoji}</div>
+          <a href="playbook.html?slug=${s.slug}" class="path-card">
+            <div class="flex justify-between items-center">
+              <div>
+                <div style="font-size:11px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em;">Step ${si+1} of ${steps.length}</div>
+                <h4 style="margin:4px 0 4px;">${s.title}</h4>
+                <p style="margin:0; font-size:13.5px;">${s.dek}</p>
+              </div>
+              <span style="color:var(--blue); font-weight:700; font-size:20px; flex-shrink:0; margin-left:16px;">→</span>
+            </div>
+          </a>
+        </div>`).join('')}
+        <div class="path-node reveal">
+          <div class="path-dot" style="background:var(--yellow); border-color:var(--yellow);">🎓</div>
+          <div class="path-card" style="background:${pct===100?'var(--success-bg)':'var(--gray)'};">
+            <h4 style="margin-bottom:4px;">${pct===100?'Path complete! 🎉':'Path Milestone'}</h4>
+            <p style="margin:0; font-size:13.5px;"><span class="pill pill-sample">Sample</span> Complete all steps to unlock a WRLD Learning Path certificate — shareable on LinkedIn.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
+document.getElementById('paths-container').innerHTML = LEARNING_PATHS.map(renderPath).join('');
+
+document.getElementById('coming-soon-grid').innerHTML = LEARNING_PATHS_COMING_SOON.map(lp=>`
+  <div class="coming-soon-card reveal">
+    <div style="font-size:30px; margin-bottom:12px;">${lp.icon}</div>
+    <h4 style="margin-bottom:8px;">${lp.title}</h4>
+    <p style="font-size:13px; margin-bottom:12px;">${lp.desc}</p>
+    <span class="pill pill-sample">Coming Soon</span>
+  </div>`).join('');
+
+initPage('paths');
+setTimeout(initReveal, 50);
+</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Events — WRLD.</title>
+<meta name="description" content="WRLD's virtual event hub — live Zoom workshops, career fairs, and networking nights, worldwide and time-zone friendly.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-cream">
+    <div class="container text-center">
+      <div class="eyebrow reveal">🗓️ Virtual Event Hub</div>
+      <h2 class="reveal">Show up from anywhere. Meet real people.</h2>
+      <p class="reveal" style="max-width:600px; margin:0 auto;">Every WRLD event is 100% virtual and live via Zoom — join from any country, any time zone. Can't make it live? Every session gets added to the replay library.</p>
+      <div class="flex gap-12 mt-24" style="justify-content:center; flex-wrap:wrap;">
+        <span class="badge-zoom reveal">🎥 Live via Zoom</span>
+        <span class="pill pill-blue reveal">🌍 Worldwide</span>
+        <span class="pill pill-yellow reveal">🕐 Times shown in your local zone</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container events-wrap" style="display:grid; grid-template-columns:1fr 1.2fr; gap:40px; align-items:start;">
+      <div class="cal-frame reveal" id="event-calendar"></div>
+      <div>
+        <h3 class="mb-24 reveal">Upcoming Sessions</h3>
+        <div id="event-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section surface-sky">
+    <div class="container text-center">
+      <div class="eyebrow blue">🎬 Missed a Session?</div>
+      <h2>Every workshop lives in the Replay Library.</h2>
+      <p style="max-width:560px; margin:0 auto 28px;">Recordings are added within 24 hours of the live session — no live attendance required to benefit from every workshop.</p>
+      <a href="community.html" class="btn btn-primary">Browse the Replay Library →</a>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+let calYear = 2026, calMonth = 7; // August 2026 — where most upcoming events fall
+
+function eventsForCurrentMonth(){ return EVENTS.filter(e=>{ const d=new Date(e.dateISO); return d.getFullYear()===calYear && d.getMonth()===calMonth; }); }
+
+function drawCalendar(){
+  renderMonthCalendar('event-calendar', calYear, calMonth, eventsForCurrentMonth(), (delta)=>{
+    calMonth += delta;
+    if(calMonth<0){calMonth=11; calYear--;}
+    if(calMonth>11){calMonth=0; calYear++;}
+    drawCalendar();
+  });
+}
+
+function eventCard(e){
+  const {dateStr, timeStr, tz} = formatEventLocalTime(e.dateISO);
+  const d = new Date(e.dateISO);
+  const monthShort = d.toLocaleDateString(undefined,{month:'short'});
+  const registered = getState().bookmarks.includes('event-'+e.id);
+  return `<div class="event-card card hoverable reveal mb-16">
+    <div class="event-date-block"><div class="d">${d.getDate()}</div><div class="m">${monthShort}</div></div>
+    <div style="flex:1;">
+      <div class="flex gap-8 mb-8" style="flex-wrap:wrap;">
+        <span class="badge-zoom">🎥 Zoom</span>
+        <span class="pill pill-navy">${e.type}</span>
+        ${e.replay?'<span class="pill pill-success">📼 Replay available</span>':''}
+      </div>
+      <h4 style="margin-bottom:6px;">${e.title}</h4>
+      <p style="margin-bottom:8px; font-size:13.5px;">${dateStr} · ${timeStr}</p>
+      <p class="event-tz mb-12">Shown in your local time zone (${tz}) · ${e.duration}</p>
+      <div class="flex gap-16 mb-12" style="flex-wrap:wrap; font-size:12.5px; color:var(--ink-faint);">
+        <span>👤 Hosted by ${e.host} <span class="pill pill-sample" style="margin-left:4px;">sample</span></span>
+        <span>🎟️ Capacity: ${e.capacity}</span>
+      </div>
+      <div class="flex gap-10">
+        <button class="btn btn-primary btn-sm" data-event="${e.id}" onclick="registerEvent('${e.id}','${e.title.replace(/'/g,"\\'")}')">${registered?'✓ Registered':'Register Free'}</button>
+        <button class="btn btn-outline btn-sm" onclick="showToast('📎 Workshop materials are shared with registered attendees closer to the event date')">📎 Materials</button>
+        <a href="community.html" class="btn btn-outline btn-sm">💬 Discussion</a>
+      </div>
+    </div>
+  </div>`;
+}
+
+function registerEvent(id, title){
+  const s = getState(); const key = 'event-'+id;
+  if(!s.bookmarks.includes(key)){ s.bookmarks.push(key); setState(s); showToast('✅ Registered for '+title); }
+  renderEventList();
+}
+
+function renderEventList(){
+  document.getElementById('event-list').innerHTML = EVENTS.map(eventCard).join('');
+  setTimeout(initReveal, 20);
+}
+
+drawCalendar();
+renderEventList();
+initPage('events');
+</script>
+</body>
+</html>

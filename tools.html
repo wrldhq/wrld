@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tools — WRLD.</title>
+<meta name="description" content="Interactive WRLD tools: Career Readiness Assessment, Financial Confidence Quiz, Resume Scorecard, Interview Simulator, and Budget Calculator.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container text-center">
+      <div class="eyebrow reveal">🧰 WRLD Tools</div>
+      <h2 class="reveal">Real feedback, not just reading.</h2>
+      <p class="reveal" style="max-width:600px; margin:0 auto;">Five interactive tools that give you honest, personalized feedback — no sign-up, nothing saved anywhere but your own browser.</p>
+    </div>
+  </section>
+
+  <section class="section-xs no-print">
+    <div class="container">
+      <div class="flex gap-10" style="flex-wrap:wrap; justify-content:center;" id="tool-tabs"></div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:24px;">
+    <div class="container" style="max-width:900px;">
+
+      <!-- CAREER READINESS -->
+      <div class="tool-panel" id="panel-career">
+        <div class="card" style="padding:40px;">
+          <div class="eyebrow blue mb-16">💼 Career Readiness Assessment</div>
+          <h3 class="mb-16">How ready are you for the job search?</h3>
+          <p class="mb-24">8 quick questions covering resume, interviews, networking, and job search strategy.</p>
+          <div id="career-quiz-area"></div>
+        </div>
+      </div>
+
+      <!-- FINANCIAL CONFIDENCE -->
+      <div class="tool-panel hidden" id="panel-financial">
+        <div class="card" style="padding:40px;">
+          <div class="eyebrow blue mb-16">💰 Financial Confidence Quiz</div>
+          <h3 class="mb-16">How confident are you with money?</h3>
+          <p class="mb-24">8 quick questions on budgeting, credit, taxes, and saving.</p>
+          <div id="financial-quiz-area"></div>
+        </div>
+      </div>
+
+      <!-- RESUME SCORECARD -->
+      <div class="tool-panel hidden" id="panel-resume">
+        <div class="card" style="padding:40px;">
+          <div class="eyebrow blue mb-16">📄 Resume Scorecard</div>
+          <h3 class="mb-16">Score your actual resume</h3>
+          <p class="mb-24">Answer honestly about your current resume — not a hypothetical one — for real, specific feedback.</p>
+          <div id="resume-scorecard-area"></div>
+        </div>
+      </div>
+
+      <!-- INTERVIEW SIMULATOR -->
+      <div class="tool-panel hidden" id="panel-interview">
+        <div class="card" style="padding:40px;">
+          <div class="eyebrow blue mb-16">🎤 Interview Simulator</div>
+          <h3 class="mb-16">Practice out loud, one question at a time</h3>
+          <p class="mb-24">Flip the card to see STAR-method guidance for each question. Practiced: <strong id="interview-count">0</strong> of <span id="interview-total">8</span>.</p>
+          <div id="interview-area"></div>
+        </div>
+      </div>
+
+      <!-- BUDGET CALCULATOR -->
+      <div class="tool-panel hidden" id="panel-budget">
+        <div class="card" style="padding:40px;">
+          <div class="eyebrow blue mb-16">📊 Budget Calculator</div>
+          <h3 class="mb-16">Build your real monthly budget</h3>
+          <p class="mb-24">Enter your real numbers to see your 50/30/20 breakdown and generate a downloadable plan.</p>
+          <div id="budget-calc-area"></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- COMING SOON -->
+  <section class="section surface-cream">
+    <div class="container">
+      <div class="section-head center reveal">
+        <div class="eyebrow blue">🔜 More Tools On The Way</div>
+        <h2>Built to the same standard, one at a time</h2>
+        <p>Rather than rush these out shallow, they're launching once each meets the same bar as the five above.</p>
+      </div>
+      <div class="programs-grid" style="display:grid; grid-template-columns:repeat(5,1fr); gap:16px;" id="coming-soon-tools"></div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+/* ===================================================================
+   TAB SWITCHING
+   =================================================================== */
+const TOOL_TABS = [
+  {key:'career', label:'💼 Career Readiness'},
+  {key:'financial', label:'💰 Financial Confidence'},
+  {key:'resume', label:'📄 Resume Scorecard'},
+  {key:'interview', label:'🎤 Interview Simulator'},
+  {key:'budget', label:'📊 Budget Calculator'},
+];
+document.getElementById('tool-tabs').innerHTML = TOOL_TABS.map((t,i)=>`<button class="tool-tab ${i===0?'active':''}" data-tool="${t.key}">${t.label}</button>`).join('');
+document.getElementById('tool-tabs').addEventListener('click', e=>{
+  const btn = e.target.closest('.tool-tab'); if(!btn) return;
+  document.querySelectorAll('.tool-tab').forEach(b=>b.classList.toggle('active', b===btn));
+  document.querySelectorAll('.tool-panel').forEach(p=>p.classList.add('hidden'));
+  document.getElementById('panel-'+btn.dataset.tool).classList.remove('hidden');
+  window.scrollTo({top:280, behavior:'smooth'});
+});
+
+const COMING_SOON_TOOLS = [
+  {icon:'🧭', title:'Career Explorer'}, {icon:'🔎', title:'Scholarship Finder'},
+  {icon:'🎯', title:'Goal Planner'}, {icon:'✅', title:'Habit Tracker'}, {icon:'🧠', title:'Life Skills Assessment'},
+];
+document.getElementById('coming-soon-tools').innerHTML = COMING_SOON_TOOLS.map(t=>`
+  <div class="coming-soon-card reveal"><div style="font-size:26px; margin-bottom:8px;">${t.icon}</div><h4 style="font-size:13.5px; margin-bottom:6px;">${t.title}</h4><span class="pill pill-sample">Coming Soon</span></div>`).join('');
+
+/* ===================================================================
+   1. CAREER READINESS ASSESSMENT
+   =================================================================== */
+const CAREER_Q = [
+  {q:'How confident are you that your resume would survive a 6-second scan?', options:[{t:'Not confident at all',v:0},{t:'A little',v:1},{t:'Fairly confident',v:3},{t:'Very confident',v:4}]},
+  {q:'Do your resume bullet points include specific numbers or results?', options:[{t:'No, mostly general statements',v:0},{t:'A few do',v:2},{t:'Most do',v:3},{t:'Yes, consistently',v:4}]},
+  {q:'How prepared do you feel for behavioral interview questions ("tell me about a time...")?', options:[{t:'Not prepared',v:0},{t:'Somewhat',v:2},{t:'Fairly prepared',v:3},{t:'Very prepared, I have stories ready',v:4}]},
+  {q:'Do you have questions ready to ask an interviewer?', options:[{t:'No',v:0},{t:'Maybe one',v:2},{t:'Yes, a couple',v:3},{t:'Yes, several thoughtful ones',v:4}]},
+  {q:'How active is your professional network (LinkedIn, alumni, family friends)?', options:[{t:'I don\'t really have one',v:0},{t:'A small, inactive one',v:1},{t:'Growing steadily',v:3},{t:'Active and maintained',v:4}]},
+  {q:'How comfortable are you reaching out to someone you don\'t know well for career advice?', options:[{t:'Very uncomfortable',v:0},{t:'A bit nervous but I would',v:2},{t:'Comfortable',v:3},{t:'Very comfortable',v:4}]},
+  {q:'Do you know your realistic target salary range for the roles you want?', options:[{t:'No idea',v:0},{t:'Rough guess',v:2},{t:'Researched a bit',v:3},{t:'Yes, well-researched',v:4}]},
+  {q:'How clear are you on what you actually want out of your next role?', options:[{t:'Not clear at all',v:0},{t:'Somewhat',v:2},{t:'Fairly clear',v:3},{t:'Very clear',v:4}]},
+];
+function renderScaleQuiz(containerId, questions, onFinish){
+  const el = document.getElementById(containerId);
+  const answers = new Array(questions.length).fill(null);
+  el.innerHTML = questions.map((q,qi)=>`
+    <div class="quiz-q">
+      <h5>${qi+1}. ${q.q}</h5>
+      <div data-qi="${qi}">${q.options.map((o,oi)=>`<button type="button" class="quiz-opt" data-oi="${oi}" data-v="${o.v}">${o.t}</button>`).join('')}</div>
+    </div>`).join('') + `<div class="quiz-result" id="${containerId}-result"></div><button class="btn btn-primary mt-16" id="${containerId}-submit">See My Results</button>`;
+  el.querySelectorAll('.quiz-q').forEach((qEl,qi)=>{
+    qEl.querySelectorAll('.quiz-opt').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        qEl.querySelectorAll('.quiz-opt').forEach(b=>b.classList.remove('selected'));
+        btn.classList.add('selected');
+        answers[qi] = parseInt(btn.dataset.v,10);
+      });
+    });
+  });
+  document.getElementById(`${containerId}-submit`).addEventListener('click', ()=>{
+    if(answers.some(a=>a===null)){ showToast('Answer every question to see your results'); return; }
+    const total = answers.reduce((a,b)=>a+b,0);
+    const max = questions.length*4;
+    const pct = Math.round((total/max)*100);
+    onFinish(pct, document.getElementById(`${containerId}-result`));
+  });
+}
+renderScaleQuiz('career-quiz-area', CAREER_Q, (pct, resultEl)=>{
+  resultEl.classList.add('show');
+  const band = pct>=75?{l:'Ready to Apply',c:'success'}:pct>=50?{l:'Building Momentum',c:'blue'}:{l:'Just Getting Started',c:'sample'};
+  resultEl.innerHTML = `
+    <h4>${pct}% Career Ready — ${band.l}</h4>
+    <p>${pct>=75?"You're in strong shape — polish the details and start applying.":pct>=50?'You have real foundations — a couple of focused Playbooks will sharpen things fast.':"Totally normal starting point — everyone begins somewhere, and there's a clear path from here."}</p>
+    <div class="flex gap-10 mt-16" style="flex-wrap:wrap; justify-content:center;">
+      <a href="playbook.html?slug=resume" class="btn btn-outline btn-sm">📄 Resume Playbook</a>
+      <a href="playbook.html?slug=interview-skills" class="btn btn-outline btn-sm">🎤 Interview Playbook</a>
+      <a href="program.html?id=career-bootcamp" class="btn btn-primary btn-sm">💼 Career Bootcamp</a>
+    </div>`;
+  launchConfetti();
+});
+
+/* ===================================================================
+   2. FINANCIAL CONFIDENCE QUIZ
+   =================================================================== */
+const FINANCIAL_Q = [
+  {q:'How confident are you managing a monthly budget?', options:[{t:'Not confident',v:0},{t:'A little',v:1},{t:'Fairly confident',v:3},{t:'Very confident',v:4}]},
+  {q:'Do you know roughly what your credit score is (or how credit scores work)?', options:[{t:'No idea',v:0},{t:'Vaguely',v:2},{t:'Yes, fairly well',v:3},{t:'Yes, in detail',v:4}]},
+  {q:'Do you have any emergency savings set aside?', options:[{t:'None',v:0},{t:'A little',v:2},{t:'A partial cushion',v:3},{t:'A solid emergency fund',v:4}]},
+  {q:'How confident do you feel about filing taxes?', options:[{t:'Very intimidated',v:0},{t:'A bit unsure',v:2},{t:'Fairly confident',v:3},{t:'Very confident',v:4}]},
+  {q:'Do you know the difference between a deduction and a tax credit?', options:[{t:'No',v:0},{t:'Sort of',v:2},{t:'Yes',v:4},{t:'Yes, and I know which matters more',v:4}]},
+  {q:'How aware are you of your monthly recurring subscriptions and fees?', options:[{t:'Not really tracked',v:0},{t:'Rough idea',v:2},{t:'Tracked loosely',v:3},{t:'Tracked closely',v:4}]},
+  {q:'Have you started investing, even a small amount, for the long term?', options:[{t:'No, and not sure how',v:0},{t:'Thought about it, haven\'t started',v:1},{t:'Started a little',v:3},{t:'Yes, consistently',v:4}]},
+  {q:'How comfortable are you negotiating pay or a bill?', options:[{t:'Very uncomfortable',v:0},{t:'Would try, nervously',v:2},{t:'Comfortable',v:3},{t:'Very comfortable',v:4}]},
+];
+renderScaleQuiz('financial-quiz-area', FINANCIAL_Q, (pct, resultEl)=>{
+  resultEl.classList.add('show');
+  const band = pct>=75?{l:'Financially Confident'}:pct>=50?{l:'Building Your Foundation'}:{l:'Just Getting Started'};
+  resultEl.innerHTML = `
+    <h4>${pct}% Financial Confidence — ${band.l}</h4>
+    <p>${pct>=75?'Strong foundations — consider the Financial Literacy Academy to go even deeper.':pct>=50?"You're building real momentum. A couple of focused Playbooks will fill the gaps.":"A completely normal starting point — money isn't taught in school, so nobody starts as an expert."}</p>
+    <div class="flex gap-10 mt-16" style="flex-wrap:wrap; justify-content:center;">
+      <a href="playbook.html?slug=budgeting" class="btn btn-outline btn-sm">📊 Budgeting Playbook</a>
+      <a href="playbook.html?slug=credit-scores" class="btn btn-outline btn-sm">💳 Credit Playbook</a>
+      <a href="program.html?id=financial-literacy-academy" class="btn btn-primary btn-sm">💰 Financial Literacy Academy</a>
+    </div>`;
+  launchConfetti();
+});
+
+/* ===================================================================
+   3. RESUME SCORECARD
+   =================================================================== */
+const RESUME_ITEMS = [
+  {t:'My resume is one page long', cat:'Format'},
+  {t:'I use a single-column layout with no graphics, tables, or columns', cat:'Format'},
+  {t:'I saved it as a PDF (unless a Word doc was specifically requested)', cat:'Format'},
+  {t:'Every bullet point includes a specific number or measurable result', cat:'Content'},
+  {t:'I have a short 1–2 line Summary tailored to the role, not a generic objective', cat:'Content'},
+  {t:'I\'ve removed anything older than 4 years or irrelevant to the role', cat:'Content'},
+  {t:'My contact info is accurate, professional, and easy to find at the top', cat:'Polish'},
+  {t:'I\'ve read it out loud at least once to catch typos or awkward phrasing', cat:'Polish'},
+  {t:'Someone other than me has reviewed it', cat:'Polish'},
+  {t:'I can explain, in one sentence, why each bullet point is there', cat:'Content'},
+];
+function renderResumeScorecard(){
+  const el = document.getElementById('resume-scorecard-area');
+  const answers = new Array(RESUME_ITEMS.length).fill(null);
+  el.innerHTML = RESUME_ITEMS.map((item,i)=>`
+    <div class="mb-24">
+      <p style="font-weight:600; color:var(--navy); margin-bottom:10px;">${item.t}</p>
+      <div class="flex gap-8" data-i="${i}">
+        <button type="button" class="quiz-opt" data-v="0" style="flex:1;">Not yet</button>
+        <button type="button" class="quiz-opt" data-v="2" style="flex:1;">Somewhat</button>
+        <button type="button" class="quiz-opt" data-v="4" style="flex:1;">Yes</button>
+      </div>
+    </div>`).join('') + `<div class="quiz-result" id="resume-score-result"></div><button class="btn btn-primary mt-16" id="resume-score-submit">Score My Resume</button>`;
+  el.querySelectorAll('[data-i]').forEach(group=>{
+    const i = parseInt(group.dataset.i,10);
+    group.querySelectorAll('.quiz-opt').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        group.querySelectorAll('.quiz-opt').forEach(b=>b.classList.remove('selected'));
+        btn.classList.add('selected');
+        answers[i] = parseInt(btn.dataset.v,10);
+      });
+    });
+  });
+  document.getElementById('resume-score-submit').addEventListener('click', ()=>{
+    if(answers.some(a=>a===null)){ showToast('Answer every item for an accurate score'); return; }
+    const total = answers.reduce((a,b)=>a+b,0);
+    const max = RESUME_ITEMS.length*4;
+    const pct = Math.round((total/max)*100);
+    const cats = {};
+    RESUME_ITEMS.forEach((item,i)=>{ cats[item.cat] = cats[item.cat]||{sum:0,max:0}; cats[item.cat].sum += answers[i]; cats[item.cat].max += 4; });
+    const resultEl = document.getElementById('resume-score-result');
+    resultEl.classList.add('show');
+    resultEl.innerHTML = `<h4>${pct}/100 Resume Score</h4>
+      <div style="text-align:left; max-width:360px; margin:16px auto;">
+        ${Object.entries(cats).map(([cat,v])=>`<div class="flex justify-between mb-8"><span style="font-size:13.5px; font-weight:600;">${cat}</span><span style="font-size:13.5px; color:var(--blue); font-weight:700;">${Math.round((v.sum/v.max)*100)}%</span></div>`).join('')}
+      </div>
+      <p>${pct>=80?'Strong resume — small polish left, if any.':pct>=50?'Good bones — a focused pass on the weaker category above will make a real difference.':'Worth a full rework — the Resume Playbook walks through exactly this, step by step.'}</p>
+      <a href="playbook.html?slug=resume" class="btn btn-primary mt-8">📄 Open the Resume Playbook</a>`;
+    if(pct>=80) launchConfetti();
+  });
+}
+renderResumeScorecard();
+
+/* ===================================================================
+   4. INTERVIEW SIMULATOR
+   =================================================================== */
+const INTERVIEW_QS = [
+  {q:'Tell me about yourself.', tip:'Keep it to 60–90 seconds: past (brief), present (your current focus), future (why this role). Not your full life story.'},
+  {q:'Why do you want to work here?', tip:'Reference something specific and real about the company or role — avoid generic "I love your mission" answers.'},
+  {q:'Tell me about a time you faced a challenge.', tip:'Use STAR: Situation, Task, Action, Result. Spend the most time on Action and Result.'},
+  {q:'What is your greatest weakness?', tip:'Name a real, low-stakes weakness, then describe the concrete step you\'re taking to improve it.'},
+  {q:'Tell me about a time you worked with a difficult person.', tip:'Focus on your own behavior and what you did to improve the situation — avoid blaming the other person.'},
+  {q:'Where do you see yourself in a few years?', tip:'Show direction and growth without over-committing to an impossibly specific plan.'},
+  {q:'Tell me about a mistake you made and what you learned.', tip:'Own it honestly, briefly explain the fix, and end on what changed in how you work now.'},
+  {q:'Why should we hire you?', tip:'Connect 2-3 of your strongest, most specific qualities directly to what the role actually needs.'},
+];
+let interviewIdx = 0, interviewPracticed = new Set();
+function renderInterviewCard(){
+  const el = document.getElementById('interview-area');
+  const item = INTERVIEW_QS[interviewIdx];
+  document.getElementById('interview-total').textContent = INTERVIEW_QS.length;
+  document.getElementById('interview-count').textContent = interviewPracticed.size;
+  el.innerHTML = `
+    <div class="flip-card-scene">
+      <div class="flip-card" id="flip-card">
+        <div class="flip-face flip-front">
+          <div style="font-size:12px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; margin-bottom:12px;">Question ${interviewIdx+1} of ${INTERVIEW_QS.length}</div>
+          <h3 style="font-size:1.4rem;">"${item.q}"</h3>
+          <p style="margin-top:16px; font-size:13px; color:var(--ink-faint);">Say your answer out loud, then flip for STAR guidance.</p>
+        </div>
+        <div class="flip-face flip-back">
+          <div style="font-size:12px; font-weight:700; color:var(--blue-dark); text-transform:uppercase; margin-bottom:10px;">💡 Guidance</div>
+          <p style="font-size:15px; color:var(--navy);">${item.tip}</p>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-12 mt-24" style="justify-content:center;">
+      <button class="btn btn-outline" id="flip-btn">🔄 Flip Card</button>
+      <button class="btn btn-outline" id="shuffle-btn">🔀 Shuffle</button>
+      <button class="btn btn-primary" id="next-q-btn">Next Question →</button>
+    </div>`;
+  document.getElementById('flip-btn').addEventListener('click', ()=>document.getElementById('flip-card').classList.toggle('flipped'));
+  document.getElementById('shuffle-btn').addEventListener('click', ()=>{ interviewIdx = Math.floor(Math.random()*INTERVIEW_QS.length); renderInterviewCard(); });
+  document.getElementById('next-q-btn').addEventListener('click', ()=>{
+    interviewPracticed.add(interviewIdx);
+    interviewIdx = (interviewIdx+1) % INTERVIEW_QS.length;
+    renderInterviewCard();
+    if(interviewPracticed.size===INTERVIEW_QS.length) showToast('🎉 You\'ve practiced every question!');
+  });
+}
+renderInterviewCard();
+
+/* ===================================================================
+   5. BUDGET CALCULATOR
+   =================================================================== */
+function renderBudgetCalc(){
+  const el = document.getElementById('budget-calc-area');
+  el.innerHTML = `
+    <div class="calc-row"><label style="font-weight:600;">Monthly income (after tax)</label><input type="number" class="calc-input" id="bc-income" placeholder="0" value="0"></div>
+    <h4 class="mt-24 mb-8" style="font-size:14px; color:var(--blue-dark);">NEEDS</h4>
+    <div class="calc-row"><label>Rent / housing</label><input type="number" class="calc-input bc-need" placeholder="0"></div>
+    <div class="calc-row"><label>Groceries</label><input type="number" class="calc-input bc-need" placeholder="0"></div>
+    <div class="calc-row"><label>Transportation</label><input type="number" class="calc-input bc-need" placeholder="0"></div>
+    <div class="calc-row"><label>Phone & utilities</label><input type="number" class="calc-input bc-need" placeholder="0"></div>
+    <h4 class="mt-24 mb-8" style="font-size:14px; color:var(--blue-dark);">WANTS</h4>
+    <div class="calc-row"><label>Subscriptions & entertainment</label><input type="number" class="calc-input bc-want" placeholder="0"></div>
+    <div class="calc-row"><label>Eating out & hobbies</label><input type="number" class="calc-input bc-want" placeholder="0"></div>
+    <h4 class="mt-24 mb-8" style="font-size:14px; color:var(--blue-dark);">SAVINGS</h4>
+    <div class="calc-row"><label>Savings & debt paydown</label><input type="number" class="calc-input bc-save" placeholder="0"></div>
+    <div id="bc-results" class="mt-32"></div>
+    <button class="btn btn-primary mt-16" id="bc-calc-btn">Calculate My Budget</button>
+    <div id="bc-plan" class="mt-24"></div>`;
+  document.getElementById('bc-calc-btn').addEventListener('click', calcBudget);
+}
+function calcBudget(){
+  const income = parseFloat(document.getElementById('bc-income').value)||0;
+  const sum = (cls)=>[...document.querySelectorAll('.'+cls)].reduce((a,el)=>a+(parseFloat(el.value)||0),0);
+  const needs = sum('bc-need'), wants = sum('bc-want'), saves = sum('bc-save');
+  const total = needs+wants+saves;
+  const remaining = income-total;
+  if(income<=0){ showToast('Enter your monthly income first'); return; }
+  const pct = (v)=>Math.round((v/income)*100);
+  const resultsEl = document.getElementById('bc-results');
+  resultsEl.innerHTML = `
+    <h4 class="mb-16">Your Breakdown</h4>
+    <div class="budget-bar mb-16">
+      <div style="width:${Math.min(pct(needs),100)}%; background:#2EA8C7;" title="Needs"></div>
+      <div style="width:${Math.min(pct(wants),100-Math.min(pct(needs),100))}%; background:#F5CF57;" title="Wants"></div>
+      <div style="width:${Math.min(pct(saves),Math.max(0,100-pct(needs)-pct(wants)))}%; background:#1F3D4D;" title="Savings"></div>
+    </div>
+    <div class="flex justify-between mb-8"><span>🔵 Needs: $${needs.toFixed(0)} (${pct(needs)}% — target 50%)</span></div>
+    <div class="flex justify-between mb-8"><span>🟡 Wants: $${wants.toFixed(0)} (${pct(wants)}% — target 30%)</span></div>
+    <div class="flex justify-between mb-16"><span>⚫ Savings: $${saves.toFixed(0)} (${pct(saves)}% — target 20%)</span></div>
+    <div class="callout ${remaining<0?'callout-warn':'callout-tip'}"><div class="ic">${remaining<0?'⚠️':'✅'}</div><p style="margin:0;">${remaining<0?`You're $${Math.abs(remaining).toFixed(0)} over your income this month — something needs to shift.`:`You have $${remaining.toFixed(0)} unallocated — consider adding it to savings.`}</p></div>`;
+  document.getElementById('bc-plan').innerHTML = `<a href="worksheet.html?type=budget-planner" target="_blank" class="btn btn-yellow">⬇️ Generate My Downloadable Budget Plan</a> <a href="playbook.html?slug=budgeting" class="btn btn-outline">📊 Budgeting Playbook</a>`;
+}
+renderBudgetCalc();
+
+initPage('tools');
+setTimeout(initReveal, 30);
+</script>
+</body>
+</html>

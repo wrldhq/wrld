@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playbook Library — WRLD.</title>
+<meta name="description" content="22 free WRLD Playbooks covering Work, Resilience, Learning, and Development — searchable, filterable, and built to actually be used.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container">
+      <div class="section-head center reveal">
+        <div class="eyebrow">📘 Playbook Library</div>
+        <h2>What do you want to learn today?</h2>
+        <p>Every Playbook is a complete guided learning experience — not a blog post. Search, filter, and start wherever life has you right now.</p>
+      </div>
+      <div class="search-wrap reveal">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="pb-search" placeholder="Try 'credit score' or 'first interview'..." aria-label="Search Playbooks">
+      </div>
+      <div class="filter-row reveal" id="cat-filters"></div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <div class="flex justify-between items-center mb-24">
+        <p id="results-count" style="font-weight:600; color:var(--navy);"></p>
+        <div class="filter-row" id="diff-filters" style="margin-bottom:0;"></div>
+      </div>
+      <div class="pb-grid" id="pb-grid-full"></div>
+      <div class="empty-state hidden" id="empty-state">
+        <div class="ic">🔍</div>
+        <h4>No Playbooks match yet</h4>
+        <p>Try a different search term or clear your filters.</p>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="illustrations.js"></script>
+<script src="app.js"></script>
+<script>
+let activeCat = 'All';
+let activeDiff = 'All';
+const categories = ['All', ...new Set(PLAYBOOKS.map(p=>p.category))];
+const diffs = ['All','Beginner','Intermediate','Advanced'];
+
+function diffPill(d){ return d==='Beginner'?'success':d==='Advanced'?'sample':'yellow'; }
+
+function pbCard(p,i){
+  const hasIll = p.heroIllustration && typeof renderIllustration==='function' && renderIllustration(p.heroIllustration);
+  return `<a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable reveal reveal-d${(i%3)+1}" data-category="${p.category}" data-search-text="${p.title.toLowerCase()} ${p.dek.toLowerCase()} ${p.category.toLowerCase()}">
+    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; position:relative; overflow:hidden;">${hasIll?`<div style="width:100%; height:220%; position:absolute; top:-40%;">${hasIll}</div>`:p.emoji} ${p.flagship?'<span class="pill pill-sample" style="position:absolute; top:10px; left:12px; background:rgba(255,255,255,.9);">⭐ Flagship</span>':''}${isComplete(p.slug)?'<span style="position:absolute; top:12px; right:14px; font-size:16px;">✅</span>':''}</div>
+    <div class="pb-body">
+      <div class="pb-meta">
+        <span class="pill pill-blue">⏱ ${p.readTime}</span>
+        <span class="pill pill-${diffPill(p.difficulty)}">${p.difficulty}</span>
+      </div>
+      <h4>${p.title}</h4>
+      <p>${p.dek}</p>
+      <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">${isComplete(p.slug)?'Review →':'Start →'}</span></div>
+    </div>
+  </a>`;
+}
+
+function renderGrid(){
+  const search = document.getElementById('pb-search').value.toLowerCase();
+  const filtered = PLAYBOOKS.filter(p=>{
+    const matchCat = activeCat==='All' || p.category===activeCat;
+    const matchDiff = activeDiff==='All' || p.difficulty===activeDiff;
+    const matchSearch = !search || (p.title+p.dek+p.category).toLowerCase().includes(search);
+    return matchCat && matchDiff && matchSearch;
+  });
+  document.getElementById('pb-grid-full').innerHTML = filtered.map(pbCard).join('');
+  document.getElementById('results-count').textContent = `${filtered.length} Playbook${filtered.length!==1?'s':''}`;
+  document.getElementById('empty-state').classList.toggle('hidden', filtered.length>0);
+  setTimeout(initReveal, 20);
+}
+
+document.getElementById('cat-filters').innerHTML = categories.map(c=>`<button class="filter-chip ${c==='All'?'active':''}" data-cat="${c}">${c}</button>`).join('');
+document.getElementById('diff-filters').innerHTML = diffs.map(d=>`<button class="filter-chip ${d==='All'?'active':''}" data-diff="${d}">${d}</button>`).join('');
+
+document.getElementById('cat-filters').addEventListener('click', e=>{
+  const btn = e.target.closest('.filter-chip'); if(!btn) return;
+  activeCat = btn.dataset.cat;
+  document.querySelectorAll('#cat-filters .filter-chip').forEach(b=>b.classList.toggle('active', b===btn));
+  renderGrid();
+});
+document.getElementById('diff-filters').addEventListener('click', e=>{
+  const btn = e.target.closest('.filter-chip'); if(!btn) return;
+  activeDiff = btn.dataset.diff;
+  document.querySelectorAll('#diff-filters .filter-chip').forEach(b=>b.classList.toggle('active', b===btn));
+  renderGrid();
+});
+document.getElementById('pb-search').addEventListener('input', renderGrid);
+
+initPage('playbooks');
+renderGrid();
+</script>
+</body>
+</html>
