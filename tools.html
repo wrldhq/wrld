@@ -94,7 +94,9 @@
 </main>
 <div id="site-footer"></div>
 <script src="data.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 /* ===================================================================
    TAB SWITCHING
@@ -222,7 +224,7 @@ function renderResumeScorecard(){
   el.innerHTML = RESUME_ITEMS.map((item,i)=>`
     <div class="mb-24">
       <p style="font-weight:600; color:var(--navy); margin-bottom:10px;">${item.t}</p>
-      <div class="flex gap-8" data-i="${i}">
+      <div class="flex gap-8" data-i="${i}" style="flex-wrap:wrap;">
         <button type="button" class="quiz-opt" data-v="0" style="flex:1;">Not yet</button>
         <button type="button" class="quiz-opt" data-v="2" style="flex:1;">Somewhat</button>
         <button type="button" class="quiz-opt" data-v="4" style="flex:1;">Yes</button>
@@ -291,7 +293,7 @@ function renderInterviewCard(){
         </div>
       </div>
     </div>
-    <div class="flex gap-12 mt-24" style="justify-content:center;">
+    <div class="flex gap-12 mt-24" style="justify-content:center; flex-wrap:wrap;">
       <button class="btn btn-outline" id="flip-btn">🔄 Flip Card</button>
       <button class="btn btn-outline" id="shuffle-btn">🔀 Shuffle</button>
       <button class="btn btn-primary" id="next-q-btn">Next Question →</button>

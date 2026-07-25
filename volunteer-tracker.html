@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volunteer Hours Tracker — WRLD.</title>
+<meta name="description" content="Track your volunteer experiences, hours, and reflections — all in one place.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container">
+      <p class="mb-16" style="font-size:13px;"><a href="dashboard.html" style="color:var(--blue-dark); font-weight:600;">← Dashboard</a></p>
+      <div class="eyebrow reveal">🌍 Volunteer Hours Tracker</div>
+      <h2 class="reveal">Every hour, organized in one place.</h2>
+      <p class="reveal" style="max-width:600px;">Log your volunteer experiences as you go — useful for scholarship applications, resumes, and simply seeing your own impact add up.</p>
+    </div>
+  </section>
+
+  <section class="section" style="padding-bottom:0;">
+    <div class="container">
+      <div class="assess-rings-grid reveal" style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;" id="vol-stats"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container dash-grid">
+      <div>
+        <h3 class="mb-24 reveal">Recent Activity</h3>
+        <div id="vol-entries-list"></div>
+      </div>
+
+      <div>
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">➕ Log an Experience</h4>
+          <div class="form-error" id="vol-form-error"></div>
+          <form id="vol-form">
+            <div class="form-group">
+              <label class="form-label" for="vol-org">Organization</label>
+              <input class="form-input" id="vol-org" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="vol-role">Role</label>
+              <input class="form-input" id="vol-role" required>
+            </div>
+            <div class="flex gap-16" style="flex-wrap:wrap;">
+              <div class="form-group" style="flex:1; min-width:130px;">
+                <label class="form-label" for="vol-start">Start Date</label>
+                <input class="form-input" id="vol-start" type="date">
+              </div>
+              <div class="form-group" style="flex:1; min-width:130px;">
+                <label class="form-label" for="vol-end">End Date</label>
+                <input class="form-input" id="vol-end" type="date">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="vol-hours">Hours Completed</label>
+              <input class="form-input" id="vol-hours" type="number" min="0" step="0.5" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="vol-skills">Skills Developed (comma-separated)</label>
+              <input class="form-input" id="vol-skills" placeholder="Leadership, Communication">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="vol-reflection">Personal Reflection</label>
+              <textarea class="form-textarea" id="vol-reflection" rows="3" placeholder="What did you take away from this experience?"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="vol-proof">Proof of Hours (optional)</label>
+              <input class="form-input" id="vol-proof" type="file">
+              <p class="form-hint">Only the file name is saved for now — secure file storage is on the roadmap, so keep your own copy in the meantime.</p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Log Experience</button>
+          </form>
+        </div>
+
+        <div class="dash-side-card card reveal" style="border:1.5px dashed var(--navy-10);">
+          <h4 class="mb-12">🔜 Coming Soon</h4>
+          <button class="btn btn-outline btn-sm btn-block mb-8" onclick="showToast('📄 Exporting your record as a PDF is on the roadmap — for now, your log is safe here.')">📄 Export Volunteer Record (PDF)</button>
+          <button class="btn btn-outline btn-sm btn-block mb-8" onclick="showToast('🎓 Scholarship-ready volunteer reports are on the roadmap.')">🎓 Scholarship-Ready Report</button>
+          <button class="btn btn-outline btn-sm btn-block" onclick="showToast('✅ Verified volunteer hours (confirmed by the hosting organization) are on the roadmap.')">✅ Verified Hours</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js"></script>
+<script>
+if(requireAuth()){
+
+  function entryCard(e){
+    const dateRange = [e.startDate, e.endDate].filter(Boolean).join(' – ');
+    return `<div class="card reveal mb-16" style="padding:22px;">
+      <div class="flex justify-between items-start mb-8" style="flex-wrap:wrap; gap:10px;">
+        <div>
+          <h4 style="margin-bottom:2px;">${escapeHtml(e.organization)}</h4>
+          <p style="font-size:13px; color:var(--blue-dark); font-weight:600; margin:0;">${escapeHtml(e.role)}</p>
+        </div>
+        <span class="pill pill-navy">${e.hours} hr${e.hours!==1?'s':''}</span>
+      </div>
+      ${dateRange ? `<p style="font-size:12px; color:var(--ink-faint); margin-bottom:8px;">${dateRange}</p>` : ''}
+      ${e.skills.length ? `<div class="flex gap-6 mb-10" style="flex-wrap:wrap;">${e.skills.map(s=>`<span class="pill pill-blue" style="font-size:11px;">${escapeHtml(s)}</span>`).join('')}</div>` : ''}
+      ${e.reflection ? `<p style="font-size:13.5px; margin-bottom:10px;">${escapeHtml(e.reflection)}</p>` : ''}
+      ${e.proofFileName ? `<p style="font-size:11.5px; color:var(--ink-faint); margin-bottom:10px;">📎 ${escapeHtml(e.proofFileName)}</p>` : ''}
+      <button class="thread-action muted" onclick="removeVolunteerEntry('${e.id}')">Remove</button>
+    </div>`;
+  }
+
+  function renderVolunteerTracker(){
+    const summary = getVolunteerSummary();
+    document.getElementById('vol-stats').innerHTML = [
+      {num:summary.totalHours, label:'Total Hours'},
+      {num:summary.organizationCount, label:'Organizations'},
+      {num:summary.entryCount, label:'Experiences Logged'},
+      {num:summary.entries[0] ? timeAgo(summary.entries[0].loggedAt) : '—', label:'Most Recent'},
+    ].map(s=>`
+      <div class="card text-center" style="padding:18px;">
+        <div style="font-family:'Plus Jakarta Sans'; font-weight:800; font-size:1.5rem; color:var(--blue);">${s.num}</div>
+        <div style="font-size:11.5px; color:var(--ink-faint); margin-top:4px;">${s.label}</div>
+      </div>`).join('');
+
+    document.getElementById('vol-entries-list').innerHTML = summary.entries.length
+      ? summary.entries.map(entryCard).join('')
+      : `<div class="empty-state"><div class="ic">🌍</div><h4>Nothing logged yet</h4><p>Log your first volunteer experience to start building your record.</p></div>`;
+  }
+
+  window.removeVolunteerEntry = function(id){
+    deleteVolunteerEntry(id);
+    showToast('Entry removed');
+    renderVolunteerTracker();
+  };
+
+  document.getElementById('vol-form').addEventListener('submit', e=>{
+    e.preventDefault();
+    const errEl = document.getElementById('vol-form-error');
+    const organization = document.getElementById('vol-org').value.trim();
+    const role = document.getElementById('vol-role').value.trim();
+    const hours = document.getElementById('vol-hours').value;
+    if(!organization || !role || !hours){
+      errEl.textContent = 'Organization, role, and hours are required.';
+      errEl.classList.add('show');
+      return;
+    }
+    errEl.classList.remove('show');
+    const proofFile = document.getElementById('vol-proof').files[0];
+    addVolunteerEntry({
+      organization, role,
+      startDate: document.getElementById('vol-start').value,
+      endDate: document.getElementById('vol-end').value,
+      hours,
+      skills: document.getElementById('vol-skills').value.split(',').map(s=>s.trim()).filter(Boolean),
+      reflection: document.getElementById('vol-reflection').value,
+      proofFileName: proofFile ? proofFile.name : null,
+    });
+    e.target.reset();
+    showToast('✅ Volunteer experience logged');
+    renderVolunteerTracker();
+  });
+
+  renderVolunteerTracker();
+  initPage(null, "Every hour you log here is real — nothing here is invented or estimated.");
+}
+</script>
+</body>
+</html>

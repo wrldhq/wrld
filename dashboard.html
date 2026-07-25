@@ -12,17 +12,32 @@
 <main id="main">
   <section class="section-sm surface-sky">
     <div class="container">
-      <div class="sample-banner reveal">
-        <span>🧪</span><div><strong>Demo Dashboard —</strong> this is a local, sample learning account stored only in your browser, showing exactly how a real WRLD account will work once accounts launch.</div>
-      </div>
-      <div class="flex justify-between items-center" style="flex-wrap:wrap; gap:16px;">
-        <div>
-          <h2 class="reveal">Welcome back 👋</h2>
-          <p class="reveal">Here's where you left off.</p>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="resetDemo()">↺ Reset Demo Data</button>
+      <h2 class="reveal" id="dash-greeting">Welcome back 👋</h2>
+      <div class="assess-orbit-line reveal" id="orbit-dash-line" style="max-width:640px; margin:14px 0 0;">
+        <svg width="40" height="40" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+        <p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;" id="orbit-dash-msg">Here's where you left off.</p>
       </div>
       <div class="dash-stat-row mt-32" id="stat-row"></div>
+    </div>
+  </section>
+
+  <section class="section-sm" id="next-step-section" style="padding-bottom:0;">
+    <div class="container">
+      <div class="section-head reveal" style="margin-bottom:20px;">
+        <div class="eyebrow blue">🎯 Your Next Step</div>
+        <h3 style="margin:0;">The one thing I'd start with.</h3>
+      </div>
+      <div id="next-step-card"></div>
+    </div>
+  </section>
+
+  <section class="section-sm">
+    <div class="container">
+      <div class="section-head reveal" style="margin-bottom:20px;">
+        <div class="eyebrow blue">🧭 Your Learning Path</div>
+        <h3 style="margin:0;">Where this step fits into the bigger picture.</h3>
+      </div>
+      <div id="learning-path-card"></div>
     </div>
   </section>
 
@@ -32,7 +47,7 @@
         <h3 class="mb-24 reveal">Continue Learning</h3>
         <div id="continue-list" class="mb-48"></div>
 
-        <h3 class="mb-24 reveal">Recommended Next</h3>
+        <h3 class="mb-24 reveal">More to Explore</h3>
         <div class="pb-grid" id="recommend-grid" style="grid-template-columns:repeat(2,1fr);"></div>
       </div>
 
@@ -46,19 +61,37 @@
         </div>
 
         <div class="dash-side-card card reveal">
-          <h4 class="mb-16">🔖 Saved Playbooks</h4>
-          <div id="saved-list"><p style="font-size:13.5px; color:var(--ink-faint);">Nothing saved yet — bookmark a Playbook to see it here.</p></div>
+          <h4 class="mb-16">🔖 Saved Resources</h4>
+          <div id="saved-list"><p style="font-size:13.5px; color:var(--ink-faint);">🌱 Nothing saved yet — bookmark a Playbook you like and it'll show up right here.</p></div>
         </div>
 
         <div class="dash-side-card card reveal">
-          <h4 class="mb-16">📅 Upcoming Sessions</h4>
+          <h4 class="mb-16">🎥 Suggested Live Learning</h4>
           <div id="upcoming-events"></div>
-          <a href="events.html" class="btn btn-outline btn-sm btn-block mt-16">View All Events →</a>
+          <a href="events.html" class="btn btn-outline btn-sm btn-block mt-16">View Live Learning →</a>
         </div>
 
         <div class="dash-side-card card reveal">
-          <h4 class="mb-16">🏅 Achievements</h4>
+          <h4 class="mb-16">📥 Helpful Downloads</h4>
+          <div id="helpful-downloads-list"></div>
+        </div>
+
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">🏅 Recent Achievements</h4>
           <div id="achievements-list" class="flex gap-8" style="flex-wrap:wrap;"></div>
+        </div>
+
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">🌍 Volunteer Hours</h4>
+          <div id="volunteer-summary"></div>
+          <a href="volunteer-tracker.html" class="btn btn-outline btn-sm btn-block mt-12">Open Volunteer Tracker →</a>
+        </div>
+
+        <div class="dash-side-card card reveal" style="background:linear-gradient(135deg, var(--blue-dark), var(--navy)); border:none;">
+          <div class="eyebrow on-dark mb-8">🧳 Journey Passport</div>
+          <h4 class="mb-8" style="color:white;">Your growth, in one place.</h4>
+          <p style="font-size:13px; color:#C9DCE3;">Learning Paths completed, milestones, and everything you've built on WRLD so far.</p>
+          <a href="journey-passport.html" class="btn btn-yellow btn-sm btn-block mt-12">View My Passport →</a>
         </div>
 
         <div class="dash-side-card card reveal" style="border:1.5px dashed var(--navy-10);">
@@ -69,9 +102,9 @@
         </div>
 
         <div class="dash-side-card card reveal" style="border:1.5px dashed var(--navy-10);">
-          <span class="pill pill-sample mb-8" style="display:inline-block;">Sample Preview</span>
+          <span class="pill pill-sample mb-8" style="display:inline-block;">Coming Soon</span>
           <h4 class="mb-8">🎓 Certificates</h4>
-          <p style="font-size:13px;">Complete every Playbook in a Learning Path to preview a sample certificate — real, issued certificates launch alongside full accounts.</p>
+          <p style="font-size:13px;">Complete every Playbook in a Learning Path to become eligible for a WRLD Certificate of Completion — shareable on LinkedIn. Certificate issuing is launching alongside full WRLD accounts.</p>
         </div>
       </div>
     </div>
@@ -79,32 +112,51 @@
 </main>
 <div id="site-footer"></div>
 <script src="data.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 function pbMiniCard(p){
   return `<a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
     <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}</div>
     <div class="pb-body">
-      <div class="pb-meta"><span class="pill pill-blue">⏱ ${p.readTime}</span></div>
-      <h4>${p.title}</h4><p>${p.dek}</p>
-      <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
+      <div class="pb-meta"><span class="pill pill-${p.difficulty==='Beginner'?'success':p.difficulty==='Advanced'?'sample':'yellow'}">${p.difficulty}</span></div>
+      <h4>${p.title}</h4>
+      <p style="font-weight:600; color:var(--blue-dark);">🎯 ${p.outcome}</p>
+      <div class="pb-footer">
+        <span class="flex items-center gap-8"><span class="pill pill-navy">${p.category}</span><span style="font-size:11px; color:var(--ink-faint);">⏱ ${p.readTime}</span></span>
+        <span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span>
+      </div>
     </div>
   </a>`;
 }
 
-function resetDemo(){
-  if(confirm('Reset all demo progress, bookmarks, and streak data stored in this browser?')){
-    localStorage.removeItem(STORE_KEY);
-    showToast('Demo data reset');
-    setTimeout(()=>location.reload(), 700);
-  }
-}
-
 function renderDashboard(){
   const s = getState();
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
   const completedPlaybooks = s.completed.map(getPlaybook).filter(Boolean);
   const savedPlaybooks = s.bookmarks.filter(b=>!b.startsWith('program-')&&!b.startsWith('event-')).map(getPlaybook).filter(Boolean);
   const enrolledPrograms = s.bookmarks.filter(b=>b.startsWith('program-')).map(b=>getProgram(b.replace('program-',''))).filter(Boolean);
+
+  // Personalized greeting
+  const firstName = user ? user.name.split(' ')[0] : null;
+  document.getElementById('dash-greeting').textContent = firstName ? `Welcome back, ${firstName} 👋` : 'Welcome back 👋';
+
+  // Orbit line: assessment-aware, then returning-user variety, then first-timer
+  const weakestKey = s.assessment ? weakestAssessmentSection(s.assessment.sectionScores) : null;
+  let orbitMsg;
+  if(s.assessment && weakestKey){
+    orbitMsg = `Based on what you've shared, here's where I'd recommend starting.`;
+  } else if(completedPlaybooks.length>0 && (s.streak||0)>=2){
+    orbitMsg = `Welcome back — you were making great progress. Ready to continue where we left off?`;
+  } else if(completedPlaybooks.length>0){
+    orbitMsg = `Good to see you again. Here's what I'd recommend next.`;
+  } else if(savedPlaybooks.length>0){
+    orbitMsg = `Welcome back — you've got Playbooks saved and ready whenever you are.`;
+  } else {
+    orbitMsg = `Take the Adulting Readiness Assessment and I'll personalize everything on this page for you.`;
+  }
+  document.getElementById('orbit-dash-msg').textContent = orbitMsg;
 
   document.getElementById('stat-row').innerHTML = `
     <div class="dash-stat card reveal"><div class="num">${s.streak||0}</div><div class="lbl">Day Streak 🔥</div></div>
@@ -114,6 +166,66 @@ function renderDashboard(){
 
   document.getElementById('streak-num').textContent = s.streak || 0;
 
+  // --- Your Next Step: single, clearest recommendation ---
+  let nextStepPlaybook = null, nextStepWhy = '';
+  if(s.assessment && weakestKey){
+    const rec = SECTION_RECS[weakestKey];
+    const candidate = rec.playbooks.map(getPlaybook).find(p=>p && !s.completed.includes(p.slug)) || rec.playbooks.map(getPlaybook).find(Boolean);
+    if(candidate){
+      nextStepPlaybook = candidate;
+      nextStepWhy = `Based on your ${SECTION_META[weakestKey].title.toLowerCase()} results`;
+    }
+  }
+  if(!nextStepPlaybook){
+    const inProgress = (s.recentlyViewed||[]).map(getPlaybook).filter(p=>p && !s.completed.includes(p.slug))[0];
+    if(inProgress){ nextStepPlaybook = inProgress; nextStepWhy = 'Picking up where you left off'; }
+  }
+  if(!nextStepPlaybook){
+    nextStepPlaybook = PLAYBOOKS.find(p=>!s.completed.includes(p.slug) && p.difficulty==='Beginner') || PLAYBOOKS[0];
+    nextStepWhy = 'A great beginner-friendly place to start';
+  }
+  document.getElementById('next-step-card').innerHTML = `
+    <a href="playbook.html?slug=${nextStepPlaybook.slug}" class="card hoverable reveal" style="display:flex; gap:24px; align-items:center; padding:28px; flex-wrap:wrap;">
+      <div class="pb-thumb" style="width:88px; height:88px; flex-shrink:0; border-radius:var(--r-md); background:${nextStepPlaybook.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${nextStepPlaybook.emoji}</div>
+      <div style="flex:1; min-width:220px;">
+        <div style="font-size:11.5px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px;">${nextStepWhy}</div>
+        <h4 style="margin-bottom:6px;">${nextStepPlaybook.title}</h4>
+        <p style="margin:0; font-weight:600; color:var(--blue-dark); font-size:13.5px;">🎯 ${nextStepPlaybook.outcome}</p>
+      </div>
+      <span class="btn btn-primary" style="flex-shrink:0;">${isComplete(nextStepPlaybook.slug)?'Review →':'Start Now →'}</span>
+    </a>`;
+
+  // --- Your Learning Path: personalized path recommendation ---
+  const recommendedPathKey = (s.assessment && weakestKey) ? SECTION_RECS[weakestKey].path : null;
+  const path = recommendedPathKey ? getPath(recommendedPathKey) : null;
+  if(path){
+    const {done, total, pct, nextStep} = pathProgress(path);
+    document.getElementById('learning-path-card').innerHTML = `
+      <div class="card reveal" style="padding:28px;">
+        <div class="flex justify-between items-start mb-16" style="flex-wrap:wrap; gap:16px;">
+          <div class="flex items-center gap-16">
+            <div class="pillar-icon" style="background:${path.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; margin-bottom:0;">${path.icon}</div>
+            <div><h4 style="margin-bottom:2px;">${path.title}</h4><p style="margin:0; font-size:13px;">${path.desc}</p></div>
+          </div>
+          <div style="text-align:right; flex-shrink:0;">
+            <div style="font-weight:800; color:var(--blue); font-family:'Plus Jakarta Sans';">${done}/${total}</div>
+            <div style="font-size:11px; color:var(--ink-faint);">Playbooks done</div>
+          </div>
+        </div>
+        <div class="progress-bar mb-16"><div style="width:${pct}%;"></div></div>
+        <div class="flex gap-16" style="flex-wrap:wrap;">
+          <a href="learning-paths.html#${path.key}" class="btn btn-outline btn-sm">View Full Path →</a>
+          ${nextStep ? `<a href="playbook.html?slug=${nextStep.slug}" class="btn btn-primary btn-sm">Continue: ${nextStep.title} →</a>` : ''}
+        </div>
+      </div>`;
+  } else {
+    document.getElementById('learning-path-card').innerHTML = `
+      <div class="card reveal" style="padding:28px; text-align:center;">
+        <p style="margin-bottom:16px;">Take the Adulting Readiness Assessment and I'll match you to the Learning Path that fits your goals best.</p>
+        <a href="assessment.html" class="btn btn-primary">Take the Assessment →</a>
+      </div>`;
+  }
+
   // Continue learning: recently viewed, not yet complete
   const continueSlugs = (s.recentlyViewed||[]).filter(slug=>!s.completed.includes(slug)).slice(0,3).map(getPlaybook).filter(Boolean);
   document.getElementById('continue-list').innerHTML = continueSlugs.length ? continueSlugs.map(p=>`
@@ -121,7 +233,7 @@ function renderDashboard(){
       <div style="font-size:28px;">${p.emoji}</div>
       <div style="flex:1;"><h4 style="font-size:15.5px; margin-bottom:4px;">${p.title}</h4><p style="margin:0; font-size:13px;">${p.category} · ${p.readTime}</p></div>
       <span style="color:var(--blue); font-weight:700;">Continue →</span>
-    </a>`).join('') : `<div class="empty-state"><div class="ic">📖</div><p>Nothing in progress yet — start a Playbook to see it here.</p><a href="playbooks.html" class="btn btn-primary mt-16">Browse Playbooks</a></div>`;
+    </a>`).join('') : `<div class="empty-state"><div class="ic">🌍</div><p>Your learning journey starts with a single Playbook — Orbit's got plenty of ideas.</p><a href="playbooks.html" class="btn btn-primary mt-16">Browse Playbooks</a></div>`;
 
   // Recommended: first incomplete playbooks from journeys already touched, else first 4 overall
   let recommended = PLAYBOOKS.filter(p=>!s.completed.includes(p.slug) && s.recentlyViewed.includes(p.slug)===false).slice(0,4);
@@ -136,29 +248,42 @@ function renderDashboard(){
   document.getElementById('saved-list').innerHTML = savedPlaybooks.length ? savedPlaybooks.map(p=>`
     <a href="playbook.html?slug=${p.slug}" class="flex items-center gap-12 mb-12" style="text-decoration:none;">
       <span style="font-size:20px;">${p.emoji}</span><span style="font-size:13.5px; font-weight:600; color:var(--navy);">${p.title}</span>
-    </a>`).join('') : `<p style="font-size:13.5px; color:var(--ink-faint);">Nothing saved yet — bookmark a Playbook to see it here.</p>`;
+    </a>`).join('') : `<p style="font-size:13.5px; color:var(--ink-faint);">🌱 Nothing saved yet — bookmark a Playbook you like and it'll show up right here.</p>`;
 
-  // Upcoming events (registered ones first, else next 2)
-  const registeredEvents = EVENTS.filter(e=>s.bookmarks.includes('event-'+e.id));
-  const upcoming = (registeredEvents.length ? registeredEvents : EVENTS).slice(0,2);
-  document.getElementById('upcoming-events').innerHTML = upcoming.map(e=>{
+  // Upcoming Live Learning sessions (registered ones first, else next 2) —
+  // real mentor-published sessions only, never fictional placeholder events.
+  const allUpcoming = upcomingLiveSessions();
+  const registered = allUpcoming.filter(e=>s.bookmarks.includes('event-'+e.id));
+  const upcoming = (registered.length ? registered : allUpcoming).slice(0,2);
+  document.getElementById('upcoming-events').innerHTML = upcoming.length ? upcoming.map(e=>{
     const {dateStr, timeStr} = formatEventLocalTime(e.dateISO);
+    const prog = getProgram(e.programId);
     return `<div class="mb-12" style="padding-bottom:12px; border-bottom:1px solid var(--navy-06);">
-      <div style="font-size:13.5px; font-weight:700; color:var(--navy);">${e.title}</div>
+      <div style="font-size:13.5px; font-weight:700; color:var(--navy);">${prog?prog.title:'Live Session'}</div>
       <div style="font-size:12px; color:var(--ink-faint);">${dateStr} · ${timeStr}</div>
     </div>`;
-  }).join('');
+  }).join('') : `<p style="font-size:13px; color:var(--ink-faint);">No live sessions are scheduled yet. We'll recommend future workshops that match your interests as they become available.</p>`;
+
+  // Helpful Downloads — assessment-aware when possible, falling back to
+  // whatever category the learner's Next Step Playbook belongs to.
+  const dlPillars = new Set([nextStepPlaybook.pillar]);
+  let helpfulDownloads = DOWNLOADS.filter(d=>dlPillars.has(d.pillar)).slice(0,3);
+  if(!helpfulDownloads.length) helpfulDownloads = DOWNLOADS.slice(0,3);
+  document.getElementById('helpful-downloads-list').innerHTML = helpfulDownloads.map(d=>`
+    <a href="worksheet.html?type=${d.type}" target="_blank" class="flex items-center gap-12 mb-12" style="text-decoration:none;">
+      <span style="font-size:18px;">${d.icon}</span><span style="font-size:13px; font-weight:600; color:var(--navy);">${d.title}</span>
+    </a>`).join('');
 
   // Achievements (computed honestly from real local actions)
-  const achievements = [
-    {id:'first', label:'First Playbook', icon:'🌱', unlocked: completedPlaybooks.length>=1},
-    {id:'five', label:'5 Playbooks Done', icon:'⭐', unlocked: completedPlaybooks.length>=5},
-    {id:'streak3', label:'3-Day Streak', icon:'🔥', unlocked: (s.streak||0)>=3},
-    {id:'saver', label:'First Bookmark', icon:'🔖', unlocked: savedPlaybooks.length>=1},
-    {id:'quiz', label:'Quiz Ace', icon:'🎯', unlocked: Object.values(s.quizScores||{}).some(sc=>{ const [a,b]=sc.split('/').map(Number); return a===b; })},
-  ];
+  const achievements = computeAchievements();
   document.getElementById('achievements-list').innerHTML = achievements.map(a=>`
     <div class="pill ${a.unlocked?'pill-success':'pill-navy'}" style="opacity:${a.unlocked?1:.4};" title="${a.unlocked?'Unlocked!':'Locked'}">${a.icon} ${a.label}</div>`).join('');
+
+  // Volunteer Hours summary (real, from the Volunteer Hours Tracker)
+  const volSummary = getVolunteerSummary();
+  document.getElementById('volunteer-summary').innerHTML = volSummary.entryCount>0
+    ? `<p style="font-size:13.5px;"><strong>${volSummary.totalHours}</strong> hour${volSummary.totalHours!==1?'s':''} across <strong>${volSummary.organizationCount}</strong> organization${volSummary.organizationCount!==1?'s':''}.</p>`
+    : `<p style="font-size:13px; color:var(--ink-faint);">🌱 Nothing logged yet — track your first volunteer experience.</p>`;
 
   setTimeout(initReveal, 30);
 }

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Learning Paths — WRLD.</title>
-<meta name="description" content="Guided, sequential Learning Paths through the WRLD Playbook Library — First Job, Financial Confidence, and University journeys.">
+<meta name="description" content="Guided, sequential Learning Paths through the WRLD Playbook Library — Career Readiness, Financial Confidence, University Success, and more.">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -18,6 +18,17 @@
     </div>
   </section>
 
+  <section class="section" style="padding-bottom:0;" id="start-here-section">
+    <div class="container">
+      <div class="section-head reveal" style="margin-bottom:20px;">
+        <div class="eyebrow blue">🎯 Start Here</div>
+        <h3 style="margin:0;" id="start-here-heading">The path I'd recommend first</h3>
+      </div>
+      <div class="assess-orbit-line reveal" id="start-here-orbit-line" style="max-width:640px;"></div>
+      <a class="card hoverable reveal" id="start-here-card" style="display:flex; gap:24px; align-items:center; padding:28px; flex-wrap:wrap; margin-bottom:8px;"></a>
+    </div>
+  </section>
+
   <div id="paths-container"></div>
 
   <section class="section surface-cream">
@@ -27,32 +38,123 @@
         <h2>Coming soon</h2>
         <p>These Learning Paths are on our roadmap — shown honestly as upcoming, not populated with placeholder lessons.</p>
       </div>
-      <div class="programs-grid" id="coming-soon-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px;"></div>
+      <div class="programs-grid" id="coming-soon-grid" style="display:grid; grid-template-columns:repeat(2,1fr); gap:20px; max-width:640px; margin:0 auto;"></div>
     </div>
   </section>
 </main>
 <div id="site-footer"></div>
 <script src="data.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
+const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="48" fill="var(--blue-15)"/><circle cx="50" cy="50" r="30" fill="var(--blue)"/><circle cx="41" cy="46" r="5" fill="white"/><circle cx="59" cy="46" r="5" fill="white"/><path d="M38 60 Q50 70 62 60" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+
+// --- Start Here: the one path Orbit believes fits the learner best right now ---
+function getRecommendedPath(){
+  const s = getState();
+
+  // Tier 1: assessment on file — use its weakest section's linked path.
+  if(s.assessment){
+    const weakest = weakestAssessmentSection(s.assessment.sectionScores);
+    const rec = weakest && SECTION_RECS[weakest];
+    const path = rec && rec.path && getPath(rec.path);
+    if(path) return {path, reason:'assessment'};
+  }
+
+  // Tier 2: no assessment, but already partway through a path — recommend
+  // continuing whichever one has the most progress and isn't finished yet.
+  const inProgress = LEARNING_PATHS
+    .map(lp=>({lp, ...pathProgress(lp)}))
+    .filter(p=>p.done>0 && p.pct<100)
+    .sort((a,b)=>b.pct-a.pct)[0];
+  if(inProgress) return {path:inProgress.lp, reason:'progress'};
+
+  // Tier 3: brand-new learner with no signal — Career Readiness is the most
+  // broadly useful starting point, offered as a starting suggestion, not a claim.
+  const fallback = getPath('career-readiness') || LEARNING_PATHS[0];
+  return {path:fallback, reason:'default'};
+}
+
+function renderStartHere(){
+  const {path, reason} = getRecommendedPath();
+  if(!path){ document.getElementById('start-here-section').classList.add('hidden'); return; }
+
+  const {done, total, pct, nextStep} = pathProgress(path);
+  const copy = {
+    assessment: "This looks like the perfect next milestone based on your assessment.",
+    progress: "You're already making progress here — let's keep that momentum going.",
+    default: "Not sure where to start? This is the path most learners begin with.",
+  }[reason];
+  document.getElementById('start-here-heading').textContent = reason==='progress' ? 'Pick up where you left off' : 'The path I\'d recommend first';
+  document.getElementById('start-here-orbit-line').innerHTML = `${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">${copy}</p>`;
+
+  const card = document.getElementById('start-here-card');
+  card.href = `learning-paths.html#${path.key}`;
+  card.innerHTML = `
+    <div class="pillar-icon" style="width:88px; height:88px; flex-shrink:0; border-radius:var(--r-md); background:${path.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${path.icon}</div>
+    <div style="flex:1; min-width:220px;">
+      <h4 style="margin-bottom:6px;">${path.title}</h4>
+      <p style="margin:0 0 8px; font-size:13.5px;">${path.desc}</p>
+      <div class="progress-bar" style="max-width:220px;"><div style="width:${pct}%;"></div></div>
+    </div>
+    <span class="btn btn-primary" style="flex-shrink:0;">${done>0 ? `Continue (${done}/${total}) →` : 'Start This Path →'}</span>`;
+}
+
+// Complete a Learning Path -> recommend a Live Learning session in the same
+// space, matched by pillar overlap with the path's own step Playbooks.
+function pathLiveSession(lp){
+  const pillars = new Set(lp.steps.map(getPlaybook).filter(Boolean).map(pb=>pb.pillar));
+  const matchingProgramIds = new Set(PROGRAMS.filter(p=>{
+    const dl = (p.downloads||[]).map(getDownload).filter(Boolean);
+    return dl.some(d=>pillars.has(d.pillar));
+  }).map(p=>p.id));
+  if(!matchingProgramIds.size) return null;
+  return upcomingLiveSessions().find(e=>matchingProgramIds.has(e.programId)) || null;
+}
+
 function renderPath(lp, i){
-  const steps = lp.steps.map(getPlaybook).filter(Boolean);
-  const done = steps.filter(s=>isComplete(s.slug)).length;
-  const pct = Math.round((done/steps.length)*100);
+  const {steps, done, total, pct, nextStep} = pathProgress(lp);
+  const estimate = pathEstimatedTime(lp);
+  const completionSession = pct===100 ? pathLiveSession(lp) : null;
   return `
   <section class="section ${i%2===1?'surface-sky':''}" id="${lp.key}">
     <div class="container">
-      <div class="flex justify-between items-start mb-32" style="flex-wrap:wrap; gap:20px;">
-        <div>
+      <div class="flex justify-between items-start mb-24" style="flex-wrap:wrap; gap:20px;">
+        <div style="flex:1; min-width:280px;">
           <div class="eyebrow reveal" style="background:${lp.color==='yellow'?'var(--yellow)':lp.color==='navy'?'var(--navy-10)':'var(--blue-15)'};">${lp.icon} Learning Path</div>
           <h2 class="reveal">${lp.title}</h2>
           <p class="reveal" style="max-width:560px;">${lp.desc}</p>
+          <div class="flex gap-8 mt-12 reveal" style="flex-wrap:wrap;">
+            <span class="pill pill-navy">⏱ ${estimate}</span>
+            <span class="pill pill-blue">📘 ${total} Playbooks</span>
+          </div>
         </div>
         <div class="card reveal" style="padding:20px 24px; min-width:220px;">
-          <div class="flex justify-between mb-8"><span style="font-weight:700; font-size:13px; color:var(--navy);">Your progress</span><span style="font-weight:700; font-size:13px; color:var(--blue);">${done}/${steps.length}</span></div>
+          <div class="flex justify-between mb-8"><span style="font-weight:700; font-size:13px; color:var(--navy);">Your progress</span><span style="font-weight:700; font-size:13px; color:var(--blue);">${done}/${total}</span></div>
           <div class="progress-bar"><div style="width:${pct}%;"></div></div>
         </div>
       </div>
+
+      <div class="card reveal mb-32" style="padding:22px 26px;">
+        <h4 style="margin-bottom:10px; font-size:14px;">🎯 Skills you'll gain</h4>
+        <div class="flex gap-8" style="flex-wrap:wrap; margin-bottom:16px;">
+          ${(lp.skillsGained||[]).map(sk=>`<span class="pill pill-navy">${sk}</span>`).join('')}
+        </div>
+        <div class="assess-orbit-line" style="margin:0;">
+          <svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+          <p style="margin:0; font-size:13.5px; color:var(--navy); font-weight:500;">${
+            pct===100
+              ? (completionSession
+                  ? `You've completed every step in this path — genuinely great work! 🎉 Ready to go further? <a href="events.html" style="color:var(--blue-dark); font-weight:700;">Join a live session</a> to keep building on it.`
+                  : `You've completed every step in this path — genuinely great work. 🎉 We'll recommend a live session in this space as soon as one is scheduled.`)
+              : nextStep
+                ? `Pick up with <strong>${nextStep.title}</strong> next — that's the next step I'd recommend.`
+                : `Ready when you are — start with the first step below.`
+          }</p>
+        </div>
+      </div>
+
       <div class="path-track">
         ${steps.map((s,si)=>`
         <div class="path-node ${isComplete(s.slug)?'done':''} reveal reveal-d${(si%4)+1}">
@@ -72,7 +174,7 @@ function renderPath(lp, i){
           <div class="path-dot" style="background:var(--yellow); border-color:var(--yellow);">🎓</div>
           <div class="path-card" style="background:${pct===100?'var(--success-bg)':'var(--gray)'};">
             <h4 style="margin-bottom:4px;">${pct===100?'Path complete! 🎉':'Path Milestone'}</h4>
-            <p style="margin:0; font-size:13.5px;"><span class="pill pill-sample">Sample</span> Complete all steps to unlock a WRLD Learning Path certificate — shareable on LinkedIn.</p>
+            <p style="margin:0; font-size:13.5px;">Complete all steps to unlock a WRLD Learning Path certificate — shareable on LinkedIn.</p>
           </div>
         </div>
       </div>
@@ -90,6 +192,7 @@ document.getElementById('coming-soon-grid').innerHTML = LEARNING_PATHS_COMING_SO
     <span class="pill pill-sample">Coming Soon</span>
   </div>`).join('');
 
+renderStartHere();
 initPage('paths');
 setTimeout(initReveal, 50);
 </script>

@@ -94,16 +94,42 @@
     <section class="section surface-sky">
       <div class="container">
         <div class="section-head center reveal">
-          <div class="eyebrow">➡️ Continue Learning</div>
-          <h2 id="next-title">Keep going</h2>
+          <div class="eyebrow">➡️ Keep Going</div>
+          <h2 id="next-title">Where to go next</h2>
         </div>
+        <div class="assess-orbit-line reveal" id="keep-going-orbit-line" style="max-width:640px; margin:0 auto 24px;"></div>
         <div id="next-card-wrap" style="max-width:640px; margin:0 auto;"></div>
 
-        <div class="section-head center reveal mt-48">
+        <div class="section-head center reveal mt-48" id="related-heading">
           <div class="eyebrow blue">🔗 Related Playbooks</div>
           <h2>You might also want to read</h2>
         </div>
         <div class="pb-grid" id="related-grid"></div>
+      </div>
+    </section>
+
+    <!-- CONTINUE THE CONVERSATION -->
+    <section class="section">
+      <div class="container">
+        <div class="section-head center reveal">
+          <div class="eyebrow blue">💬 Continue the Conversation</div>
+          <h2>Questions from other learners</h2>
+          <p style="max-width:560px; margin:0 auto;">Ask something specific to this Playbook, or see what others have already asked.</p>
+        </div>
+        <div class="card reveal" style="max-width:680px; margin:0 auto; padding:28px;">
+          <div id="discussion-gate" class="hidden mb-16"></div>
+          <div id="discussion-composer" class="hidden">
+            <textarea id="discussion-input" placeholder="Ask a question about this Playbook..." style="width:100%; min-height:80px; border:1.5px solid var(--navy-10); border-radius:14px; padding:14px; font-family:inherit; font-size:14.5px; resize:vertical;"></textarea>
+            <div class="flex gap-12 items-center mt-12" style="flex-wrap:wrap;">
+              <button class="btn btn-primary btn-sm" onclick="postPlaybookQuestion()">Ask a Question</button>
+              <span id="discussion-error" style="font-size:12.5px; color:#C0392B;"></span>
+            </div>
+          </div>
+          <div id="discussion-list" class="mt-16"></div>
+          <div class="text-center mt-16" id="discussion-browse-wrap" style="display:none;">
+            <button class="btn btn-outline btn-sm" onclick="toggleBrowseAllDiscussion()" id="discussion-browse-btn">Browse Discussion</button>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -111,7 +137,9 @@
 <div id="site-footer"></div>
 <script src="data.js"></script>
 <script src="illustrations.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 function getParam(name){ return new URLSearchParams(location.search).get(name); }
 
@@ -157,6 +185,156 @@ function pbCard(p){
       <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
     </div>
   </a>`;
+}
+
+const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
+
+/* Personalized "Keep Going" — uses completed Playbooks, assessment results,
+   and curated journey/related mappings so there is always a meaningful
+   next step, never a generic or empty block. */
+function renderKeepGoing(p){
+  const s = getState();
+  const justCompleted = isComplete(p.slug);
+  let next = null, reason = '';
+
+  // 1) A deliberately curated journey sequence takes priority
+  if(p.nextInJourney && !s.completed.includes(p.nextInJourney)){
+    next = getPlaybook(p.nextInJourney);
+    reason = `it's the next step in this journey`;
+  }
+  // 2) Otherwise, the first not-yet-completed curated related Playbook
+  if(!next){
+    const related = getRelatedPlaybooks(p.slug).find(r=>!s.completed.includes(r.slug));
+    if(related){ next = related; reason = `it naturally follows what you just covered`; }
+  }
+  // 3) Otherwise, lean on the assessment's weakest area, if one exists
+  if(!next && s.assessment && typeof weakestAssessmentSection==='function'){
+    const weakest = weakestAssessmentSection(s.assessment.sectionScores);
+    const rec = weakest && SECTION_RECS[weakest];
+    const pick = rec && rec.playbooks.map(getPlaybook).find(pb=>pb && pb.slug!==p.slug && !s.completed.includes(pb.slug));
+    if(pick){ next = pick; reason = `it lines up with the goals you shared in your assessment`; }
+  }
+  // 4) Final fallback — any not-yet-completed Playbook
+  if(!next){
+    next = PLAYBOOKS.find(pb=>pb.slug!==p.slug && !s.completed.includes(pb.slug));
+    if(next) reason = `it's a great next place to build momentum`;
+  }
+
+  const orbitLine = document.getElementById('keep-going-orbit-line');
+  if(justCompleted){
+    orbitLine.innerHTML = `${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">🎉 Nice work! Based on what you've completed, here's where I'd go next.</p>`;
+  } else {
+    orbitLine.innerHTML = `${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">Whenever you're ready, here's where I'd recommend heading next.</p>`;
+  }
+
+  if(next){
+    document.getElementById('next-title').textContent = `Up next: ${next.title}`;
+    document.getElementById('next-card-wrap').innerHTML = `
+      <a href="playbook.html?slug=${next.slug}" class="pb-card card hoverable">
+        <div class="pb-thumb" style="background:${next.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${next.emoji}</div>
+        <div class="pb-body">
+          <div class="pb-meta"><span class="pill pill-${next.difficulty==='Beginner'?'success':next.difficulty==='Advanced'?'sample':'yellow'}">${next.difficulty}</span></div>
+          <h4>${next.title}</h4>
+          <p style="font-weight:600; color:var(--blue-dark);">🎯 ${next.outcome}</p>
+          <div class="pb-footer"><span style="font-size:12px; color:var(--ink-faint);">Recommended because ${reason}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
+        </div>
+      </a>`;
+  } else {
+    // Every Playbook completed — celebrate and point toward Learning Paths
+    document.getElementById('next-title').textContent = "You've explored every Playbook 🎉";
+    document.getElementById('next-card-wrap').innerHTML = `<div class="card text-center" style="padding:32px;"><p>That's genuinely impressive — you've worked through the whole library. A full Learning Path or your Journey Passport is a great place to see how far you've come.</p><div class="flex gap-12 justify-center mt-16" style="flex-wrap:wrap;"><a href="learning-paths.html" class="btn btn-primary">View Learning Paths →</a><a href="journey-passport.html" class="btn btn-outline">View My Passport →</a></div></div>`;
+  }
+}
+
+/* --- Continue the Conversation: real, gated, moderated per-Playbook Q&A --- */
+let discussionExpanded = false;
+let currentPlaybookSlug = null;
+
+function renderPlaybookDiscussion(p){
+  currentPlaybookSlug = p.slug;
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  const gate = communityGateReason(user);
+  const gateEl = document.getElementById('discussion-gate');
+  const composerEl = document.getElementById('discussion-composer');
+
+  if(!gate.ok){
+    gateEl.classList.remove('hidden');
+    const acceptBtn = gate.reason==='guidelines' ? `<button class="btn btn-primary btn-sm mt-8" onclick="openGuidelinesModal(()=>renderPlaybookDiscussion(p))">Review & Accept Guidelines</button>` : '';
+    gateEl.innerHTML = `<div class="assess-orbit-line" style="margin:0; flex-direction:column; align-items:flex-start;"><div style="display:flex; gap:12px; width:100%;">${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">${gate.message}</p></div>${acceptBtn}</div>`;
+    composerEl.classList.add('hidden');
+  } else {
+    gateEl.classList.add('hidden');
+    composerEl.classList.remove('hidden');
+  }
+
+  renderDiscussionList(p.slug);
+  window.refreshAfterReport = ()=>renderDiscussionList(currentPlaybookSlug);
+}
+
+function renderDiscussionList(slug){
+  const posts = communityPostsFor('playbook', slug).filter(post=>post.status==='approved');
+  const shown = discussionExpanded ? posts : posts.slice(0,3);
+  const list = document.getElementById('discussion-list');
+  const browseWrap = document.getElementById('discussion-browse-wrap');
+  const browseBtn = document.getElementById('discussion-browse-btn');
+
+  if(!posts.length){
+    list.innerHTML = `<p style="font-size:13.5px; color:var(--ink-faint); text-align:center; padding:16px 0;">🌱 No questions yet on this Playbook — be the first to ask.</p>`;
+    browseWrap.style.display = 'none';
+  } else {
+    list.innerHTML = shown.map(threadCard).join('');
+    browseWrap.style.display = posts.length>3 ? 'block' : 'none';
+    browseBtn.textContent = discussionExpanded ? 'Show Fewer' : `Browse Discussion (${posts.length})`;
+  }
+}
+
+function toggleBrowseAllDiscussion(){
+  discussionExpanded = !discussionExpanded;
+  renderDiscussionList(currentPlaybookSlug);
+}
+
+function threadCard(post){
+  const approvedReplies = (post.replies||[]).filter(r=>r.status==='approved');
+  return `<div class="thread-item">
+    <div class="flex gap-10 items-center mb-6"><span style="font-size:16px;">🧑</span><span style="font-weight:700; font-size:13px; color:var(--navy);">${escapeHtml(post.authorName)}</span><span style="font-size:11px; color:var(--ink-faint);">${timeAgo(post.createdAt)}</span></div>
+    <p style="margin:0 0 8px; font-size:14px;">${escapeHtml(post.body)}</p>
+    ${approvedReplies.map(r=>`
+      <div class="thread-reply">
+        <span style="font-weight:700; font-size:12.5px; color:var(--navy);">${escapeHtml(r.authorName)}</span> <span style="font-size:11px; color:var(--ink-faint);">${timeAgo(r.createdAt)}</span>
+        <p style="margin:2px 0 0; font-size:13.5px;">${escapeHtml(r.body)}</p>
+      </div>`).join('')}
+    <div class="flex gap-16 mt-8">
+      <button class="thread-action" onclick="toggleReplyBox('${post.id}')">Reply</button>
+      <button class="thread-action muted" onclick="openReportModal('${post.id}', null)">Report</button>
+    </div>
+    <div class="hidden mt-8" id="reply-box-${post.id}">
+      <textarea id="reply-input-${post.id}" placeholder="Write a reply..." style="width:100%; min-height:60px; border:1.5px solid var(--navy-10); border-radius:12px; padding:10px; font-family:inherit; font-size:13.5px; resize:vertical;"></textarea>
+      <button class="btn btn-primary btn-sm mt-8" onclick="postPlaybookReply('${post.id}')">Post Reply</button>
+    </div>
+  </div>`;
+}
+
+function toggleReplyBox(postId){
+  document.getElementById('reply-box-'+postId)?.classList.toggle('hidden');
+}
+
+function postPlaybookQuestion(){
+  const input = document.getElementById('discussion-input');
+  const errEl = document.getElementById('discussion-error');
+  const res = createCommunityPost({contextType:'playbook', contextId:currentPlaybookSlug, body:input.value});
+  if(!res.ok){ errEl.textContent = res.error; return; }
+  errEl.textContent = '';
+  input.value = '';
+  showToast(res.post.status==='held' ? "✅ Posted — it's being reviewed before going public." : '✅ Question posted');
+  renderDiscussionList(currentPlaybookSlug);
+}
+
+function postPlaybookReply(postId){
+  const input = document.getElementById('reply-input-'+postId);
+  const res = addCommunityReply(postId, input.value);
+  if(!res.ok){ showToast(res.error); return; }
+  showToast(res.reply.status==='held' ? "✅ Reply posted — it's being reviewed before going public." : '✅ Reply posted');
+  renderDiscussionList(currentPlaybookSlug);
 }
 
 function loadPlaybook(){
@@ -233,26 +411,35 @@ function loadPlaybook(){
   }
   syncCompleteBtn();
   completeBtn.addEventListener('click', ()=>{
+    const wasFirstEver = getState().completed.length===0;
     markComplete(p.slug, p.title);
     syncCompleteBtn();
-    const next = p.nextInJourney ? getPlaybook(p.nextInJourney) : null;
-    setGuideMessage(next ? `Nice! Ready for "${next.title}" next, or take a break — up to you 🌟` : `That's a big one done — check your Dashboard to see how far you've come 🎉`);
+    renderKeepGoing(p);
+    const justUnlockedCommunity = wasFirstEver && getState().completed.length===1;
+    setGuideMessage(justUnlockedCommunity
+      ? `🎉 That's your first Playbook done — nice work! I can introduce you to the community now. Head to Community Commons whenever you're ready.`
+      : `🎉 Nice work! Ready for the next challenge? Check out what's up next below.`);
   });
 
-  // Next in journey
-  const nextSlug = p.nextInJourney;
-  if(nextSlug){
-    const next = getPlaybook(nextSlug);
-    document.getElementById('next-title').textContent = 'Up next: '+next.title;
-    document.getElementById('next-card-wrap').innerHTML = pbCard(next);
-  } else {
-    document.getElementById('next-title').textContent = "You've completed this journey path 🎉";
-    document.getElementById('next-card-wrap').innerHTML = `<div class="card text-center" style="padding:32px;"><p>Great work reaching the end of this sequence. Explore another Learning Path to keep building.</p><a href="learning-paths.html" class="btn btn-primary mt-16">View Learning Paths →</a></div>`;
-  }
+  // --- Keep Going: personalized continuation, never empty ---
+  renderKeepGoing(p);
 
-  // Related — same category, excluding self
-  const related = PLAYBOOKS.filter(r=>r.slug!==p.slug && (r.category===p.category || r.pillar===p.pillar)).slice(0,3);
-  document.getElementById('related-grid').innerHTML = related.map(pbCard).join('');
+  // --- Continue the Conversation: real, gated, moderated Q&A ---
+  renderPlaybookDiscussion(p);
+
+  // --- Related Playbooks: curated map, guaranteed real content ---
+  const related = getRelatedPlaybooks(p.slug).filter(r=>r.slug!==p.slug).slice(0,3);
+  const relatedHeading = document.getElementById('related-heading');
+  if(related.length){
+    relatedHeading.classList.remove('hidden');
+    document.getElementById('related-grid').classList.remove('hidden');
+    document.getElementById('related-grid').innerHTML = related.map(pbCard).join('');
+  } else {
+    // Defensive — should never happen given RELATED_PLAYBOOKS covers every
+    // slug, but a page should never show an empty recommendation block.
+    relatedHeading.classList.add('hidden');
+    document.getElementById('related-grid').classList.add('hidden');
+  }
 
   trackView(p.slug);
   setGuideMessage(isComplete(p.slug)

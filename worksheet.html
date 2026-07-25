@@ -12,7 +12,7 @@
   <section class="section-xs no-print">
     <div class="container flex justify-between items-center" style="flex-wrap:wrap; gap:16px;">
       <a href="downloads.html" style="color:var(--blue-dark); font-weight:600; font-size:14px;">← Download Center</a>
-      <div class="flex gap-12">
+      <div class="flex gap-12" style="flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="sharePage()">🔗 Share</button>
         <button class="btn btn-primary btn-sm" onclick="printPage()">🖨️ Print / Save as PDF</button>
       </div>
@@ -20,6 +20,7 @@
   </section>
   <div id="not-found" class="section text-center hidden"><div class="container"><h2>Worksheet not found</h2><a href="downloads.html" class="btn btn-primary mt-24">← Back to Downloads</a></div></div>
   <div class="worksheet-page" id="worksheet-page"></div>
+  <section class="section-sm no-print" id="ws-next-section" style="max-width:720px; margin:0 auto;"></section>
 </main>
 <div class="no-print" id="site-footer"></div>
 <script src="data.js"></script>
@@ -171,10 +172,35 @@ function loadWorksheet(){
     </div>
     ${spec.sections.map(renderSection).join('')}
     <div style="margin-top:40px; padding-top:20px; border-top:1px solid var(--navy-06); font-size:11px; color:var(--ink-faint); text-align:center;">Free to use, print, and share. Part of the WRLD Playbook Library — more at wrld. resources.</div>`;
+
+  renderNextStep(meta);
+}
+
+function renderNextStep(meta){
+  const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="48" fill="var(--blue-15)"/><circle cx="50" cy="50" r="30" fill="var(--blue)"/><circle cx="41" cy="46" r="5" fill="white"/><circle cx="59" cy="46" r="5" fill="white"/><path d="M38 60 Q50 70 62 60" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+  const next = getDownloadNextStep(meta.type);
+  const wrap = document.getElementById('ws-next-section');
+  if(next){
+    wrap.innerHTML = `<div class="assess-orbit-line reveal" style="margin-bottom:16px;">
+        ${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">Good next move: since you're working on your ${meta.title.toLowerCase()}, <strong>${next.title}</strong> naturally follows.</p>
+      </div>
+      <a href="playbook.html?slug=${next.slug}" class="pb-card card hoverable" style="display:flex; align-items:center; gap:18px; padding:18px 22px;">
+        <div class="pb-thumb" style="width:56px; height:56px; flex-shrink:0; background:${next.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${next.emoji}</div>
+        <div style="flex:1;"><h4 style="margin-bottom:2px;">${next.title}</h4><p style="margin:0; font-size:13px; font-weight:600; color:var(--blue-dark);">🎯 ${next.outcome}</p></div>
+        <span style="color:var(--blue); font-weight:700;">Start →</span>
+      </a>`;
+  } else {
+    wrap.innerHTML = `<div class="assess-orbit-line reveal" style="margin:0;">
+      ${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">Once you've put this into practice, giving back is a great next step — <a href="community.html#volunteer" style="color:var(--blue-dark); font-weight:700;">explore volunteering with WRLD →</a></p>
+    </div>`;
+  }
+  setTimeout(initReveal, 20);
 }
 loadWorksheet();
 </script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>initPage('downloads');</script>
 </body>
 </html>

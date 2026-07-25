@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moderator Dashboard — WRLD.</title>
+<meta name="description" content="WRLD Moderator Dashboard — review reports, held posts, and take action to keep the community safe.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container">
+      <div class="eyebrow reveal">🛡️ Moderator Dashboard</div>
+      <h2 class="reveal">Keep WRLD's community safe.</h2>
+      <p class="reveal" style="max-width:600px;">Everything here operates on real, local community data — held posts, reports, and moderation history are never invented or simulated.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="flex gap-8 mb-32 reveal" id="mod-tabs" style="flex-wrap:wrap;"></div>
+
+      <div id="mod-panel-queue">
+        <h3 class="mb-16 reveal">🚩 Held for Review</h3>
+        <p class="mb-16" style="font-size:13.5px; color:var(--ink-faint);">Content automatically screened or reported into hiding — approve to publish, or remove permanently.</p>
+        <div id="mod-queue-list"></div>
+      </div>
+
+      <div id="mod-panel-reported" class="hidden">
+        <h3 class="mb-16 reveal">📋 Reported Content</h3>
+        <p class="mb-16" style="font-size:13.5px; color:var(--ink-faint);">Includes content still publicly visible that has received at least one report.</p>
+        <div id="mod-reported-list"></div>
+      </div>
+
+      <div id="mod-panel-users" class="hidden">
+        <h3 class="mb-16 reveal">👤 Members</h3>
+        <p class="mb-16" style="font-size:13.5px; color:var(--ink-faint);">Issue a warning or suspend an account. Suspended members are signed out immediately and can't log back in until restored.</p>
+        <div id="mod-users-list"></div>
+      </div>
+
+      <div id="mod-panel-history" class="hidden">
+        <h3 class="mb-16 reveal">🕐 Moderation History</h3>
+        <div id="mod-history-list"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js"></script>
+<script>
+if(requireRole([ROLES.ADMIN])){
+
+  const TABS = [
+    {key:'queue', label:'🚩 Held for Review'},
+    {key:'reported', label:'📋 Reported Content'},
+    {key:'users', label:'👤 Members'},
+    {key:'history', label:'🕐 History'},
+  ];
+  let activeTab = 'queue';
+
+  function renderTabs(){
+    document.getElementById('mod-tabs').innerHTML = TABS.map(t=>`<button type="button" class="filter-chip ${t.key===activeTab?'active':''}" onclick="setModTab('${t.key}')">${t.label}</button>`).join('');
+  }
+  window.setModTab = function(key){
+    activeTab = key;
+    renderTabs();
+    TABS.forEach(t=>document.getElementById('mod-panel-'+t.key).classList.toggle('hidden', t.key!==activeTab));
+    renderActivePanel();
+  };
+
+  function renderActivePanel(){
+    if(activeTab==='queue') renderQueue();
+    else if(activeTab==='reported') renderReported();
+    else if(activeTab==='users') renderUsersPanel();
+    else if(activeTab==='history') renderHistory();
+  }
+
+  function contextLabel(post){
+    if(post.contextType==='playbook'){
+      const pb = typeof getPlaybook==='function' ? getPlaybook(post.contextId) : null;
+      return pb ? `Playbook: ${pb.title}` : 'Playbook discussion';
+    }
+    const cat = typeof getCommonsCategory==='function' ? getCommonsCategory(post.contextId) : null;
+    return cat ? `Commons: ${cat.label}` : 'Community Commons';
+  }
+
+  function queueItemCard(entry){
+    const item = entry.item;
+    return `<div class="card reveal mb-16" style="padding:20px 22px;">
+      <div class="flex justify-between items-start mb-8" style="flex-wrap:wrap; gap:10px;">
+        <div>
+          <span class="pill pill-navy">${entry.type==='reply'?'Reply':'Post'}</span>
+          <span style="font-size:12px; color:var(--ink-faint); margin-left:8px;">${contextLabel(entry.post)}</span>
+        </div>
+        <span style="font-size:11px; color:var(--ink-faint);">${timeAgo(item.createdAt)}</span>
+      </div>
+      <p style="font-size:13.5px; font-weight:700; color:var(--navy); margin-bottom:2px;">${escapeHtml(item.authorName)}</p>
+      <p style="font-size:14px; margin-bottom:10px;">${escapeHtml(item.body)}</p>
+      ${(item.flags||[]).length ? `<div class="flex gap-6 mb-10" style="flex-wrap:wrap;">${item.flags.map(f=>`<span class="pill pill-sample" style="font-size:11px;">${f}</span>`).join('')}</div>` : ''}
+      <div class="flex gap-10" style="flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="modApprove('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">✅ Approve</button>
+        <button class="btn btn-outline btn-sm" onclick="modRemove('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">🗑️ Remove</button>
+        <button class="btn btn-outline btn-sm" onclick="modWarn('${item.authorId}')">⚠️ Warn Author</button>
+      </div>
+    </div>`;
+  }
+
+  function renderQueue(){
+    const queue = getModerationQueue();
+    document.getElementById('mod-queue-list').innerHTML = queue.length
+      ? queue.map(queueItemCard).join('')
+      : `<div class="empty-state"><div class="ic">✅</div><h4>Nothing held right now</h4><p>Automated screening and community reports will surface anything that needs review here.</p></div>`;
+  }
+
+  function reportedItemCard(entry){
+    const item = entry.item;
+    const reasons = (item.reports||[]).map(r=>r.reason);
+    return `<div class="card reveal mb-16" style="padding:20px 22px;">
+      <div class="flex justify-between items-start mb-8" style="flex-wrap:wrap; gap:10px;">
+        <div>
+          <span class="pill ${item.status==='held'?'pill-sample':'pill-success'}">${item.status==='held'?'Held':'Still Public'}</span>
+          <span style="font-size:12px; color:var(--ink-faint); margin-left:8px;">${contextLabel(entry.post)}</span>
+        </div>
+        <span style="font-size:11px; color:var(--ink-faint);">${item.reportCount} report${item.reportCount!==1?'s':''}</span>
+      </div>
+      <p style="font-size:13.5px; font-weight:700; color:var(--navy); margin-bottom:2px;">${escapeHtml(item.authorName)}</p>
+      <p style="font-size:14px; margin-bottom:10px;">${escapeHtml(item.body)}</p>
+      <div class="flex gap-6 mb-10" style="flex-wrap:wrap;">${reasons.map(r=>`<span class="pill pill-navy" style="font-size:11px;">${r}</span>`).join('')}</div>
+      <div class="flex gap-10" style="flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="modApprove('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">✅ Restore / Approve</button>
+        <button class="btn btn-outline btn-sm" onclick="modClearReports('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">🧹 Clear Reports</button>
+        <button class="btn btn-outline btn-sm" onclick="modRemove('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">🗑️ Remove</button>
+      </div>
+    </div>`;
+  }
+
+  function renderReported(){
+    const items = getReportedItems();
+    document.getElementById('mod-reported-list').innerHTML = items.length
+      ? items.map(reportedItemCard).join('')
+      : `<div class="empty-state"><div class="ic">🌱</div><h4>No reports yet</h4><p>Nothing has been reported by the community so far.</p></div>`;
+  }
+
+  function renderUsersPanel(){
+    const users = getUsers();
+    const wrap = document.getElementById('mod-users-list');
+    if(!users.length){
+      wrap.innerHTML = `<div class="empty-state"><div class="ic">👤</div><h4>No members registered yet on this device</h4></div>`;
+      return;
+    }
+    wrap.innerHTML = users.map(u=>`
+      <div class="card mb-12" style="padding:16px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(u.name)} ${u.suspended?'<span class="pill pill-sample" style="margin-left:6px;">Suspended</span>':''}</div>
+          <div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(u.email)} · <span class="role-pill role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span>${u.warnings?` · ${u.warnings} warning${u.warnings!==1?'s':''}`:''}</div>
+        </div>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          ${u.role==='explorer' ? `<button class="btn btn-outline btn-sm" onclick="modPromote('${u.id}')">🤝 Promote to Mentor</button>` : ''}
+          ${u.role==='mentor' ? `<button class="btn btn-outline btn-sm" onclick="modDemote('${u.id}')">Revert to Explorer</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="modWarn('${u.id}')">⚠️ Warn</button>
+          ${u.suspended
+            ? `<button class="btn btn-primary btn-sm" onclick="modUnsuspend('${u.id}')">Restore</button>`
+            : `<button class="btn btn-outline btn-sm" onclick="modSuspend('${u.id}')">🚫 Suspend</button>`}
+        </div>
+      </div>`).join('');
+  }
+
+  function renderHistory(){
+    const log = getModerationLog();
+    document.getElementById('mod-history-list').innerHTML = log.length
+      ? log.map(e=>`<div class="card mb-10" style="padding:14px 18px; font-size:13px;">
+          <strong style="color:var(--navy);">${e.action}</strong> on <code style="font-size:12px;">${e.targetId}</code>
+          ${e.flags && e.flags.length ? ` — ${e.flags.join(', ')}` : ''}
+          <span style="float:right; color:var(--ink-faint); font-size:12px;">${timeAgo(e.at)}</span>
+        </div>`).join('')
+      : `<div class="empty-state"><div class="ic">🕐</div><h4>No moderation actions yet</h4></div>`;
+  }
+
+  window.modApprove = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'approved'); showToast('✅ Approved'); renderActivePanel(); };
+  window.modRemove = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'removed'); showToast('🗑️ Removed'); renderActivePanel(); };
+  window.modClearReports = (postId, replyId)=>{ moderationClearReports(postId, replyId); showToast('🧹 Reports cleared'); renderActivePanel(); };
+  window.modPromote = (userId)=>{ promoteUserRole(userId, ROLES.MENTOR); showToast('🤝 Promoted to Mentor'); renderActivePanel(); };
+  window.modDemote = (userId)=>{ promoteUserRole(userId, ROLES.EXPLORER); showToast('Reverted to Explorer'); renderActivePanel(); };
+  window.modWarn = (userId)=>{ warnUser(userId); showToast('⚠️ Warning issued'); renderActivePanel(); };
+  window.modSuspend = (userId)=>{ suspendUser(userId); showToast('🚫 Account suspended'); renderActivePanel(); };
+  window.modUnsuspend = (userId)=>{ unsuspendUser(userId); showToast('✅ Account restored'); renderActivePanel(); };
+
+  renderTabs();
+  renderQueue();
+  initPage(null, "Everything here is real, local moderation data — nothing simulated. Let me know if you need help interpreting a report.");
+}
+</script>
+</body>
+</html>

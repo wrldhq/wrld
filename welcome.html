@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welcome to WRLD.</title>
+<meta name="description" content="Welcome to WRLD — meet Orbit, your guide.">
+<link rel="stylesheet" href="styles.css">
+<style>
+  #welcome-lines p{opacity:0; transform:translateY(14px); transition:opacity .6s var(--ease), transform .6s var(--ease); font-size:16px; color:var(--navy); margin-bottom:14px; line-height:1.6;}
+  #welcome-lines p.in{opacity:1; transform:translateY(0);}
+  #welcome-lines p:first-child{font-family:'Plus Jakarta Sans'; font-weight:800; font-size:1.5rem; color:var(--navy); margin-bottom:18px;}
+  #welcome-cta{opacity:0; transform:translateY(10px); transition:opacity .6s var(--ease), transform .6s var(--ease);}
+  #welcome-cta.in{opacity:1; transform:translateY(0);}
+  .welcome-avatar{width:88px; height:88px; margin:0 auto 24px; display:block;}
+  @keyframes welcomeFloat{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
+  .welcome-avatar{animation:welcomeFloat 3.2s ease-in-out infinite;}
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="auth-shell">
+    <div class="card auth-card" style="max-width:560px; text-align:center; padding:48px 40px;">
+      <svg class="welcome-avatar" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+      <div id="welcome-lines"></div>
+      <button class="btn btn-primary btn-lg" id="welcome-cta" onclick="location.href='assessment.html'">Let's Get Started →</button>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js"></script>
+<script>
+if(requireAuth()){
+  const user = getCurrentUser();
+  const firstName = user ? user.name.split(' ')[0] : 'there';
+
+  const lines = [
+    `👋 Welcome to WRLD, ${firstName}.`,
+    `I'm Orbit — I'll be your guide throughout your journey here.`,
+    `Whether you're preparing for your first job, applying to university, learning how money works, or simply figuring out adulthood, I'll help you find the right place to start.`,
+    `Before we begin... I'd love to learn a little about you so I can personalize your experience.`,
+  ];
+
+  const wrap = document.getElementById('welcome-lines');
+  wrap.innerHTML = lines.map(l=>`<p>${l}</p>`).join('');
+  const lineEls = wrap.querySelectorAll('p');
+
+  lineEls.forEach((el,i)=>{
+    setTimeout(()=>el.classList.add('in'), 350 + i*750);
+  });
+  setTimeout(()=>{
+    document.getElementById('welcome-cta').classList.add('in');
+  }, 350 + lineEls.length*750 + 300);
+
+  initPage(null, `Welcome, ${firstName}! Let's find your starting point together. 🌱`);
+}
+</script>
+</body>
+</html>

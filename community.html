@@ -24,58 +24,119 @@
     </div>
   </section>
 
-  <section class="section surface-cream" id="discussion">
+  <section class="section surface-cream" id="discussion" style="scroll-margin-top:90px;">
     <div class="container">
       <div class="section-head center reveal">
-        <div class="eyebrow">💬 Discussion Boards</div>
-        <h2>Preview: start a thread</h2>
-        <p>This is a live preview of how discussion boards will work — posts here are shown only in your browser and aren't shared publicly yet.</p>
+        <div class="eyebrow">💬 Community Commons</div>
+        <h2>Learning comes first. Community exists to support it.</h2>
+        <p style="max-width:600px; margin:0 auto;">Posting unlocks once you've completed your first Playbook — that way every conversation here is with someone who actually knows what WRLD is about.</p>
       </div>
-      <div class="card reveal" style="max-width:640px; margin:0 auto; padding:28px;">
-        <textarea id="thread-input" placeholder="Ask something, or share what you're working through..." style="width:100%; min-height:90px; border:1.5px solid var(--navy-10); border-radius:14px; padding:14px; font-family:inherit; font-size:14.5px; resize:vertical;"></textarea>
-        <button class="btn btn-primary mt-16" onclick="postThread()">Post to Preview Board</button>
-        <div id="thread-list" class="mt-24"></div>
+
+      <div class="assess-orbit-line reveal" id="commons-gate-line" style="max-width:680px; margin:0 auto 20px; display:none;"></div>
+
+      <div class="flex gap-8 justify-center mb-24 reveal" id="commons-tabs" style="flex-wrap:wrap;"></div>
+
+      <div class="card reveal" style="max-width:680px; margin:0 auto; padding:28px;">
+        <p id="commons-category-desc" style="font-size:13.5px; margin-bottom:16px;"></p>
+        <div id="commons-composer" class="hidden mb-20">
+          <textarea id="commons-input" placeholder="Share something with the Commons..." style="width:100%; min-height:90px; border:1.5px solid var(--navy-10); border-radius:14px; padding:14px; font-family:inherit; font-size:14.5px; resize:vertical;"></textarea>
+          <div class="flex gap-12 items-center mt-12" style="flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="postCommonsMessage()">Post</button>
+            <span id="commons-error" style="font-size:12.5px; color:#C0392B;"></span>
+          </div>
+        </div>
+        <div id="commons-restricted-note" class="hidden mb-16" style="font-size:13px; color:var(--ink-faint);">Only WRLD Mentors and Administrators can post Announcements — everyone can read them here.</div>
+        <div id="commons-list"></div>
+      </div>
+
+      <div class="card reveal" style="max-width:680px; margin:20px auto 0; padding:20px 24px; background:var(--sky);">
+        <h4 style="font-size:14px; margin-bottom:6px;">🔒 Why there's no private messaging</h4>
+        <p style="font-size:13px; margin:0;">WRLD keeps every conversation public and moderated on purpose. Private messages are much harder to keep safe, so all communication happens through public discussions, Playbook Q&A, Live Learning, and Office Hours instead.</p>
       </div>
     </div>
   </section>
 
-  <section class="section" id="volunteer">
+  <section class="section" id="study-groups" style="scroll-margin-top:90px;">
     <div class="container">
       <div class="section-head center reveal">
-        <div class="eyebrow">🌍 Volunteer</div>
+        <div class="eyebrow blue">📚 Study Groups</div>
+        <h2>Learn alongside people on the same path</h2>
+        <p style="max-width:600px; margin:0 auto;">Study Groups connect learners working through the same Learning Path, Program, or Playbook — discussion, shared goals, and resources in one place.</p>
+      </div>
+      <div class="assess-orbit-line reveal" style="max-width:640px; margin:0 auto;">
+        <svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+        <p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">Study Groups are rolling out in phases — they need real, matched members to be worth joining, so WRLD is building this alongside its growing community rather than launching it empty.</p>
+      </div>
+      <div class="flex gap-20 mt-24" style="flex-wrap:wrap; justify-content:center;">
+        <div class="coming-soon-card reveal" style="max-width:340px;">
+          <div style="font-size:30px; margin-bottom:12px;">📚</div>
+          <h4 style="margin-bottom:8px;">Study Groups — Coming Soon</h4>
+          <p style="font-size:13px;">Each Study Group will include its own discussion board, shared goals, recommended resources, upcoming Live Learning sessions, and Orbit recommendations.</p>
+        </div>
+        <div class="coming-soon-card reveal" id="accountability" style="max-width:340px; scroll-margin-top:90px;">
+          <div style="font-size:30px; margin-bottom:12px;">🧭</div>
+          <h4 style="margin-bottom:8px;">Accountability Partners — Coming Soon</h4>
+          <p style="font-size:13px;">Orbit will suggest pairing you with another learner working toward the same goal — like "Three learners are currently completing this Playbook." That only means something once WRLD has a real, matched community, so it launches alongside Study Groups.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="volunteer" style="scroll-margin-top:90px;">
+    <div class="container">
+      <div class="section-head center reveal">
+        <div class="eyebrow">🌍 Volunteer Hub</div>
         <h2>Give back, entirely online</h2>
-        <p>Volunteer Hub curates remote and virtual-friendly opportunities across a few common categories:</p>
+        <p style="max-width:640px; margin:0 auto;">WRLD doesn't run its own placements yet, so this curates real, established remote-friendly volunteering platforms — search or filter to find something that fits.</p>
       </div>
-      <div class="programs-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:20px;" id="volunteer-cats"></div>
-      <div class="text-center mt-32"><a href="program.html?id=volunteer-hub" class="btn btn-primary">Open Volunteer Hub →</a></div>
+      <div class="search-wrap reveal mt-24">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="vol-search" placeholder="Search volunteer opportunities..." aria-label="Search volunteer opportunities">
+      </div>
+      <div class="filter-row reveal mt-16" id="vol-filters"></div>
+      <div class="programs-grid mt-24" style="display:grid; grid-template-columns:repeat(2,1fr); gap:20px;" id="volunteer-grid"></div>
+      <div class="text-center mt-32">
+        <a href="volunteer-tracker.html" class="btn btn-primary">Track Your Volunteer Hours →</a>
+      </div>
     </div>
   </section>
 
-  <section class="section surface-sky" id="mentor">
+  <section class="section surface-sky" id="mentor" style="scroll-margin-top:90px;">
     <div class="container">
-      <div class="flex justify-between items-center" style="flex-wrap:wrap; gap:24px;">
-        <div style="flex:1; min-width:280px;">
-          <div class="eyebrow reveal">🤝 Ask a Mentor</div>
-          <h2 class="reveal">Mentor matching, launching in phases</h2>
-          <p class="reveal">WRLD's Mentorship Network is actively building its volunteer mentor community. Join the waiting list to be notified as matching opens.</p>
-          <a href="program.html?id=mentorship-network" class="btn btn-primary mt-16 reveal">Join the Waiting List →</a>
+      <div class="section-head center reveal">
+        <div class="eyebrow">🤝 Mentors</div>
+        <h2>Real people, giving back on their own time</h2>
+        <p style="max-width:600px; margin:0 auto;">WRLD's Mentorship Network is a volunteer community — anyone can become a Mentor, and every session is hosted by someone doing this because they want to.</p>
+      </div>
+
+      <div class="dash-grid">
+        <div>
+          <h3 class="mb-16 reveal">Become a Mentor</h3>
+          <div class="card reveal" style="padding:28px;">
+            <p style="font-size:13.5px; margin-bottom:16px;">Mentors host free, live Learning sessions and (soon) 1:1 matched conversations. Here's what to expect:</p>
+            <ul style="margin:0 0 20px; padding-left:20px; font-size:13.5px;">
+              <li style="margin-bottom:8px;"><strong>Commitment:</strong> As little as one live session — no minimum hours required.</li>
+              <li style="margin-bottom:8px;"><strong>Application:</strong> Submit an application through Become a Mentor — a real person on the WRLD team reviews it and approves Mentor access by hand.</li>
+              <li style="margin-bottom:8px;"><strong>Areas of expertise:</strong> Anything covered by a WRLD Program — career, finance, school, wellness, leadership, and more.</li>
+              <li><strong>Tools:</strong> Once approved, Mentor Studio lets you schedule sessions and set up your public mentor profile.</li>
+            </ul>
+            <a href="become-mentor.html" class="btn btn-primary btn-block">Apply to Mentor →</a>
+          </div>
         </div>
-        <div class="card reveal" style="padding:28px; max-width:320px;">
-          <span class="pill pill-sample mb-12" style="display:inline-block;">Coming Soon</span>
-          <h4 class="mb-8">Want to become a mentor instead?</h4>
-          <p style="font-size:13.5px;">We're building our volunteer mentor community from the ground up — reach out to express interest.</p>
-          <a href="about.html#contact" class="btn btn-outline btn-sm btn-block mt-12">Express Interest</a>
+        <div>
+          <h3 class="mb-16 reveal">Current Mentors</h3>
+          <div id="mentors-list"></div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="section">
+  <section class="section" id="success-stories" style="scroll-margin-top:90px;">
     <div class="container">
       <div class="section-head center reveal">
         <div class="eyebrow blue">✨ Success Stories & Member Spotlights</div>
-        <h2>Coming soon, honestly</h2>
-        <p>WRLD is a new platform — we won't invent stories or spotlights before we have real ones. This section will fill in with genuine member stories as the community grows.</p>
+        <h2>Coming soon</h2>
+        <p>We'll never invent stories or spotlights — this space fills in with real member stories as they come in, growing alongside the WRLD community.</p>
       </div>
       <div class="coming-soon-card reveal" style="max-width:600px; margin:0 auto;">
         <div style="font-size:32px; margin-bottom:12px;">🌟</div>
@@ -85,60 +146,224 @@
     </div>
   </section>
 
-  <section class="section surface-navy">
+  <section class="section surface-navy" id="office-hours" style="scroll-margin-top:90px;">
     <div class="container text-center">
       <div class="eyebrow on-dark reveal">🕐 Office Hours</div>
-      <h2 class="reveal">Recurring, live, no appointment needed</h2>
-      <p class="reveal" style="max-width:560px; margin:0 auto 28px;">Open virtual office hours run regularly — drop in with any question, no booking required.</p>
-      <a href="events.html" class="btn btn-yellow reveal">See the Next Office Hours →</a>
+      <h2 class="reveal">Live, virtual, no appointment needed</h2>
+      <p class="reveal" style="max-width:560px; margin:0 auto 28px;">When a WRLD mentor schedules open office hours, you'll find it on Live Learning — drop in with any question, no booking required.</p>
+      <a href="events.html" class="btn btn-yellow reveal">Browse Live Learning →</a>
     </div>
   </section>
 </main>
 <div id="site-footer"></div>
 <script src="data.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 document.getElementById('features-grid').innerHTML = COMMUNITY_FEATURES.map((f,i)=>`
-  <div class="card hoverable reveal reveal-d${(i%4)+1}" style="padding:26px 22px;">
+  <a href="${f.href || f.anchor}" class="card hoverable community-nav-card reveal reveal-d${(i%4)+1}" data-anchor="${f.anchor||''}" style="padding:26px 22px; display:block; text-decoration:none;">
     <div class="flex justify-between items-start mb-16">
       <div class="pillar-icon" style="background:var(--sky); margin-bottom:0;">${f.icon}</div>
       ${f.status==='coming-soon'?'<span class="pill pill-sample">Coming Soon</span>':'<span class="pill pill-success">Live</span>'}
     </div>
     <h4 style="margin-bottom:8px;">${f.title}</h4>
     <p style="font-size:13.5px;">${f.desc}</p>
-  </div>`).join('');
+  </a>`).join('');
 
-const VOLUNTEER_CATEGORIES = [
-  {icon:'📖', title:'Tutoring & Homework Help', desc:'Support younger students remotely with subjects you know well.'},
-  {icon:'💻', title:'Digital Skills Mentoring', desc:'Help someone build comfort with basic tech and digital literacy.'},
-  {icon:'🌱', title:'Community Organizing', desc:'Support local causes with remote-friendly organizing and outreach.'},
-  {icon:'✍️', title:'Content & Translation', desc:'Help make WRLD Playbooks more accessible in more languages.'},
-];
-document.getElementById('volunteer-cats').innerHTML = VOLUNTEER_CATEGORIES.map((v,i)=>`
-  <div class="card reveal reveal-d${i+1}" style="padding:22px;">
-    <div style="font-size:26px; margin-bottom:10px;">${v.icon}</div>
-    <h4 style="font-size:15px; margin-bottom:6px;">${v.title}</h4>
-    <p style="font-size:13px;">${v.desc}</p>
-  </div>`).join('');
+/* --- Interactive nav cards: smooth scroll + scrollspy highlight --- */
+document.getElementById('features-grid').addEventListener('click', e=>{
+  const card = e.target.closest('.community-nav-card');
+  if(!card || !card.dataset.anchor) return; // external links (e.g. Playbook Discussions) navigate normally
+  e.preventDefault();
+  document.querySelector(card.dataset.anchor)?.scrollIntoView({behavior:'smooth', block:'start'});
+});
 
-let previewThreads = [];
-function postThread(){
-  const input = document.getElementById('thread-input');
-  const text = input.value.trim();
-  if(!text) return;
-  previewThreads.unshift({text, time:'Just now'});
+const navCardObserver = new IntersectionObserver(entries=>{
+  entries.forEach(entry=>{
+    if(!entry.isIntersecting) return;
+    const id = '#'+entry.target.id;
+    document.querySelectorAll('.community-nav-card').forEach(card=>{
+      card.classList.toggle('active', card.dataset.anchor===id);
+    });
+  });
+}, {rootMargin:'-40% 0px -50% 0px', threshold:0});
+['discussion','study-groups','accountability','volunteer','mentor','success-stories','office-hours'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) navCardObserver.observe(el);
+});
+
+let activeVolCategory = 'All';
+const volCategoryOptions = ['All', ...volunteerCategoryList()];
+
+function volCard(v,i){
+  return `<a href="${v.url}" target="_blank" rel="noopener" class="card hoverable reveal reveal-d${(i%4)+1}" style="padding:22px; display:block;" data-search-text="${v.title.toLowerCase()} ${v.org.toLowerCase()} ${v.category.toLowerCase()}" data-category="${v.category}">
+    <div class="flex justify-between items-start mb-12">
+      <div style="font-size:26px;">${v.icon}</div>
+      <span class="pill pill-navy">${v.category}</span>
+    </div>
+    <h4 style="font-size:15px; margin-bottom:4px;">${v.title}</h4>
+    <p style="font-size:12.5px; color:var(--ink-faint); margin-bottom:10px;">via ${v.org} · ${v.commitment}</p>
+    <div class="flex gap-6 mb-12" style="flex-wrap:wrap;">${v.skills.map(s=>`<span class="pill pill-blue" style="font-size:11px;">${s}</span>`).join('')}</div>
+    <span style="color:var(--blue); font-weight:700; font-size:13px;">Visit ${v.org} →</span>
+  </a>`;
+}
+
+function renderVolunteerGrid(){
+  document.getElementById('volunteer-grid').innerHTML = VOLUNTEER_OPPORTUNITIES.map(volCard).join('');
+  setTimeout(initReveal, 20);
+}
+
+document.getElementById('vol-filters').innerHTML = volCategoryOptions.map(k=>`<button class="filter-chip ${k==='All'?'active':''}" data-p="${k}">${k}</button>`).join('');
+document.getElementById('vol-filters').addEventListener('click', e=>{
+  const btn = e.target.closest('.filter-chip'); if(!btn) return;
+  activeVolCategory = btn.dataset.p;
+  document.querySelectorAll('#vol-filters .filter-chip').forEach(b=>b.classList.toggle('active', b===btn));
+  filterGrid('#volunteer-grid', 'a', {search:document.getElementById('vol-search').value, category:activeVolCategory});
+});
+document.getElementById('vol-search').addEventListener('input', e=>{
+  filterGrid('#volunteer-grid', 'a', {search:e.target.value, category:activeVolCategory});
+});
+
+renderVolunteerGrid();
+
+/* --- Current Mentors: real directory from registered Mentor accounts --- */
+function renderMentorsList(){
+  const mentors = (typeof getUsers==='function' ? getUsers() : []).filter(u=>u.role==='mentor');
+  const wrap = document.getElementById('mentors-list');
+  if(!mentors.length){
+    wrap.innerHTML = `<div class="card reveal text-center" style="padding:28px;">
+      <p style="font-size:13.5px; margin-bottom:4px;">No Mentors have joined yet on this device.</p>
+      <p style="font-size:12.5px; color:var(--ink-faint);">WRLD is actively building its volunteer mentor community — check back soon, or be the first to sign up.</p>
+    </div>`;
+    return;
+  }
+  wrap.innerHTML = mentors.map((m,i)=>{
+    const profile = getMentorProfile(m.id);
+    const sessionCount = (typeof getLiveSessions==='function' ? getLiveSessions() : []).filter(s=>s.mentorId===m.id).length;
+    const memberSince = new Date(m.createdAt).toLocaleDateString(undefined,{month:'long', year:'numeric'});
+    return `<div class="card reveal reveal-d${(i%4)+1} mb-16" style="padding:22px;">
+      <div class="flex gap-14 items-start">
+        <span class="user-menu-avatar" style="width:44px; height:44px; font-size:15px; flex-shrink:0;">${userInitials(m.name)}</span>
+        <div style="flex:1;">
+          <h4 style="margin-bottom:2px;">${m.name}</h4>
+          <p style="font-size:12.5px; color:var(--blue-dark); font-weight:600; margin-bottom:6px;">${profile.tagline || 'WRLD Mentor'}</p>
+          ${profile.bio ? `<p style="font-size:13px; margin-bottom:8px;">${profile.bio}</p>` : ''}
+          ${profile.expertise && profile.expertise.length ? `<div class="flex gap-6 mb-8" style="flex-wrap:wrap;">${profile.expertise.map(e=>`<span class="pill pill-blue" style="font-size:11px;">${e}</span>`).join('')}</div>` : ''}
+          <p style="font-size:11.5px; color:var(--ink-faint); margin:0;">Mentor since ${memberSince}${sessionCount ? ` · ${sessionCount} session${sessionCount!==1?'s':''} hosted` : ''}</p>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  setTimeout(initReveal, 20);
+}
+renderMentorsList();
+
+const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="48" fill="var(--blue-15)"/><circle cx="50" cy="50" r="30" fill="var(--blue)"/><circle cx="41" cy="46" r="5" fill="white"/><circle cx="59" cy="46" r="5" fill="white"/><path d="M38 60 Q50 70 62 60" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+
+/* --- Community Commons: real, category-based, gated, moderated --- */
+let activeCommonsCategory = COMMONS_CATEGORIES[0].key;
+
+function renderCommonsTabs(){
+  const wrap = document.getElementById('commons-tabs');
+  wrap.innerHTML = COMMONS_CATEGORIES.map(c=>`
+    <button type="button" class="filter-chip ${c.key===activeCommonsCategory?'active':''}" onclick="setCommonsCategory('${c.key}')">${c.icon} ${c.label}</button>`).join('');
+}
+
+function setCommonsCategory(key){
+  activeCommonsCategory = key;
+  renderCommonsTabs();
+  renderCommons();
+}
+
+function renderCommons(){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  const gate = communityGateReason(user);
+  const cat = getCommonsCategory(activeCommonsCategory);
+  const gateLine = document.getElementById('commons-gate-line');
+  const composer = document.getElementById('commons-composer');
+  const restrictedNote = document.getElementById('commons-restricted-note');
+
+  document.getElementById('commons-category-desc').textContent = cat.desc;
+
+  if(!gate.ok){
+    gateLine.style.display = 'flex';
+    gateLine.style.flexDirection = 'column';
+    gateLine.style.alignItems = 'flex-start';
+    const acceptBtn = gate.reason==='guidelines' ? `<button class="btn btn-primary btn-sm mt-8" onclick="openGuidelinesModal(renderCommons)">Review & Accept Guidelines</button>` : '';
+    gateLine.innerHTML = `<div style="display:flex; gap:12px; width:100%;">${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">${gate.message}</p></div>${acceptBtn}`;
+    composer.classList.add('hidden');
+    restrictedNote.classList.add('hidden');
+  } else if(cat.restricted && !(typeof hasPermission==='function' && (hasPermission(user,'publish_resources') || user.role==='mentor'))){
+    gateLine.style.display = 'none';
+    composer.classList.add('hidden');
+    restrictedNote.classList.remove('hidden');
+  } else {
+    gateLine.style.display = 'none';
+    composer.classList.remove('hidden');
+    restrictedNote.classList.add('hidden');
+  }
+
+  renderCommonsList();
+  window.refreshAfterReport = renderCommonsList;
+}
+
+function renderCommonsList(){
+  const posts = communityPostsFor('commons', activeCommonsCategory).filter(p=>p.status==='approved');
+  const list = document.getElementById('commons-list');
+  if(!posts.length){
+    list.innerHTML = `<p style="font-size:13.5px; color:var(--ink-faint); text-align:center; padding:16px 0;">🌍 Nothing posted here yet — be the first to say something.</p>`;
+    return;
+  }
+  list.innerHTML = posts.map(commonsThreadCard).join('');
+}
+
+function commonsThreadCard(post){
+  const approvedReplies = (post.replies||[]).filter(r=>r.status==='approved');
+  return `<div class="thread-item">
+    <div class="flex gap-10 items-center mb-6"><span style="font-size:16px;">🧑</span><span style="font-weight:700; font-size:13px; color:var(--navy);">${escapeHtml(post.authorName)}</span><span style="font-size:11px; color:var(--ink-faint);">${timeAgo(post.createdAt)}</span></div>
+    <p style="margin:0 0 8px; font-size:14px;">${escapeHtml(post.body)}</p>
+    ${approvedReplies.map(r=>`
+      <div class="thread-reply">
+        <span style="font-weight:700; font-size:12.5px; color:var(--navy);">${escapeHtml(r.authorName)}</span> <span style="font-size:11px; color:var(--ink-faint);">${timeAgo(r.createdAt)}</span>
+        <p style="margin:2px 0 0; font-size:13.5px;">${escapeHtml(r.body)}</p>
+      </div>`).join('')}
+    <div class="flex gap-16 mt-8">
+      <button class="thread-action" onclick="toggleCommonsReplyBox('${post.id}')">Reply</button>
+      <button class="thread-action muted" onclick="openReportModal('${post.id}', null)">Report</button>
+    </div>
+    <div class="hidden mt-8" id="commons-reply-box-${post.id}">
+      <textarea id="commons-reply-input-${post.id}" placeholder="Write a reply..." style="width:100%; min-height:60px; border:1.5px solid var(--navy-10); border-radius:12px; padding:10px; font-family:inherit; font-size:13.5px; resize:vertical;"></textarea>
+      <button class="btn btn-primary btn-sm mt-8" onclick="postCommonsReply('${post.id}')">Post Reply</button>
+    </div>
+  </div>`;
+}
+
+function toggleCommonsReplyBox(postId){
+  document.getElementById('commons-reply-box-'+postId)?.classList.toggle('hidden');
+}
+
+function postCommonsMessage(){
+  const input = document.getElementById('commons-input');
+  const errEl = document.getElementById('commons-error');
+  const res = createCommunityPost({contextType:'commons', contextId:activeCommonsCategory, category:activeCommonsCategory, body:input.value});
+  if(!res.ok){ errEl.textContent = res.error; return; }
+  errEl.textContent = '';
   input.value = '';
-  renderThreads();
-  showToast('Posted to your local preview board');
-}
-function renderThreads(){
-  document.getElementById('thread-list').innerHTML = previewThreads.length ? previewThreads.map(t=>`
-    <div style="padding:14px 0; border-top:1px solid var(--navy-06); text-align:left;">
-      <div class="flex gap-10 items-center mb-6"><span style="font-size:18px;">🧑</span><span style="font-weight:700; font-size:13px; color:var(--navy);">You</span><span style="font-size:11px; color:var(--ink-faint);">${t.time}</span></div>
-      <p style="margin:0; font-size:14px;">${t.text}</p>
-    </div>`).join('') : '';
+  showToast(res.post.status==='held' ? "✅ Posted — it's being reviewed before going public." : '✅ Posted to the Commons');
+  renderCommonsList();
 }
 
+function postCommonsReply(postId){
+  const input = document.getElementById('commons-reply-input-'+postId);
+  const res = addCommunityReply(postId, input.value);
+  if(!res.ok){ showToast(res.error); return; }
+  showToast(res.reply.status==='held' ? "✅ Reply posted — it's being reviewed before going public." : '✅ Reply posted');
+  renderCommonsList();
+}
+
+renderCommonsTabs();
+renderCommons();
 initPage('community');
 </script>
 </body>

@@ -23,18 +23,33 @@
       </div>
     </div>
   </section>
+  <section class="section reveal" style="padding-bottom:0;" id="recommended-programs-section">
+    <div class="container">
+      <div class="section-head reveal" style="margin-bottom:20px;">
+        <div class="eyebrow blue">🎯 Recommended for You</div>
+        <h3 style="margin:0;">Where Orbit would start</h3>
+      </div>
+      <div class="assess-orbit-line reveal" id="programs-orbit-line" style="max-width:640px;"></div>
+      <div id="recommended-programs-grid" style="display:grid; grid-template-columns:repeat(2,1fr); gap:24px; margin-bottom:8px;"></div>
+    </div>
+  </section>
   <section class="section">
     <div class="container">
+      <h3 class="mb-24 reveal" id="all-programs-heading">Every WRLD Program</h3>
       <div class="programs-grid" id="programs-grid" style="display:grid; grid-template-columns:repeat(2,1fr); gap:24px;"></div>
     </div>
   </section>
 </main>
 <div id="site-footer"></div>
 <script src="data.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
-document.getElementById('programs-grid').innerHTML = PROGRAMS.map((p,i)=>`
-  <a href="program.html?id=${p.id}" class="card hoverable reveal reveal-d${(i%4)+1}" style="padding:30px; display:block;">
+const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="48" fill="var(--blue-15)"/><circle cx="50" cy="50" r="30" fill="var(--blue)"/><circle cx="41" cy="46" r="5" fill="white"/><circle cx="59" cy="46" r="5" fill="white"/><path d="M38 60 Q50 70 62 60" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+
+function programCard(p,i){
+  return `<a href="program.html?id=${p.id}" class="card hoverable reveal reveal-d${(i%4)+1}" style="padding:30px; display:block;">
     <div class="flex justify-between items-center mb-16">
       <div class="pillar-icon" style="background:var(--sky); margin-bottom:0;">${p.icon}</div>
       ${p.sampleStatus==='coming-soon' ? '<span class="pill pill-sample">Enrollment opening soon</span>' : '<span class="badge-zoom">🎥 Live via Zoom</span>'}
@@ -46,7 +61,52 @@ document.getElementById('programs-grid').innerHTML = PROGRAMS.map((p,i)=>`
       <span class="pill pill-yellow">${p.difficulty}</span>
     </div>
     <span style="color:var(--blue); font-weight:700; font-size:14px;">View program →</span>
-  </a>`).join('');
+  </a>`;
+}
+
+// --- Recommended for You: assessment/progress-driven, hidden if no signal ---
+function getRecommendedPrograms(){
+  const s = getState();
+  const recSection = document.getElementById('recommended-programs-section');
+
+  if(s.assessment){
+    const weakest = weakestAssessmentSection(s.assessment.sectionScores);
+    const rec = weakest && SECTION_RECS[weakest];
+    const program = rec && rec.program && getProgram(rec.program);
+    if(program) return {programs:[program], reason:'assessment'};
+  }
+  if(s.completed && s.completed.length){
+    const completedPillars = new Set(s.completed.map(getPlaybook).filter(Boolean).map(pb=>pb.pillar));
+    const matches = PROGRAMS.filter(p=>{
+      const dl = (p.downloads||[]).map(getDownload).filter(Boolean);
+      return dl.some(d=>completedPillars.has(d.pillar));
+    }).slice(0,2);
+    if(matches.length) return {programs:matches, reason:'progress'};
+  }
+  return {programs:[], reason:'none'};
+}
+
+function renderRecommendedPrograms(){
+  const {programs, reason} = getRecommendedPrograms();
+  const section = document.getElementById('recommended-programs-section');
+  const allHeading = document.getElementById('all-programs-heading');
+
+  if(!programs.length){
+    section.classList.add('hidden');
+    allHeading.textContent = 'Every WRLD Program';
+    return;
+  }
+
+  const copy = reason==='assessment'
+    ? "Based on your assessment, this is where I'd suggest starting."
+    : "Based on the Playbooks you've completed, this looks like a natural next step.";
+  document.getElementById('programs-orbit-line').innerHTML = `${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">${copy}</p>`;
+  document.getElementById('recommended-programs-grid').innerHTML = programs.map((p,i)=>programCard(p,i)).join('');
+  allHeading.textContent = 'The Full Catalogue';
+}
+
+document.getElementById('programs-grid').innerHTML = PROGRAMS.map((p,i)=>programCard(p,i)).join('');
+renderRecommendedPrograms();
 initPage('programs');
 </script>
 </body>

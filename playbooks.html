@@ -33,8 +33,9 @@
       <div class="pb-grid" id="pb-grid-full"></div>
       <div class="empty-state hidden" id="empty-state">
         <div class="ic">🔍</div>
-        <h4>No Playbooks match yet</h4>
-        <p>Try a different search term or clear your filters.</p>
+        <h4>Hmm, nothing matches that yet</h4>
+        <p>Try a different search term or clear a filter — there's likely a Playbook in here for you.</p>
+        <button class="btn btn-outline mt-16" onclick="document.getElementById('pb-search').value=''; activeCat='All'; activeDiff='All'; document.querySelectorAll('#cat-filters .filter-chip').forEach(b=>b.classList.toggle('active', b.dataset.cat==='All')); document.querySelectorAll('#diff-filters .filter-chip').forEach(b=>b.classList.toggle('active', b.dataset.diff==='All')); renderGrid();">Clear search & filters</button>
       </div>
     </div>
   </section>
@@ -42,7 +43,9 @@
 <div id="site-footer"></div>
 <script src="data.js"></script>
 <script src="illustrations.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 let activeCat = 'All';
 let activeDiff = 'All';
@@ -57,12 +60,14 @@ function pbCard(p,i){
     <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; position:relative; overflow:hidden;">${hasIll?`<div style="width:100%; height:220%; position:absolute; top:-40%;">${hasIll}</div>`:p.emoji} ${p.flagship?'<span class="pill pill-sample" style="position:absolute; top:10px; left:12px; background:rgba(255,255,255,.9);">⭐ Flagship</span>':''}${isComplete(p.slug)?'<span style="position:absolute; top:12px; right:14px; font-size:16px;">✅</span>':''}</div>
     <div class="pb-body">
       <div class="pb-meta">
-        <span class="pill pill-blue">⏱ ${p.readTime}</span>
         <span class="pill pill-${diffPill(p.difficulty)}">${p.difficulty}</span>
       </div>
       <h4>${p.title}</h4>
-      <p>${p.dek}</p>
-      <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">${isComplete(p.slug)?'Review →':'Start →'}</span></div>
+      <p style="font-weight:600; color:var(--blue-dark);">🎯 ${p.outcome}</p>
+      <div class="pb-footer">
+        <span class="flex items-center gap-8"><span class="pill pill-navy">${p.category}</span><span style="font-size:11px; color:var(--ink-faint);">⏱ ${p.readTime}</span></span>
+        <span style="color:var(--blue); font-weight:700; font-size:13px;">${isComplete(p.slug)?'Review →':'Start →'}</span>
+      </div>
     </div>
   </a>`;
 }

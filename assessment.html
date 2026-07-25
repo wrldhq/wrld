@@ -15,19 +15,19 @@
   <section class="section" id="view-intro">
     <div class="container assess-shell text-center">
       <div class="eyebrow reveal">🌍 WRLD's Signature Experience</div>
-      <h1 class="reveal" style="font-size:clamp(1.9rem,4.5vw,2.8rem);">The Adulting Readiness Assessment</h1>
-      <p class="reveal" style="font-size:var(--fs-md); max-width:600px; margin:16px auto 32px;">This isn't a test, and there's no passing or failing score. It's a friendly check-in across the parts of adulthood school doesn't usually cover — and by the end, you'll have a personalized roadmap for what to explore next.</p>
+      <h1 class="reveal" style="font-size:clamp(1.9rem,4.5vw,2.8rem);">Let's figure out where to start.</h1>
+      <p class="reveal" style="font-size:var(--fs-md); max-width:600px; margin:16px auto 32px;">Every learner is different. This short check-in with Orbit helps me understand your goals, interests, and where you're starting from — so I can recommend exactly what'll be most helpful to you. No passing, no failing, no wrong answers.</p>
       <div class="flex gap-16 reveal" style="justify-content:center; flex-wrap:wrap; margin-bottom:36px;">
-        <span class="pill pill-blue">🕐 10–15 minutes</span>
+        <span class="pill pill-blue">🕐 A few minutes</span>
         <span class="pill pill-yellow">💾 Save & continue anytime</span>
         <span class="pill pill-navy">🔒 Stored only in your browser</span>
       </div>
       <div class="assess-orbit-line reveal" style="max-width:520px; margin:0 auto 32px; text-align:left;">
         <svg width="44" height="44" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
-        <p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">"There's no wrong answer here — I just want to understand where you're starting from, so I can point you toward what'll actually help. Ready when you are." <br><span style="color:var(--ink-faint); font-weight:400;">— Orbit</span></p>
+        <p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">"There's no wrong answer here — I just want to understand where you're starting from, so I can point you toward what'll actually help. Ready when you are?" <br><span style="color:var(--ink-faint); font-weight:400;">— Orbit</span></p>
       </div>
       <div id="resume-banner" class="sample-banner reveal" style="display:none; max-width:520px; margin:0 auto 24px; text-align:left;"></div>
-      <button class="btn btn-primary btn-lg reveal" id="start-btn" onclick="startAssessment()">🌎 Begin the Assessment</button>
+      <button class="btn btn-primary btn-lg reveal" id="start-btn" onclick="startAssessment()">Start My Journey →</button>
       <p class="reveal mt-16" style="font-size:12.5px; color:var(--ink-faint);">This is a self-reflection tool, not a clinical or diagnostic assessment.</p>
     </div>
   </section>
@@ -49,6 +49,15 @@
     </div>
   </section>
 
+  <!-- TRANSITION: BUILDING THE PERSONALIZED JOURNEY -->
+  <section class="section hidden" id="view-transition">
+    <div class="container text-center" style="max-width:480px; margin:0 auto; padding-top:40px;">
+      <svg class="welcome-avatar-transition float" width="88" height="88" viewBox="0 0 100 100" style="margin:0 auto 32px; display:block;"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+      <h3 id="transition-message" style="font-size:1.3rem; min-height:1.6em; transition:opacity .3s var(--ease);">🌎 Building your personalized learning journey...</h3>
+      <div class="progress-bar mt-24" style="max-width:280px; margin:24px auto 0;"><div id="transition-fill" style="width:0%; transition:width 3.6s linear;"></div></div>
+    </div>
+  </section>
+
   <!-- RESULTS / PASSPORT -->
   <section class="section hidden" id="view-results">
     <div class="container">
@@ -62,24 +71,52 @@
         <div id="passport-content"></div>
       </div>
 
-      <div class="flex gap-16 justify-center mt-32 no-print" style="flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="window.print()">🖨️ Download / Print My Passport</button>
-        <button class="btn btn-outline" onclick="retakeAssessment()">↺ Retake Assessment</button>
-        <a href="dashboard.html" class="btn btn-outline">📊 View My Dashboard</a>
+      <div class="flex gap-12 justify-center mt-24 no-print" style="flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ Print</button>
+        <button class="btn btn-outline btn-sm" onclick="retakeAssessment()">↺ Retake Assessment</button>
       </div>
 
       <div class="section-head center reveal mt-48">
-        <div class="eyebrow blue">📚 Your Personal Roadmap</div>
-        <h2>Recommended, just for you</h2>
-        <p>Based on your responses, here's where WRLD suggests starting.</p>
+        <div class="eyebrow blue">🧭 Your Personalized Roadmap</div>
+        <h2>Your journey starts here</h2>
+        <p>Based on your assessment, here's exactly where to begin — and what comes next.</p>
       </div>
-      <div class="path-track" id="roadmap-track" style="max-width:700px;"></div>
 
-      <div class="section-head center reveal mt-48">
-        <div class="eyebrow">🔗 More Ways to Explore</div>
-        <h2>Recommended resources</h2>
+      <div style="max-width:760px; margin:0 auto;">
+        <div class="card reveal mb-24" id="start-here-card" style="padding:28px;"></div>
+        <div class="card reveal mb-24" id="suggested-path-card" style="padding:28px;"></div>
       </div>
-      <div class="pb-grid" id="recommend-grid" style="grid-template-columns:repeat(3,1fr);"></div>
+
+      <div class="mt-32" style="max-width:960px; margin-left:auto; margin-right:auto;">
+        <h4 class="reveal mb-16" style="text-align:center;">📚 Recommended Next</h4>
+        <div class="pb-grid" id="recommended-next-grid" style="grid-template-columns:repeat(3,1fr);"></div>
+      </div>
+
+      <div class="mt-32" style="max-width:960px; margin-left:auto; margin-right:auto;">
+        <h4 class="reveal mb-16" style="text-align:center;">📥 Helpful Resources</h4>
+        <div class="programs-grid" id="helpful-resources-grid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;"></div>
+      </div>
+
+      <div class="mt-32" style="max-width:700px; margin-left:auto; margin-right:auto;">
+        <h4 class="reveal mb-16" style="text-align:center;">🎥 Suggested Live Learning</h4>
+        <div id="suggested-live-card"></div>
+      </div>
+
+      <div class="text-center reveal mt-48 mb-24 no-print">
+        <button class="btn btn-primary btn-lg" onclick="beginJourney()">Begin My Journey →</button>
+        <p style="font-size:12.5px; color:var(--ink-faint); margin-top:12px;">This takes you to your personalized Explorer Dashboard.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRANSITION: JOURNEY BEGINS NOW -->
+  <section class="section hidden" id="view-journey-begins">
+    <div class="container text-center" style="max-width:520px; margin:0 auto; padding-top:40px;">
+      <svg class="float" width="88" height="88" viewBox="0 0 100 100" style="margin:0 auto 28px; display:block;"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+      <h3 style="margin-bottom:12px;">🌎 Your journey begins now.</h3>
+      <p style="font-size:15px; margin-bottom:28px; color:var(--ink-soft);">Great job! I now have a much better understanding of your goals. Give me a few seconds while I build your personalized learning roadmap.</p>
+      <h4 id="journey-transition-message" style="font-size:1.1rem; min-height:1.6em; color:var(--blue-dark); transition:opacity .3s var(--ease);">📚 Finding the best Playbooks...</h4>
+      <div class="progress-bar mt-24" style="max-width:280px; margin:24px auto 0;"><div id="journey-transition-fill" style="width:0%; transition:width 3.2s linear;"></div></div>
     </div>
   </section>
 
@@ -87,7 +124,9 @@
 <div id="site-footer" class="no-print"></div>
 <script src="data.js"></script>
 <script src="illustrations.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 /* ===================================================================
    ASSESSMENT DATA — 8 sections, clustering the 26 confidence categories
@@ -170,24 +209,8 @@ const ASSESS_SECTIONS = [
 ];
 const SCALE_LABELS = ['Not at all','A little','Somewhat','Confident','Very confident'];
 
-const SECTION_RECS = {
-  career:{playbooks:['resume','interview-skills','networking'], program:'career-bootcamp', path:'first-job'},
-  money:{playbooks:['budgeting','credit-scores'], program:'financial-literacy-academy', path:'financial'},
-  school:{playbooks:['scholarships','study-skills'], program:null, path:'university'},
-  home:{playbooks:['apartment-renting'], program:null, path:null},
-  health:{playbooks:['managing-anxiety','mental-wellness'], program:null, path:null},
-  relationships:{playbooks:['networking'], program:null, path:null},
-  growth:{playbooks:['time-management','graduation-planning'], program:'future-leaders', path:null},
-  community:{playbooks:['scholarships'], program:'volunteer-hub', path:null},
-};
-
-const STAGES = [
-  {min:0, label:'Explorer', icon:'🌱', desc:'You\'re just starting to explore what adulthood involves — and that\'s exactly the right place to begin.'},
-  {min:40, label:'Navigator', icon:'🧭', desc:'You\'ve got some direction already. A bit of focused learning will build real momentum.'},
-  {min:60, label:'Builder', icon:'🛠️', desc:'You\'re actively building real skills. A few targeted Playbooks will round things out.'},
-  {min:80, label:'Trailblazer', icon:'🚀', desc:'You\'re genuinely ahead of the curve. Consider mentoring others through the Mentorship Network.'},
-];
-function getStage(pct){ return STAGES.slice().reverse().find(s=>pct>=s.min); }
+// SECTION_RECS, STAGES, and getStage() now live in data.js so Dashboard and
+// Orbit can reference the same assessment-driven recommendations.
 
 /* ===================================================================
    STATE & FLOW
@@ -300,6 +323,14 @@ function computeScores(){
   return {sectionScores, overall};
 }
 
+const TRANSITION_MESSAGES = [
+  '🌎 Building your personalized learning journey...',
+  '📚 Finding the best Playbooks for you...',
+  '🎯 Matching resources to your goals...',
+  '✨ Preparing your dashboard...',
+  'Almost ready...',
+];
+
 function finishAssessment(){
   const {sectionScores, overall} = computeScores();
   assess.completed = true;
@@ -314,11 +345,32 @@ function finishAssessment(){
   setState(s);
 
   document.getElementById('view-questions').classList.add('hidden');
-  document.getElementById('view-results').classList.remove('hidden');
-  renderPassport(sectionScores, overall);
-  launchConfetti();
-  setGuideMessage(`Passport complete! You're a ${getStage(overall).label} ${getStage(overall).icon} — check out your personal roadmap below.`);
+  document.getElementById('view-transition').classList.remove('hidden');
   window.scrollTo({top:0, behavior:'smooth'});
+  runTransition(()=>{
+    document.getElementById('view-transition').classList.add('hidden');
+    document.getElementById('view-results').classList.remove('hidden');
+    renderPassport(sectionScores, overall);
+    launchConfetti();
+    setGuideMessage(`Passport complete! You're a ${getStage(overall).label} ${getStage(overall).icon} — check out your personal roadmap below.`);
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+}
+
+function runTransition(onDone){
+  const msgEl = document.getElementById('transition-message');
+  const fillEl = document.getElementById('transition-fill');
+  setTimeout(()=>{ fillEl.style.width = '100%'; }, 20);
+  let i = 0;
+  msgEl.textContent = TRANSITION_MESSAGES[0];
+  msgEl.style.opacity = 1;
+  const interval = setInterval(()=>{
+    i++;
+    if(i >= TRANSITION_MESSAGES.length){ clearInterval(interval); return; }
+    msgEl.style.opacity = 0;
+    setTimeout(()=>{ msgEl.textContent = TRANSITION_MESSAGES[i]; msgEl.style.opacity = 1; }, 280);
+  }, 720);
+  setTimeout(()=>{ clearInterval(interval); onDone(); }, 3800);
 }
 
 function radarSVG(sectionScores){
@@ -368,10 +420,10 @@ function renderPassport(sectionScores, overall){
       </div>
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center; margin-bottom:32px;">
+    <div class="assess-radar-grid">
       ${radarSVG(sectionScores)}
       <div>
-        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:16px;">
+        <div class="assess-rings-grid">
           ${ASSESS_SECTIONS.map(s=>`
             <div style="text-align:center;">
               ${progressRing(sectionScores[s.key], '#2EA8C7')}
@@ -381,7 +433,7 @@ function renderPassport(sectionScores, overall){
       </div>
     </div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
+    <div class="two-col-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
       <div style="background:rgba(255,255,255,.06); border-radius:16px; padding:22px;">
         <h4 style="color:#F5CF57; font-size:13px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:14px;">🌟 Top Strengths</h4>
         ${strengths.map(s=>`<div style="margin-bottom:10px; color:white; font-size:14px;">${s.icon} ${s.title} — ${s.score}%</div>`).join('')}
@@ -399,35 +451,138 @@ function renderPassport(sectionScores, overall){
     <p style="text-align:center; font-size:11px; color:#8fa9b2; margin-top:24px;">This is a self-reflection tool for planning your learning — not a clinical or diagnostic assessment. Completed ${new Date(assess.completedAt).toLocaleDateString()}.</p>
   `;
 
-  // Roadmap track
-  const roadmapSteps = [];
-  growth.forEach(g=>{
-    const rec = SECTION_RECS[g.key];
-    rec.playbooks.forEach(slug=>{ if(getPlaybook(slug) && !roadmapSteps.find(r=>r.slug===slug)) roadmapSteps.push({slug, section:g.title}); });
-  });
-  document.getElementById('roadmap-track').innerHTML = roadmapSteps.slice(0,6).map((r,i)=>{
-    const pb = getPlaybook(r.slug);
-    return `<div class="path-node reveal">
-      <div class="path-dot">${pb.emoji}</div>
-      <a href="playbook.html?slug=${pb.slug}" class="path-card">
-        <div style="font-size:11px; font-weight:700; color:var(--ink-faint); text-transform:uppercase;">Because of your ${r.section} score</div>
-        <h4 style="margin:4px 0 4px;">${pb.title}</h4>
-        <p style="margin:0; font-size:13.5px;">${pb.dek}</p>
-      </a>
-    </div>`;
-  }).join('') + `<div class="path-node reveal"><div class="path-dot" style="background:var(--yellow); border-color:var(--yellow);">🎓</div><div class="path-card" style="background:var(--success-bg);"><h4 style="margin-bottom:4px;">Roadmap Milestone</h4><p style="margin:0; font-size:13.5px;"><span class="pill pill-sample">Sample</span> Complete these Playbooks to level up your Passport stage.</p></div></div>`;
+  renderPersonalizedRoadmap(growth);
+}
 
-  // Recommended resources grid (programs + a couple more playbooks)
-  const progRec = growth.map(g=>SECTION_RECS[g.key].program).filter(Boolean);
-  const uniqueProgIds = [...new Set(progRec)];
-  document.getElementById('recommend-grid').innerHTML = uniqueProgIds.slice(0,3).map(id=>{
-    const p = getProgram(id);
-    return `<a href="program.html?id=${p.id}" class="card hoverable" style="padding:24px; display:block;">
-      <div class="pillar-icon" style="background:var(--sky); margin-bottom:14px;">${p.icon}</div>
-      <h4 style="margin-bottom:6px;">${p.title}</h4><p style="font-size:13px;">${p.tagline}</p>
-      <span class="badge-zoom mt-8" style="display:inline-flex;">🎥 Live via Zoom</span>
-    </a>`;
-  }).join('') || `<div class="empty-state"><p>Your Playbook roadmap above is the best place to start.</p></div>`;
+/* ===================================================================
+   PERSONALIZED ROADMAP — never empty. Every section below is derived
+   from the learner's real assessment answers (SECTION_RECS, DOWNLOADS
+   pillars, LEARNING_PATHS), with sensible fallbacks so there's always
+   something meaningful to show.
+   =================================================================== */
+function renderPersonalizedRoadmap(growth){
+  const s = getState();
+  const weakest = growth[0].key;
+  const rec = SECTION_RECS[weakest];
+
+  // Start Here: first not-yet-completed playbook from the weakest section
+  const startHere = rec.playbooks.map(getPlaybook).find(p=>p && !s.completed.includes(p.slug))
+    || rec.playbooks.map(getPlaybook).find(Boolean)
+    || PLAYBOOKS[0];
+
+  document.getElementById('start-here-card').innerHTML = `
+    <div class="eyebrow blue mb-16">🌟 Start Here</div>
+    <a href="playbook.html?slug=${startHere.slug}" class="flex items-center gap-20" style="text-decoration:none; flex-wrap:wrap;">
+      <div class="pb-thumb" style="width:76px; height:76px; flex-shrink:0; border-radius:var(--r-md); font-size:32px; background:${startHere.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${startHere.emoji}</div>
+      <div style="flex:1; min-width:200px;">
+        <h4 style="margin-bottom:6px;">${startHere.title}</h4>
+        <p style="margin:0; font-weight:600; color:var(--blue-dark); font-size:13.5px;">🎯 ${startHere.outcome}</p>
+      </div>
+      <span class="btn btn-primary" style="flex-shrink:0;">Start Now →</span>
+    </a>
+    <p class="mt-16" style="font-size:13px; color:var(--ink-faint); border-top:1px solid var(--navy-06); padding-top:14px; margin-bottom:0;">We recommend starting here because it aligns with the ${SECTION_META[weakest].title.toLowerCase()} goals you shared during your assessment.</p>`;
+
+  // Suggested Learning Path
+  const pathKey = rec.path || growth.map(g=>SECTION_RECS[g.key].path).find(Boolean);
+  const path = pathKey ? getPath(pathKey) : null;
+  if(path){
+    const {done, total, pct} = pathProgress(path);
+    document.getElementById('suggested-path-card').innerHTML = `
+      <div class="eyebrow blue mb-16">🛤️ Your Suggested Learning Path</div>
+      <div class="flex items-center gap-16 mb-16" style="flex-wrap:wrap;">
+        <div class="pillar-icon" style="background:${path.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; margin-bottom:0;">${path.icon}</div>
+        <div style="flex:1; min-width:200px;"><h4 style="margin-bottom:2px;">${path.title}</h4><p style="margin:0; font-size:13px;">${path.desc}</p></div>
+      </div>
+      <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">${(path.skillsGained||[]).slice(0,3).map(sk=>`<span class="pill pill-navy">${sk}</span>`).join('')}</div>
+      <div class="progress-bar mb-16"><div style="width:${pct}%;"></div></div>
+      <a href="learning-paths.html#${path.key}" class="btn btn-outline btn-sm">View Full Path (${done}/${total}) →</a>`;
+  } else {
+    document.getElementById('suggested-path-card').innerHTML = `
+      <div class="eyebrow blue mb-16">🛤️ Your Suggested Learning Path</div>
+      <p style="margin-bottom:16px;">As you complete a few more Playbooks, I'll match you to a full guided Learning Path.</p>
+      <a href="learning-paths.html" class="btn btn-outline btn-sm">Browse Learning Paths →</a>`;
+  }
+
+  // Recommended Next: more playbooks from the weakest areas, excluding Start Here
+  const nextPool = [];
+  growth.forEach(g=>{
+    SECTION_RECS[g.key].playbooks.forEach(slug=>{
+      const pb = getPlaybook(slug);
+      if(pb && pb.slug!==startHere.slug && !nextPool.find(p=>p.slug===slug)) nextPool.push(pb);
+    });
+  });
+  let recommendedNext = nextPool.slice(0,3);
+  if(!recommendedNext.length){
+    recommendedNext = PLAYBOOKS.filter(p=>p.slug!==startHere.slug && !s.completed.includes(p.slug)).slice(0,3);
+  }
+  document.getElementById('recommended-next-grid').innerHTML = recommendedNext.map(p=>`
+    <a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
+      <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}</div>
+      <div class="pb-body">
+        <div class="pb-meta"><span class="pill pill-${p.difficulty==='Beginner'?'success':p.difficulty==='Advanced'?'sample':'yellow'}">${p.difficulty}</span></div>
+        <h4>${p.title}</h4>
+        <p style="font-weight:600; color:var(--blue-dark);">🎯 ${p.outcome}</p>
+        <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
+      </div>
+    </a>`).join('');
+
+  // Helpful Resources: downloads sharing a pillar with the recommended playbooks
+  const pillars = new Set([startHere.pillar, ...recommendedNext.map(p=>p.pillar)]);
+  let resources = DOWNLOADS.filter(d=>pillars.has(d.pillar)).slice(0,4);
+  if(!resources.length) resources = DOWNLOADS.slice(0,4);
+  document.getElementById('helpful-resources-grid').innerHTML = resources.map(d=>`
+    <a href="worksheet.html?type=${d.type}" target="_blank" class="card hoverable reveal" style="padding:18px; text-align:center;">
+      <div style="font-size:26px; margin-bottom:8px;">${d.icon}</div>
+      <h4 style="font-size:13.5px; margin-bottom:4px;">${d.title}</h4>
+      <p style="font-size:11.5px; margin:0;">${d.desc}</p>
+    </a>`).join('');
+
+  // Suggested Live Learning — real sessions only, honest empty state otherwise
+  const relatedProgramIds = growth.map(g=>SECTION_RECS[g.key].program).filter(Boolean);
+  const allSessions = upcomingLiveSessions();
+  let suggestedSessions = allSessions.filter(e=>relatedProgramIds.includes(e.programId));
+  if(!suggestedSessions.length) suggestedSessions = allSessions;
+  if(suggestedSessions.length){
+    document.getElementById('suggested-live-card').innerHTML = suggestedSessions.slice(0,2).map(e=>{
+      const prog = getProgram(e.programId);
+      const {dateStr, timeStr} = formatEventLocalTime(e.dateISO);
+      return `<div class="card reveal mb-12" style="padding:18px 22px;">
+        <div style="font-weight:700; font-size:14px; color:var(--navy);">${prog?prog.title:'Live Session'}</div>
+        <div style="font-size:12.5px; color:var(--ink-faint); margin-bottom:10px;">${dateStr} · ${timeStr}</div>
+        <a href="events.html" class="btn btn-outline btn-sm">View on Live Learning →</a>
+      </div>`;
+    }).join('');
+  } else {
+    document.getElementById('suggested-live-card').innerHTML = `
+      <div class="card reveal" style="padding:24px; text-align:center;">
+        <p style="margin:0;">No live sessions are scheduled yet. We'll recommend future workshops that match your interests as they become available.</p>
+      </div>`;
+  }
+}
+
+const JOURNEY_MESSAGES = [
+  '📚 Finding the best Playbooks...',
+  '🎯 Matching Learning Paths...',
+  '🌱 Personalizing your dashboard...',
+  '✨ Almost ready...',
+];
+
+function beginJourney(){
+  document.getElementById('view-results').classList.add('hidden');
+  document.getElementById('view-journey-begins').classList.remove('hidden');
+  window.scrollTo({top:0, behavior:'smooth'});
+  const msgEl = document.getElementById('journey-transition-message');
+  const fillEl = document.getElementById('journey-transition-fill');
+  setTimeout(()=>{ fillEl.style.width = '100%'; }, 20);
+  let i = 0;
+  msgEl.textContent = JOURNEY_MESSAGES[0];
+  const interval = setInterval(()=>{
+    i++;
+    if(i >= JOURNEY_MESSAGES.length){ clearInterval(interval); return; }
+    msgEl.style.opacity = 0;
+    setTimeout(()=>{ msgEl.textContent = JOURNEY_MESSAGES[i]; msgEl.style.opacity = 1; }, 260);
+  }, 700);
+  setTimeout(()=>{ clearInterval(interval); location.href = 'dashboard.html'; }, 3200);
 }
 
 /* ===================================================================

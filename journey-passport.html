@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Journey Passport — WRLD.</title>
+<meta name="description" content="Your WRLD Journey Passport — a growing record of your Learning Paths, milestones, and progress.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section">
+    <div class="container">
+      <div class="passport-card reveal">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:24px;">
+          <div>
+            <div class="passport-stage-badge mb-16" id="passport-stage-badge">🌱 Explorer Stage</div>
+            <h2 style="color:white; font-size:1.8rem; margin-bottom:8px;">Your Journey Passport</h2>
+            <p style="color:#C9DCE3; max-width:460px;" id="passport-subtitle">A growing record of everything you've built on WRLD — this page fills in as you go.</p>
+          </div>
+        </div>
+
+        <div class="assess-rings-grid mt-32" id="passport-stats" style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0;">
+    <div class="container dash-grid">
+      <div>
+        <h3 class="mb-24 reveal">🧭 Learning Paths</h3>
+        <div id="passport-paths" class="mb-48"></div>
+
+        <h3 class="mb-24 reveal">🏅 Milestones & Achievements</h3>
+        <div id="passport-achievements" class="flex gap-8 mb-48" style="flex-wrap:wrap;"></div>
+
+        <h3 class="mb-8 reveal">🏆 Community Recognition</h3>
+        <p class="mb-16" style="font-size:13px; color:var(--ink-faint);">No likes or follower counts here — these reflect real contribution, not popularity.</p>
+        <div id="passport-community-badges" class="flex gap-8 mb-48" style="flex-wrap:wrap;"></div>
+      </div>
+
+      <div>
+        <div class="dash-side-card card reveal" style="border:1.5px dashed var(--navy-10);">
+          <span class="pill pill-sample mb-8" style="display:inline-block;">Coming Soon</span>
+          <h4 class="mb-8">🎓 Certificates</h4>
+          <p style="font-size:13px;">Certificates you've earned will live here once certificate issuing launches alongside full WRLD accounts.</p>
+        </div>
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">🌍 Volunteer Contributions</h4>
+          <div id="passport-volunteer"></div>
+        </div>
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">📅 Live Learning Attended</h4>
+          <div id="passport-sessions"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js"></script>
+<script>
+if(requireAuth()){
+  const summary = getProgressSummary();
+  const stage = summary.assessment ? getStage(summary.assessment.overall) : STAGES[0];
+
+  document.getElementById('passport-stage-badge').textContent = `${stage.icon} ${stage.label} Stage`;
+  document.getElementById('passport-subtitle').textContent = summary.assessment
+    ? stage.desc
+    : `Take the Adulting Readiness Assessment to unlock your stage — everything else here grows as you do.`;
+
+  document.getElementById('passport-stats').innerHTML = [
+    {num:summary.completedPaths, label:'Learning Paths Completed'},
+    {num:summary.completedPlaybooks, label:'Playbooks Completed'},
+    {num:summary.registeredSessions, label:'Live Sessions Registered'},
+    {num:summary.streak, label:'Day Streak'},
+  ].map(s=>`
+    <div style="text-align:center; background:rgba(255,255,255,.06); border-radius:16px; padding:18px;">
+      <div style="font-family:'Plus Jakarta Sans'; font-weight:800; font-size:1.6rem; color:#F5CF57;">${s.num}</div>
+      <div style="font-size:11.5px; color:#C9DCE3; margin-top:4px;">${s.label}</div>
+    </div>`).join('');
+
+  const completedKeys = completedPathKeys();
+  document.getElementById('passport-paths').innerHTML = LEARNING_PATHS.map(lp=>{
+    const {done, total, pct} = pathProgress(lp);
+    const isDone = completedKeys.includes(lp.key);
+    return `<a href="learning-paths.html#${lp.key}" class="card hoverable reveal mb-16" style="display:flex; align-items:center; gap:18px; padding:18px 22px;">
+      <div class="pillar-icon" style="background:${lp.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; margin-bottom:0; flex-shrink:0;">${isDone?'✓':lp.icon}</div>
+      <div style="flex:1;">
+        <h4 style="margin-bottom:4px; font-size:15px;">${lp.title} ${isDone?'<span class=\"pill pill-success\" style=\"margin-left:6px;\">Complete</span>':''}</h4>
+        <div class="progress-bar" style="height:6px;"><div style="width:${pct}%;"></div></div>
+      </div>
+      <div style="font-weight:700; color:var(--blue); flex-shrink:0;">${done}/${total}</div>
+    </a>`;
+  }).join('');
+
+  document.getElementById('passport-achievements').innerHTML = computeAchievements().map(a=>`
+    <div class="pill ${a.unlocked?'pill-success':'pill-navy'}" style="opacity:${a.unlocked?1:.4};" title="${a.unlocked?'Unlocked!':'Locked'}">${a.icon} ${a.label}</div>`).join('');
+
+  document.getElementById('passport-community-badges').innerHTML = computeCommunityBadges().map(b=>`
+    <div class="pill ${b.unlocked?'pill-success':'pill-navy'}" style="opacity:${b.unlocked?1:.4};" title="${b.desc}">${b.icon} ${b.label}</div>`).join('');
+
+  const volSummary = getVolunteerSummary();
+  document.getElementById('passport-volunteer').innerHTML = volSummary.entryCount>0
+    ? `<p style="font-size:13.5px; margin-bottom:8px;"><strong>${volSummary.totalHours}</strong> hour${volSummary.totalHours!==1?'s':''} logged across <strong>${volSummary.organizationCount}</strong> organization${volSummary.organizationCount!==1?'s':''}.</p><a href="volunteer-tracker.html" class="btn btn-outline btn-sm btn-block">View Volunteer Tracker →</a>`
+    : `<p style="font-size:13px; color:var(--ink-faint); margin-bottom:8px;">Nothing logged yet — track your volunteer hours as you go.</p><a href="volunteer-tracker.html" class="btn btn-outline btn-sm btn-block">Log Your First Hours →</a>`;
+
+  const sessions = upcomingLiveSessions();
+  const attended = attendedLiveSessions();
+  const registeredCount = sessions.filter(e=>getState().bookmarks.includes('event-'+e.id)).length;
+
+  let sessionsHTML = '';
+  if(registeredCount>0){
+    sessionsHTML += `<p style="font-size:13.5px;">You're registered for <strong>${registeredCount}</strong> upcoming session${registeredCount!==1?'s':''}.</p><a href="events.html" class="btn btn-outline btn-sm btn-block mt-8">View Live Learning →</a>`;
+  }
+  if(attended.length>0){
+    sessionsHTML += `<p style="font-size:13.5px; margin-top:${registeredCount>0?'16px':'0'};">You've attended <strong>${attended.length}</strong> live session${attended.length!==1?'s':''} — nice work showing up.</p>
+      <p style="font-size:12.5px; color:var(--ink-faint); margin-top:6px;">Ready to put it into practice? <a href="community.html#volunteer" style="color:var(--blue-dark); font-weight:700;">Explore volunteering →</a></p>`;
+  }
+  if(!sessionsHTML){
+    sessionsHTML = `<p style="font-size:13px; color:var(--ink-faint);">No sessions attended yet — Live Learning history will build up here over time.</p>`;
+  }
+  document.getElementById('passport-sessions').innerHTML = sessionsHTML;
+
+  initPage('passport');
+}
+</script>
+</body>
+</html>

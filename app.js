@@ -1,46 +1,140 @@
 /* =====================================================================
    WRLD — Shared Application Logic
    Nav rendering, state (bookmarks/progress/streak), interactivity helpers.
-   All persistence uses localStorage — this is a demo learning account,
-   clearly labeled as such wherever it's shown in the UI.
+   Progress currently persists via localStorage ahead of full user accounts;
+   see getState()/setState() below — this is the integration point for
+   swapping in real account-based persistence later.
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
    NAV + FOOTER (rendered into every page from one shared template)
    --------------------------------------------------------------------- */
+function userInitials(name){
+  if(!name) return '🌍';
+  return name.trim().split(/\s+/).slice(0,2).map(w=>w[0].toUpperCase()).join('');
+}
+
+function loggedOutNavCTA(){
+  return `
+    <a href="login.html" class="btn btn-outline btn-sm">Log In</a>
+    <a href="signup.html" class="btn btn-primary btn-sm">Sign Up Free</a>`;
+}
+
+function loggedInNavCTA(user){
+  const canMentor = typeof hasPermission==='function' && hasPermission(user, 'manage_own_sessions');
+  const canModerate = typeof hasPermission==='function' && hasPermission(user, 'moderate_platform');
+  return `
+    <div class="user-menu">
+      <button class="user-menu-trigger" onclick="toggleUserMenu(event)" aria-haspopup="true" aria-expanded="false">
+        <span class="user-menu-avatar">${userInitials(user.name)}</span> ${user.name.split(' ')[0]}
+      </button>
+      <div class="user-menu-dropdown" id="user-menu-dropdown">
+        <div style="padding:8px 12px 10px;">
+          <div style="font-weight:800; font-size:13.5px; color:var(--navy);">${user.name}</div>
+          <span class="role-pill role-${user.role}">${ROLE_LABELS[user.role]||user.role}</span>
+        </div>
+        <a href="dashboard.html">📊 My Dashboard</a>
+        ${canMentor ? '<a href="mentor-studio.html">🎙️ Mentor Studio</a>' : ''}
+        ${canModerate ? '<a href="moderation-dashboard.html">🛡️ Moderator Dashboard</a>' : ''}
+        <button onclick="handleLogOut()">🚪 Log Out</button>
+      </div>
+    </div>`;
+}
+
+/* Nav dropdown groups render from NAV_GROUPS (data.js) — a group is
+   highlighted "active" if the current page's key belongs to it, so the
+   bar stays orderly no matter how many pages WRLD adds later. */
+function renderNavDropdown(group, gi, activeKey){
+  const groupActive = group.items.some(it=>it.key===activeKey);
+  return `<div class="nav-dropdown" data-nav-group="${gi}">
+    <button type="button" class="nav-dropdown-trigger ${groupActive?'active':''}" onclick="toggleNavDropdown(event, ${gi})" aria-haspopup="true" aria-expanded="false">${group.label} <span class="nav-caret">▾</span></button>
+    <div class="nav-dropdown-panel" id="nav-dropdown-${gi}">
+      ${group.items.map(it=>`<a href="${it.href}" class="${it.key===activeKey?'active':''}">${it.label}</a>`).join('')}
+    </div>
+  </div>`;
+}
+
 function renderHeader(activeKey){
   const el = document.getElementById('site-header');
   if(!el) return;
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
   el.innerHTML = `
   <a href="#main" class="skip-link">Skip to content</a>
   <header>
     <div class="nav container">
       <a href="index.html" class="logo">
         <svg width="30" height="30" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><path d="M60 15c8 5 5 15-3 12-6-2-2-15 3-12z" fill="#F5CF57"/><path d="M65 55c12-4 25 3 20 15-4 10-22 8-25-2-2-6 1-11 5-13z" fill="#F5CF57"/></svg>
-        wrld<span class="dot">.</span>
+        <span>wrld<span class="dot">.</span></span>
       </a>
       <nav class="nav-links" aria-label="Primary">
-        ${NAV_LINKS.map(l=>`<a href="${l.href}" data-key="${l.key}" class="${activeKey===l.key?'active':''}">${l.label}</a>`).join('')}
+        ${NAV_GROUPS.map((g,gi)=>renderNavDropdown(g, gi, activeKey)).join('')}
       </nav>
       <div class="nav-cta">
-        <a href="dashboard.html" class="btn btn-outline btn-sm">📊 Dashboard</a>
-        <a href="playbooks.html" class="btn btn-primary btn-sm">🌎 Start Learning</a>
+        ${user ? loggedInNavCTA(user) : loggedOutNavCTA()}
       </div>
-      <button class="burger" onclick="toggleMobileMenu()" aria-label="Open menu">☰</button>
+      <button class="burger" onclick="toggleMobileMenu()" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">☰</button>
     </div>
   </header>
   <div class="mobile-menu" id="mobile-menu">
     <div class="flex justify-between items-center mb-24">
-      <div class="logo">wrld<span class="dot">.</span></div>
+      <div class="logo"><span>wrld<span class="dot">.</span></span></div>
       <button class="burger" onclick="toggleMobileMenu()" aria-label="Close menu">✕</button>
     </div>
-    ${NAV_LINKS.map(l=>`<a href="${l.href}">${l.label}</a>`).join('')}
-    <a href="dashboard.html" class="btn btn-primary btn-block mt-24">📊 My Dashboard</a>
+    ${NAV_GROUPS.map(g=>`
+      <div class="mobile-nav-group">
+        <div class="mobile-nav-group-label">${g.label}</div>
+        ${g.items.map(it=>`<a href="${it.href}" class="${it.key===activeKey?'active':''}">${it.label}</a>`).join('')}
+      </div>`).join('')}
+    ${user ? `
+      <a href="dashboard.html" class="btn btn-primary btn-block mt-24">📊 My Dashboard</a>
+      ${(typeof hasPermission==='function' && hasPermission(user,'manage_own_sessions')) ? '<a href="mentor-studio.html" class="btn btn-outline btn-block mt-12">🎙️ Mentor Studio</a>' : ''}
+      ${(typeof hasPermission==='function' && hasPermission(user,'moderate_platform')) ? '<a href="moderation-dashboard.html" class="btn btn-outline btn-block mt-12">🛡️ Moderator Dashboard</a>' : ''}
+      <button class="btn btn-outline btn-block mt-12" onclick="handleLogOut()">🚪 Log Out (${user.name.split(' ')[0]})</button>
+    ` : `
+      <a href="login.html" class="btn btn-outline btn-block mt-24">Log In</a>
+      <a href="signup.html" class="btn btn-primary btn-block mt-12">Sign Up Free</a>
+    `}
   </div>`;
 }
 
+function toggleUserMenu(e){
+  e.stopPropagation();
+  document.querySelectorAll('.nav-dropdown-panel.open').forEach(p=>p.classList.remove('open'));
+  document.querySelectorAll('.nav-dropdown.open').forEach(d=>d.classList.remove('open'));
+  const dd = document.getElementById('user-menu-dropdown');
+  if(!dd) return;
+  const isOpen = dd.classList.toggle('open');
+  e.currentTarget.setAttribute('aria-expanded', String(isOpen));
+}
+
+function toggleNavDropdown(e, idx){
+  e.stopPropagation();
+  document.getElementById('user-menu-dropdown')?.classList.remove('open');
+  document.querySelectorAll('.nav-dropdown-panel').forEach((p,i)=>{ if(i!==idx) p.classList.remove('open'); });
+  document.querySelectorAll('.nav-dropdown').forEach((d,i)=>{ if(i!==idx) d.classList.remove('open'); });
+  const panel = document.getElementById('nav-dropdown-'+idx);
+  if(!panel) return;
+  const isOpen = panel.classList.toggle('open');
+  panel.closest('.nav-dropdown')?.classList.toggle('open', isOpen);
+  e.currentTarget.setAttribute('aria-expanded', String(isOpen));
+}
+
+document.addEventListener('click', ()=>{
+  document.getElementById('user-menu-dropdown')?.classList.remove('open');
+  document.querySelectorAll('.nav-dropdown-panel.open').forEach(p=>p.classList.remove('open'));
+  document.querySelectorAll('.nav-dropdown.open').forEach(d=>d.classList.remove('open'));
+});
+
+function handleLogOut(){
+  if(typeof logOut==='function') logOut();
+  showToast("👋 You've been logged out — see you soon!");
+  setTimeout(()=>{ location.href = 'index.html'; }, 700);
+}
+
 function toggleMobileMenu(){
-  document.getElementById('mobile-menu').classList.toggle('open');
+  const isOpen = document.getElementById('mobile-menu').classList.toggle('open');
+  const openBtn = document.querySelector('.nav .burger');
+  if(openBtn) openBtn.setAttribute('aria-expanded', String(isOpen));
 }
 
 function renderFooter(){
@@ -66,15 +160,16 @@ function renderFooter(){
         </div>
         <div>
           <h5>Community</h5>
-          <a href="events.html">Events</a>
+          <a href="events.html">Live Learning</a>
           <a href="community.html">Discussion Boards</a>
           <a href="community.html#volunteer">Volunteer</a>
-          <a href="community.html#mentor">Become a Mentor</a>
+          <a href="become-mentor.html">Become a Mentor</a>
+          <a href="community-guidelines.html">Community Guidelines</a>
         </div>
         <div>
           <h5>Organization</h5>
           <a href="about.html">About WRLD</a>
-          <a href="about.html#donate">Donate</a>
+          <a href="about.html#donate">Support WRLD</a>
           <a href="about.html#partner">Partner With Us</a>
           <a href="about.html#contact">Contact</a>
           <a href="about.html#accessibility">Accessibility</a>
@@ -93,11 +188,63 @@ function renderFooter(){
     </div>
   </footer>
   <div class="guide" id="guide">
-    <div class="guide-bubble" id="guide-bubble">Hi! I'm Orbit 🌎</div>
-    <svg class="guide-avatar float" viewBox="0 0 100 100" onclick="guideTip()" role="button" aria-label="Get a tip from Orbit"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+    <div class="guide-bubble" id="guide-bubble" onclick="openOrbitPanel()" role="button" tabindex="0" aria-label="Open Orbit">Hi! I'm Orbit 🌎</div>
+    <svg class="guide-avatar float" viewBox="0 0 100 100" onclick="openOrbitPanel()" role="button" tabindex="0" aria-label="Chat with Orbit, your WRLD learning companion"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
   </div>
-  <div id="toast" class="toast"></div>
-  <canvas id="confetti-canvas"></canvas>`;
+  <div class="orbit-panel" id="orbit-panel">
+    <div class="orbit-panel-head">
+      <svg class="avatar" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+      <div class="info">
+        <div class="name">Orbit</div>
+        <div class="status">Your WRLD learning companion</div>
+      </div>
+      <button class="orbit-panel-close" onclick="closeOrbitPanel()" aria-label="Close Orbit">✕</button>
+    </div>
+    <div class="orbit-messages" id="orbit-messages"></div>
+    <div class="orbit-suggestions" id="orbit-suggestions"></div>
+    <div class="orbit-input-row">
+      <input type="text" id="orbit-input" placeholder="Ask Orbit anything..." aria-label="Message Orbit" onkeydown="if(event.key==='Enter') sendOrbitMessage();">
+      <button onclick="sendOrbitMessage()" aria-label="Send">➤</button>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <canvas id="confetti-canvas"></canvas>
+  <div class="report-modal" id="report-modal">
+    <div class="report-modal-card">
+      <h4 class="mb-8">Report this content</h4>
+      <p style="font-size:13px; margin-bottom:16px;">Reports are reviewed as part of WRLD's moderation process — thank you for helping keep this a safe space.</p>
+      <label style="font-size:12px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.04em;">Reason</label>
+      <select id="report-reason" class="mt-8" style="width:100%; padding:10px 12px; border:1.5px solid var(--navy-10); border-radius:10px; font-family:inherit; font-size:14px; margin-bottom:16px;">
+        ${REPORT_REASONS.map(r=>`<option value="${r}">${r}</option>`).join('')}
+      </select>
+      <div class="flex gap-12" style="flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="submitReport()">Submit Report</button>
+        <button class="btn btn-outline btn-sm" onclick="closeReportModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <div class="report-modal" id="guidelines-modal">
+    <div class="report-modal-card" style="max-width:480px; max-height:80vh; overflow-y:auto;">
+      <h4 class="mb-8">WRLD Community Guidelines</h4>
+      <p style="font-size:13px; margin-bottom:12px;">A quick summary before you post — <a href="community-guidelines.html" target="_blank" style="color:var(--blue-dark); font-weight:700;">read the full guidelines →</a></p>
+      <ul style="margin:0 0 16px; padding-left:18px; font-size:12.5px;">
+        <li style="margin-bottom:6px;">Every post is tied to your real, verified WRLD account — there's no anonymous posting.</li>
+        <li style="margin-bottom:6px;">Be kind. No harassment, hate speech, or bullying, ever.</li>
+        <li style="margin-bottom:6px;">No sharing personal information — yours or anyone else's.</li>
+        <li style="margin-bottom:6px;">No spam, scams, or unsafe/dangerous advice.</li>
+        <li style="margin-bottom:6px;">Posts are automatically screened, and anyone can report content — flagged posts are hidden pending review.</li>
+        <li>Breaking these guidelines can lead to a warning, removed content, or a suspended account.</li>
+      </ul>
+      <label class="flex gap-10 items-start mb-16" style="font-size:12.5px; cursor:pointer;">
+        <input type="checkbox" id="guidelines-checkbox" onchange="toggleGuidelinesAcceptEnabled()" style="margin-top:2px;">
+        <span>I've read and agree to WRLD's Community Guidelines.</span>
+      </label>
+      <div class="flex gap-12" style="flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="guidelines-accept-btn" disabled onclick="confirmAcceptGuidelines()">Accept & Continue</button>
+        <button class="btn btn-outline btn-sm" onclick="closeGuidelinesModal()">Cancel</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function subscribeNewsletter(e){
@@ -108,17 +255,132 @@ function subscribeNewsletter(e){
 }
 
 /* ---------------------------------------------------------------------
-   LOCAL STATE (demo learning account — clearly labeled in the UI)
+   LOCAL STATE
+   Browser-local progress store. getState()/setState() are the single
+   read/write boundary for user progress — when accounts/auth land, swap
+   the bodies of these two functions for API calls and everything else
+   on the site (bookmarks, streak, quiz scores, achievements) keeps working
+   unchanged.
    --------------------------------------------------------------------- */
-const STORE_KEY = 'wrld_demo_state_v1';
+const STORE_KEY = 'wrld_state_v1';
 function getState(){
   try{
     const raw = localStorage.getItem(STORE_KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return {bookmarks:[], completed:[], checklists:{}, quizScores:{}, streak:0, lastVisit:null, recentlyViewed:[]};
+  return {bookmarks:[], completed:[], checklists:{}, quizScores:{}, streak:0, lastVisit:null, recentlyViewed:[], guidelinesAcceptedAt:null};
 }
 function setState(state){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+/* ---------------------------------------------------------------------
+   LIVE SESSIONS (Live Learning + Mentor Studio)
+   WRLD never displays fictional workshops or fake scheduled dates —
+   this store starts empty and only ever contains sessions a real Mentor
+   actually published through Mentor Studio. Same read/write-boundary
+   pattern as getState()/setState(): swap the bodies for real API calls
+   once a backend exists, and every page reading from this keeps working.
+   --------------------------------------------------------------------- */
+const LIVE_SESSIONS_KEY = 'wrld_live_sessions_v1';
+function getLiveSessions(){
+  try{ return JSON.parse(localStorage.getItem(LIVE_SESSIONS_KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveLiveSessions(sessions){ localStorage.setItem(LIVE_SESSIONS_KEY, JSON.stringify(sessions)); }
+
+function publishLiveSession(session){
+  const sessions = getLiveSessions();
+  sessions.push(session);
+  saveLiveSessions(sessions);
+}
+
+function cancelLiveSession(id){
+  saveLiveSessions(getLiveSessions().filter(s=>s.id!==id));
+}
+
+/* ---------------------------------------------------------------------
+   LEARNING PATH HELPERS
+   Estimated completion is computed live from each step Playbook's real
+   completionTime field — never a hardcoded, potentially-stale number.
+   --------------------------------------------------------------------- */
+function pathEstimatedTime(lp){
+  const mins = lp.steps.reduce((sum, slug)=>{
+    const pb = getPlaybook(slug);
+    const m = pb && pb.completionTime ? parseInt(pb.completionTime, 10) : 0;
+    return sum + (isNaN(m) ? 0 : m);
+  }, 0);
+  if(mins >= 60){
+    const h = Math.floor(mins/60), m = mins%60;
+    return `~${h} hr${h!==1?'s':''}${m ? ' '+m+' min' : ''} to complete`;
+  }
+  return `~${mins} min to complete`;
+}
+
+function pathProgress(lp){
+  const s = getState();
+  const steps = lp.steps.map(getPlaybook).filter(Boolean);
+  const done = steps.filter(p=>s.completed.includes(p.slug)).length;
+  const nextStep = steps.find(p=>!s.completed.includes(p.slug));
+  return {steps, done, total:steps.length, pct: steps.length?Math.round((done/steps.length)*100):0, nextStep};
+}
+
+function completedPathKeys(){
+  const s = getState();
+  return LEARNING_PATHS.filter(lp=>lp.steps.length && lp.steps.every(slug=>s.completed.includes(slug))).map(lp=>lp.key);
+}
+
+/* ---------------------------------------------------------------------
+   PROGRESS SUMMARY
+   Single source of truth for "how is this Explorer doing" — everything
+   the Dashboard, Journey Passport, and Orbit reference should read from
+   here so growth tracking stays consistent as new features land.
+   --------------------------------------------------------------------- */
+function computeAchievements(){
+  const s = getState();
+  const completedPlaybooks = s.completed.length;
+  const savedPlaybooks = (s.bookmarks||[]).filter(b=>!b.startsWith('program-')&&!b.startsWith('event-')).length;
+  const quizAce = Object.values(s.quizScores||{}).some(sc=>{ const [a,b]=sc.split('/').map(Number); return a===b; });
+  return [
+    {id:'first', label:'First Playbook', icon:'🌱', unlocked: completedPlaybooks>=1},
+    {id:'five', label:'5 Playbooks Done', icon:'⭐', unlocked: completedPlaybooks>=5},
+    {id:'streak3', label:'3-Day Streak', icon:'🔥', unlocked: (s.streak||0)>=3},
+    {id:'saver', label:'First Bookmark', icon:'🔖', unlocked: savedPlaybooks>=1},
+    {id:'quiz', label:'Quiz Ace', icon:'🎯', unlocked: quizAce},
+    {id:'path', label:'First Learning Path Complete', icon:'🧭', unlocked: completedPathKeys().length>=1},
+  ];
+}
+
+function getProgressSummary(){
+  const s = getState();
+  const savedPlaybooks = (s.bookmarks||[]).filter(b=>!b.startsWith('program-')&&!b.startsWith('event-'));
+  const registeredSessions = (s.bookmarks||[]).filter(b=>b.startsWith('event-'));
+  const enrolledPrograms = (s.bookmarks||[]).filter(b=>b.startsWith('program-'));
+  return {
+    completedPlaybooks: s.completed.length,
+    completedPaths: completedPathKeys().length,
+    savedPlaybooks: savedPlaybooks.length,
+    registeredSessions: registeredSessions.length,
+    enrolledPrograms: enrolledPrograms.length,
+    streak: s.streak||0,
+    certificates: 0, // certificates aren't issued yet — always real, never fabricated
+    volunteerHours: (typeof getVolunteerSummary==='function' ? getVolunteerSummary().totalHours : 0),
+    assessment: s.assessment || null,
+  };
+}
+
+function upcomingLiveSessions(){
+  const now = Date.now();
+  return getLiveSessions().filter(s=>new Date(s.dateISO).getTime() > now).sort((a,b)=>new Date(a.dateISO)-new Date(b.dateISO));
+}
+
+// A session the learner registered for whose date has already passed — the
+// closest honest signal we have for "attended" without fabricating check-ins.
+function attendedLiveSessions(){
+  const s = getState();
+  const now = Date.now();
+  return getLiveSessions()
+    .filter(sess => (s.bookmarks||[]).includes('event-'+sess.id) && new Date(sess.dateISO).getTime() <= now)
+    .sort((a,b)=>new Date(b.dateISO)-new Date(a.dateISO));
+}
 
 function updateStreak(){
   const s = getState();
@@ -167,6 +429,446 @@ function trackView(slug){
   const rv = s.recentlyViewed.filter(r=>r!==slug);
   rv.unshift(slug); s.recentlyViewed = rv.slice(0,8);
   setState(s); updateStreak();
+}
+
+/* =======================================================================
+   COMMUNITY
+   Posts, replies, reports, and moderation for the Community Commons and
+   Playbook-level discussions. Same localStorage-backed, API-shaped pattern
+   as getState()/getLiveSessions() elsewhere in this file — every function
+   here can be swapped for a real network call later without touching the
+   pages that use it. Because WRLD has no server yet, posts made in this
+   browser are only visible in this browser, exactly like every other
+   "live" local store on the platform today (sessions, accounts, progress).
+
+   SAFETY NOTE
+   moderateContent() below is a rule-based screen (keyword/pattern matching
+   for self-harm, violence, harassment cues, scams, phishing, and personal
+   info) — it is deliberately described in the UI as "automated screening,"
+   not as a trained AI moderation model, because it isn't one yet. Real
+   large-scale moderation (an actual ML classifier or moderation API) is
+   backend work; this file builds the architecture that will plug into.
+   ======================================================================= */
+
+/* ---------------------------------------------------------------------
+   ACCESS: community participation is earned, not automatic. Anyone can
+   browse; posting/replying/reacting unlocks after a real account +
+   assessment + at least one completed Playbook.
+   --------------------------------------------------------------------- */
+function canParticipateInCommunity(user){
+  if(!user) return false;
+  const s = getState();
+  return !!s.assessment && (s.completed||[]).length >= 1;
+}
+
+function communityGateReason(user){
+  if(!user) return {ok:false, reason:'login', message:'Create a free WRLD account to join the conversation.'};
+  const s = getState();
+  if(!s.assessment) return {ok:false, reason:'assessment', message:"Take the Adulting Readiness Assessment and I'll introduce you to the community."};
+  if(!(s.completed||[]).length) return {ok:false, reason:'playbook', message:"Complete your first Playbook and I'll introduce you to the community. It'll help you get the most out of the conversations."};
+  if(!hasAcceptedGuidelines()) return {ok:false, reason:'guidelines', message:"Before you post, take a minute to review WRLD's Community Guidelines."};
+  return {ok:true};
+}
+
+/* ---------------------------------------------------------------------
+   COMMUNITY GUIDELINES ACCEPTANCE
+   A one-time acceptance, tied to this account's local state, required
+   before a first post anywhere on WRLD. Every contribution is already
+   tied to a verified account — this adds an explicit, informed agreement
+   on top of that, rather than assuming silent consent.
+   --------------------------------------------------------------------- */
+function hasAcceptedGuidelines(){ return !!getState().guidelinesAcceptedAt; }
+function acceptGuidelines(){
+  const s = getState();
+  s.guidelinesAcceptedAt = new Date().toISOString();
+  setState(s);
+}
+
+let guidelinesAcceptCallback = null;
+function openGuidelinesModal(onAccept){
+  guidelinesAcceptCallback = onAccept || null;
+  const checkbox = document.getElementById('guidelines-checkbox');
+  const btn = document.getElementById('guidelines-accept-btn');
+  if(checkbox){ checkbox.checked = false; }
+  if(btn){ btn.disabled = true; }
+  document.getElementById('guidelines-modal')?.classList.add('open');
+}
+function closeGuidelinesModal(){
+  document.getElementById('guidelines-modal')?.classList.remove('open');
+  guidelinesAcceptCallback = null;
+}
+function toggleGuidelinesAcceptEnabled(){
+  const checkbox = document.getElementById('guidelines-checkbox');
+  const btn = document.getElementById('guidelines-accept-btn');
+  if(btn) btn.disabled = !checkbox.checked;
+}
+function confirmAcceptGuidelines(){
+  acceptGuidelines();
+  const cb = guidelinesAcceptCallback;
+  closeGuidelinesModal();
+  showToast('✅ Thanks — Community Guidelines accepted.');
+  if(typeof cb === 'function') cb();
+}
+
+/* ---------------------------------------------------------------------
+   AUTOMATED SAFETY SCREENING (Layer 1 + Layer 2)
+   Every post/reply runs through this before it's stored. 'blocked' content
+   never gets saved at all; 'held' content is saved but hidden from public
+   view pending review; 'approved' content publishes immediately.
+   --------------------------------------------------------------------- */
+function moderateContent(text){
+  const t = (text||'').toLowerCase();
+  const flags = [];
+
+  const patterns = {
+    selfHarm: /\b(kill myself|kill yourself|end my life|end it all|want to die|suicide method)\b/i,
+    violence: /\b(how to (make|build) a (bomb|weapon)|i('m| am) going to hurt|hurt (someone|him|her|them) badly)\b/i,
+    harassment: /\b(you('re| are) (stupid|worthless|pathetic|disgusting)|shut up and die|nobody likes you|kys)\b/i,
+    scam: /\b(wire transfer|send (me )?(bitcoin|crypto)|claim your prize|click (this|here) to claim|free gift card|guaranteed income|make \$\d+ (a|per) (day|week))\b/i,
+    phishing: /\b(verify your (password|account) (here|now)|confirm your (ssn|social security|bank details))\b/i,
+    email: /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i,
+    phone: /\b(\+?\d[\d\-.\s]{8,}\d)\b/,
+    url: /\bhttps?:\/\/\S+/i,
+  };
+
+  if(patterns.selfHarm.test(t)) flags.push('self-harm');
+  if(patterns.violence.test(t)) flags.push('violence');
+  if(patterns.harassment.test(t)) flags.push('harassment');
+  if(patterns.scam.test(t)) flags.push('scam');
+  if(patterns.phishing.test(t)) flags.push('phishing');
+  if(patterns.email.test(t) || patterns.phone.test(t)) flags.push('personal-info');
+  if(patterns.url.test(t)) flags.push('external-link');
+
+  // A small, non-exhaustive keyword layer. A real deployment should plug in
+  // a maintained profanity/hate-speech list or moderation API here.
+  const blockedTerms = ['idiot','shut up','hate you','stfu','worthless'];
+  if(blockedTerms.some(w=>t.includes(w))) flags.push('flagged-language');
+
+  let status = 'approved';
+  if(flags.includes('self-harm') || flags.includes('violence')) status = 'blocked';
+  else if(flags.length) status = 'held';
+
+  return {status, flags};
+}
+
+/* ---------------------------------------------------------------------
+   LAYER 5 — PROGRESSIVE TRUST
+   Brand-new members get modest daily limits; limits grow automatically
+   as a member accumulates real, approved participation over time.
+   --------------------------------------------------------------------- */
+const TRUST_KEY = 'wrld_trust_v1';
+function getTrustState(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(TRUST_KEY));
+    if(raw) return raw;
+  }catch(e){}
+  return {postsToday:0, repliesToday:0, lastDate:null, approvedCount:0};
+}
+function saveTrustState(t){ localStorage.setItem(TRUST_KEY, JSON.stringify(t)); }
+
+function resetTrustIfNewDay(t){
+  const today = new Date().toDateString();
+  if(t.lastDate !== today){ t.postsToday = 0; t.repliesToday = 0; t.lastDate = today; }
+  return t;
+}
+
+function trustLevel(t){
+  const n = t.approvedCount||0;
+  if(n >= 30) return {label:'Established Member', dailyPosts:10, dailyReplies:40};
+  if(n >= 10) return {label:'Trusted Member', dailyPosts:5, dailyReplies:20};
+  return {label:'New Member', dailyPosts:2, dailyReplies:10};
+}
+
+function canPostToday(kind){
+  const t = resetTrustIfNewDay(getTrustState());
+  saveTrustState(t);
+  const level = trustLevel(t);
+  return kind==='reply' ? t.repliesToday < level.dailyReplies : t.postsToday < level.dailyPosts;
+}
+
+function recordCommunityAction(kind, wasApproved){
+  const t = resetTrustIfNewDay(getTrustState());
+  if(kind==='reply') t.repliesToday++; else t.postsToday++;
+  if(wasApproved) t.approvedCount = (t.approvedCount||0)+1;
+  saveTrustState(t);
+}
+
+/* ---------------------------------------------------------------------
+   POSTS + REPLIES
+   contextType is 'commons' (general Community Commons, with a category)
+   or 'playbook' (a Playbook's "Continue the Conversation" area, keyed by
+   slug). Same store, same moderation and trust rules either way.
+   --------------------------------------------------------------------- */
+const COMMUNITY_KEY = 'wrld_community_posts_v1';
+function getCommunityPosts(){
+  try{ return JSON.parse(localStorage.getItem(COMMUNITY_KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveCommunityPosts(posts){ localStorage.setItem(COMMUNITY_KEY, JSON.stringify(posts)); }
+
+function communityPostsFor(contextType, contextId){
+  return getCommunityPosts()
+    .filter(p=>p.contextType===contextType && p.contextId===contextId && p.status!=='removed')
+    .sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+}
+
+function createCommunityPost({contextType, contextId, category, body}){
+  const user = getCurrentUser();
+  const gate = communityGateReason(user);
+  if(!gate.ok) return {ok:false, error:gate.message};
+  if(!canPostToday('post')) return {ok:false, error:"You've reached today's posting limit — it grows automatically the more you participate. Try again tomorrow."};
+  if(!(body||'').trim()) return {ok:false, error:'Write something before posting.'};
+
+  const mod = moderateContent(body);
+  if(mod.status==='blocked') return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
+
+  const posts = getCommunityPosts();
+  const post = {
+    id: 'post_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+    contextType, contextId, category: category||null,
+    authorId:user.id, authorName:user.name,
+    body: body.trim(), createdAt:new Date().toISOString(),
+    status: mod.status==='held' ? 'held' : 'approved',
+    flags: mod.flags, reportCount:0, reports:[], replies:[],
+  };
+  posts.unshift(post);
+  saveCommunityPosts(posts);
+  recordCommunityAction('post', post.status==='approved');
+  if(post.status==='held') logModerationEvent('auto-held', post.id, mod.flags);
+  return {ok:true, post};
+}
+
+function addCommunityReply(postId, body){
+  const user = getCurrentUser();
+  const gate = communityGateReason(user);
+  if(!gate.ok) return {ok:false, error:gate.message};
+  if(!canPostToday('reply')) return {ok:false, error:"You've reached today's reply limit — it grows automatically the more you participate."};
+  if(!(body||'').trim()) return {ok:false, error:'Write something before replying.'};
+
+  const mod = moderateContent(body);
+  if(mod.status==='blocked') return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
+
+  const posts = getCommunityPosts();
+  const post = posts.find(p=>p.id===postId);
+  if(!post) return {ok:false, error:'That discussion no longer exists.'};
+
+  const reply = {
+    id:'reply_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+    authorId:user.id, authorName:user.name, body:body.trim(), createdAt:new Date().toISOString(),
+    status: mod.status==='held' ? 'held' : 'approved', flags:mod.flags, reportCount:0, reports:[],
+  };
+  post.replies.push(reply);
+  saveCommunityPosts(posts);
+  recordCommunityAction('reply', reply.status==='approved');
+  if(reply.status==='held') logModerationEvent('auto-held', reply.id, mod.flags);
+  return {ok:true, reply};
+}
+
+/* ---------------------------------------------------------------------
+   LAYER 3 — COMMUNITY REPORTING
+   Reporting is real: crossing a small threshold automatically hides
+   content from public view pending review, the same way the automated
+   screen does for flagged language.
+   --------------------------------------------------------------------- */
+const REPORT_HOLD_THRESHOLD = 3;
+function reportCommunityItem(postId, replyId, reason){
+  const posts = getCommunityPosts();
+  const post = posts.find(p=>p.id===postId);
+  if(!post) return {ok:false};
+  const target = replyId ? (post.replies||[]).find(r=>r.id===replyId) : post;
+  if(!target) return {ok:false};
+  target.reportCount = (target.reportCount||0)+1;
+  target.reports = target.reports||[];
+  target.reports.push({reason, at:new Date().toISOString()});
+  if(target.reportCount >= REPORT_HOLD_THRESHOLD && target.status==='approved'){
+    target.status = 'held';
+    logModerationEvent('reported-held', replyId||postId, [reason]);
+  }
+  saveCommunityPosts(posts);
+  return {ok:true};
+}
+
+/* ---------------------------------------------------------------------
+   LAYER 4 — MODERATOR DASHBOARD DATA
+   Gate the dashboard itself with hasPermission(user,'moderate_platform').
+   --------------------------------------------------------------------- */
+const MODERATION_LOG_KEY = 'wrld_moderation_log_v1';
+function logModerationEvent(action, targetId, flags){
+  let log = [];
+  try{ log = JSON.parse(localStorage.getItem(MODERATION_LOG_KEY)) || []; }catch(e){}
+  log.unshift({action, targetId, flags:flags||[], at:new Date().toISOString()});
+  localStorage.setItem(MODERATION_LOG_KEY, JSON.stringify(log.slice(0,300)));
+}
+function getModerationLog(){
+  try{ return JSON.parse(localStorage.getItem(MODERATION_LOG_KEY)) || []; }
+  catch(e){ return []; }
+}
+
+function getModerationQueue(){
+  const queue = [];
+  getCommunityPosts().forEach(p=>{
+    if(p.status==='held') queue.push({type:'post', post:p, item:p});
+    (p.replies||[]).forEach(r=>{ if(r.status==='held') queue.push({type:'reply', post:p, item:r}); });
+  });
+  return queue.sort((a,b)=>new Date(b.item.createdAt)-new Date(a.item.createdAt));
+}
+
+function getReportedItems(){
+  const items = [];
+  getCommunityPosts().forEach(p=>{
+    if((p.reportCount||0)>0) items.push({type:'post', post:p, item:p});
+    (p.replies||[]).forEach(r=>{ if((r.reportCount||0)>0) items.push({type:'reply', post:p, item:r}); });
+  });
+  return items.sort((a,b)=>(b.item.reportCount||0)-(a.item.reportCount||0));
+}
+
+function moderationClearReports(postId, replyId){
+  const posts = getCommunityPosts();
+  const post = posts.find(p=>p.id===postId);
+  if(!post) return false;
+  const target = replyId ? (post.replies||[]).find(r=>r.id===replyId) : post;
+  if(!target) return false;
+  target.reportCount = 0;
+  target.reports = [];
+  saveCommunityPosts(posts);
+  logModerationEvent('reports-cleared', replyId||postId, []);
+  return true;
+}
+
+function moderationSetStatus(postId, replyId, status){
+  const posts = getCommunityPosts();
+  const post = posts.find(p=>p.id===postId);
+  if(!post) return false;
+  const target = replyId ? (post.replies||[]).find(r=>r.id===replyId) : post;
+  if(!target) return false;
+  target.status = status;
+  saveCommunityPosts(posts);
+  logModerationEvent(status, replyId||postId, target.flags||[]);
+  return true;
+}
+
+/* ---------------------------------------------------------------------
+   COMMUNITY RECOGNITION
+   No likes, followers, or popularity rankings — badges are computed from
+   real local participation and progress, the same honest way
+   computeAchievements() works.
+   --------------------------------------------------------------------- */
+function computeCommunityBadges(){
+  const user = getCurrentUser();
+  const s = getState();
+  const posts = getCommunityPosts();
+  const myApprovedPosts = user ? posts.filter(p=>p.authorId===user.id && p.status==='approved').length : 0;
+  const myApprovedReplies = user ? posts.reduce((sum,p)=>sum+(p.replies||[]).filter(r=>r.authorId===user.id && r.status==='approved').length, 0) : 0;
+
+  return [
+    {id:'starter', label:'Community Starter', icon:'🌱', desc:'Made your first post in the Community Commons.', unlocked: myApprovedPosts>=1},
+    {id:'helpful', label:'Helpful Contributor', icon:'💬', desc:'Posted 5 or more helpful replies.', unlocked: myApprovedReplies>=5},
+    {id:'leader', label:'Learning Leader', icon:'🎓', desc:'Completed 5 or more Playbooks.', unlocked: (s.completed||[]).length>=5},
+    {id:'consistent', label:'Consistent Learner', icon:'🔥', desc:'Kept a 7-day learning streak.', unlocked: (s.streak||0)>=7},
+    {id:'mentor', label:'Community Mentor', icon:'🤝', desc:'A WRLD Mentor giving back through Live Learning.', unlocked: !!(user && user.role==='mentor')},
+    {id:'volunteer', label:'Volunteer Champion', icon:'🌍', desc:'Logged 10 or more volunteer hours.', unlocked: (typeof getVolunteerSummary==='function' ? getVolunteerSummary().totalHours : 0) >= 10},
+  ];
+}
+
+/* ---------------------------------------------------------------------
+   VOLUNTEER HOURS TRACKER
+   Real, localStorage-backed log of a learner's own volunteer experiences.
+   Feeds getProgressSummary()'s volunteerHours (previously always 0) and
+   the "Volunteer Champion" community badge, so both become real once a
+   learner actually logs hours. Proof uploads store only the file's name/
+   type today (not the file itself) — real secure file storage is future
+   work, and the UI says so honestly rather than pretending it's stored.
+   --------------------------------------------------------------------- */
+const VOLUNTEER_LOG_KEY = 'wrld_volunteer_log_v1';
+function getVolunteerEntries(){
+  try{ return JSON.parse(localStorage.getItem(VOLUNTEER_LOG_KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveVolunteerEntries(entries){ localStorage.setItem(VOLUNTEER_LOG_KEY, JSON.stringify(entries)); }
+
+function addVolunteerEntry(entry){
+  const entries = getVolunteerEntries();
+  const record = {
+    id:'vol_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+    organization:(entry.organization||'').trim(),
+    role:(entry.role||'').trim(),
+    startDate:entry.startDate||'', endDate:entry.endDate||'',
+    hours: Number(entry.hours)||0,
+    skills:(entry.skills||[]).filter(Boolean),
+    reflection:(entry.reflection||'').trim(),
+    proofFileName: entry.proofFileName||null,
+    loggedAt:new Date().toISOString(),
+  };
+  entries.unshift(record);
+  saveVolunteerEntries(entries);
+  return record;
+}
+function deleteVolunteerEntry(id){
+  saveVolunteerEntries(getVolunteerEntries().filter(e=>e.id!==id));
+}
+function getVolunteerSummary(){
+  const entries = getVolunteerEntries();
+  const totalHours = entries.reduce((sum,e)=>sum+(Number(e.hours)||0), 0);
+  const organizations = new Set(entries.map(e=>e.organization).filter(Boolean));
+  return {totalHours, organizationCount:organizations.size, entryCount:entries.length, entries};
+}
+
+/* ---------------------------------------------------------------------
+   MENTOR PROFILES
+   Optional profile info (tagline, bio, areas of expertise) a Mentor can
+   fill in via Mentor Studio, surfaced on the Community "Current Mentors"
+   directory. Same localStorage-backed pattern as everything else here.
+   --------------------------------------------------------------------- */
+const MENTOR_PROFILES_KEY = 'wrld_mentor_profiles_v1';
+function getMentorProfiles(){
+  try{ return JSON.parse(localStorage.getItem(MENTOR_PROFILES_KEY)) || {}; }
+  catch(e){ return {}; }
+}
+function getMentorProfile(userId){
+  return getMentorProfiles()[userId] || {tagline:'', bio:'', expertise:[]};
+}
+function saveMentorProfile(userId, profile){
+  const all = getMentorProfiles();
+  all[userId] = profile;
+  localStorage.setItem(MENTOR_PROFILES_KEY, JSON.stringify(all));
+}
+
+function timeAgo(iso){
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff/60000);
+  if(mins < 1) return 'Just now';
+  if(mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins/60);
+  if(hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs/24);
+  if(days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined,{month:'short', day:'numeric'});
+}
+
+/* ---------------------------------------------------------------------
+   REPORT MODAL (Layer 3 — Community Reporting)
+   One shared modal, injected once via renderFooter(), reused by every
+   page that shows community posts/replies (Playbook discussions,
+   Community Commons, Study Groups).
+   --------------------------------------------------------------------- */
+const REPORT_REASONS = ['Harassment','Spam','Unsafe Advice','Misinformation','Explicit Content','Other'];
+let reportTarget = null;
+function openReportModal(postId, replyId){
+  reportTarget = {postId, replyId: replyId||null};
+  document.getElementById('report-modal')?.classList.add('open');
+}
+function closeReportModal(){
+  document.getElementById('report-modal')?.classList.remove('open');
+  reportTarget = null;
+}
+function submitReport(){
+  if(!reportTarget) return;
+  const reasonEl = document.getElementById('report-reason');
+  const reason = reasonEl ? reasonEl.value : 'Other';
+  reportCommunityItem(reportTarget.postId, reportTarget.replyId, reason);
+  closeReportModal();
+  showToast('🚩 Report submitted — thanks for helping keep WRLD safe.');
+  if(typeof window.refreshAfterReport === 'function') window.refreshAfterReport();
 }
 
 /* ---------------------------------------------------------------------
@@ -451,8 +1153,14 @@ function contextualGuideMessage(pageKey){
   if(pageKey==='programs') return "Every WRLD program is live, free, and 100% online via Zoom — ask me anything before you enroll.";
   if(pageKey==='downloads') return "Every download here is print-ready — no sign-up needed. Grab whatever's useful.";
   if(pageKey==='events') return "All times shown are converted to your local time zone automatically 🌍";
-  if(pageKey==='community') return "You're not figuring this out alone — that's kind of the whole point of this page.";
+  if(pageKey==='community'){
+    const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+    const gate = typeof communityGateReason==='function' ? communityGateReason(user) : {ok:true};
+    if(!gate.ok) return gate.message + " You're welcome to browse in the meantime.";
+    return "You're not figuring this out alone — that's kind of the whole point of this page. You've unlocked posting, so jump in whenever you're ready.";
+  }
   if(pageKey==='about') return "Curious why WRLD exists? I think you'll like this page.";
+  if(pageKey==='passport') return "This grows every time you finish something — nothing here is invented, all of it is really yours.";
   if(s.streak>=3) return `${s.streak}-day streak! 🔥 I'm impressed — don't stop now.`;
   if(done>0) return `Nice work — ${done} Playbook${done!==1?'s' : ''} completed so far. Want a recommendation for what's next?`;
   return "Hi! I'm Orbit 🌎 — click me anytime for a tip, or just say hello.";

@@ -57,7 +57,7 @@
         <h2>Where WRLD actually came from.</h2>
       </div>
       <div class="flex gap-48 items-start" style="flex-wrap:wrap;">
-        <div style="flex:0 0 280px; margin:0 auto;">
+        <div style="flex:0 1 280px; width:100%; max-width:280px; margin:0 auto;">
           <div class="founder-portrait-wrap reveal">
             <svg class="founder-portrait-blob" viewBox="0 0 320 340" xmlns="http://www.w3.org/2000/svg"><path d="M40 180c-24-90 30-170 130-180 96-10 170 50 150 150-18 92-90 150-160 150-90 0-100-40-120-120z" fill="var(--yellow)" opacity=".35"/></svg>
             <div class="founder-portrait-frame">
@@ -115,7 +115,7 @@
         <p>Most practical life advice today is scattered across YouTube, Reddit threads, blog posts, and social media — helpful, but disconnected. WRLD is built to be the opposite of that.</p>
       </div>
       <div class="diff-grid">
-        <div class="diff-card card reveal">
+        <div class="diff-card card hoverable reveal">
           <h4>😵‍💫 The scattered way</h4>
           <ul>
             <li>🔍 Piecing advice together from dozens of unrelated sources</li>
@@ -144,8 +144,8 @@
     <div class="container">
       <div class="section-head center reveal">
         <div class="eyebrow blue">Where We're Headed</div>
-        <h2>This is early. That's the honest truth.</h2>
-        <p>WRLD is a new platform. We'd rather be transparent about that than perform a bigger story than what's actually true today.</p>
+        <h2>Live today. Growing every week.</h2>
+        <p>Here's an honest look at what's already real on WRLD, and what's rolling out next as the platform grows.</p>
       </div>
       <div class="path-track" style="max-width:640px;">
         <div class="path-node done reveal"><div class="path-dot">✓</div><div class="path-card"><strong>Today —</strong> 22 fully written WRLD Playbooks, 3 Learning Paths, 8 fully digital programs, and 19 downloadable worksheets — all free, all live right now.</div></div>
@@ -166,22 +166,27 @@
     </div>
   </section>
 
-  <!-- DONATE / PARTNER -->
-  <section class="section surface-navy">
+  <!-- WHY WE CHOSE FREE / SUPPORT WRLD -->
+  <section class="section surface-navy" id="donate">
+    <div class="container container-narrow text-center">
+      <div class="eyebrow on-dark reveal">💙 Why We Chose Free</div>
+      <h2 class="reveal mb-24" style="color:white;">Why WRLD will always strive to remain free.</h2>
+      <p class="reveal mb-16">WRLD wasn't created to sell courses. It was created because too many young people are expected to figure out adulthood through trial and error.</p>
+      <p class="reveal mb-16">We believe learning how to budget, apply for scholarships, communicate professionally, navigate university, understand taxes, build healthy habits, and prepare for a career shouldn't depend on someone's ability to pay.</p>
+      <p class="reveal mb-16">Every Playbook, worksheet, template, and live learning session is offered free because education shouldn't stop where school ends.</p>
+      <p class="reveal mb-24">Keeping WRLD free is only possible because of volunteers, mentors, partners, and supporters who believe the next generation deserves better. If WRLD has helped you, or if you simply believe this mission matters, we'd be grateful for your support.</p>
+      <button class="btn btn-yellow btn-lg reveal" onclick="showToast('💛 Online giving is launching soon — email hello@ourwrld.org in the meantime and we\'ll follow up personally.')">Support WRLD</button>
+    </div>
+  </section>
+
+  <!-- PARTNER -->
+  <section class="section">
     <div class="container">
-      <div class="grid" style="display:grid; grid-template-columns:1fr 1fr; gap:32px;">
-        <div id="donate" class="card reveal" style="padding:32px; background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.12);">
-          <div class="eyebrow on-dark mb-16">💛 Donate</div>
-          <h3 style="color:white; margin-bottom:12px;">Help keep WRLD free.</h3>
-          <p style="margin-bottom:20px;">WRLD runs on the belief that this kind of education should never sit behind a paywall. Donations directly fund new Playbooks, programs, and mentor support.</p>
-          <button class="btn btn-yellow" onclick="showToast('💛 Donation processing isn\'t connected in this preview — this button is ready for a real payment provider at launch.')">Donate to WRLD</button>
-        </div>
-        <div id="partner" class="card reveal" style="padding:32px; background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.12);">
-          <div class="eyebrow on-dark mb-16">🤝 Partner With Us</div>
-          <h3 style="color:white; margin-bottom:12px;">Organizations & schools welcome.</h3>
-          <p style="margin-bottom:20px;">If you work with young people — as a school, nonprofit, or employer — and want to bring WRLD's Playbooks or programs to your community, we'd love to hear from you.</p>
-          <a href="#contact" class="btn btn-outline" style="background:transparent; color:white; border-color:rgba(255,255,255,.3);">Get in Touch</a>
-        </div>
+      <div id="partner" class="card reveal" style="padding:32px; max-width:640px; margin:0 auto; text-align:center;">
+        <div class="eyebrow blue mb-16">🤝 Partner With Us</div>
+        <h3 class="mb-12">Organizations & schools welcome.</h3>
+        <p class="mb-20">If you work with young people — as a school, nonprofit, or employer — and want to bring WRLD's Playbooks or programs to your community, we'd love to hear from you.</p>
+        <a href="#contact" class="btn btn-outline">Get in Touch</a>
       </div>
     </div>
   </section>
@@ -192,7 +197,7 @@
       <div class="eyebrow reveal">✉️ Contact</div>
       <h2 class="reveal mb-16">Say hello.</h2>
       <p class="reveal mb-24">Questions, feedback, partnership ideas, or interest in volunteering or mentoring — we read everything.</p>
-      <a href="mailto:info@rootcausedentalgroup.com" class="btn btn-primary reveal">info@rootcausedentalgroup.com</a>
+      <a href="mailto:hello@ourwrld.org" class="btn btn-primary reveal">hello@ourwrld.org</a>
     </div>
   </section>
 
@@ -211,14 +216,16 @@
     <div class="container container-narrow">
       <div class="eyebrow reveal">🔒 Privacy</div>
       <h2 class="reveal mb-16">Your data stays yours.</h2>
-      <p class="reveal">This preview stores your bookmarks, progress, and streak locally in your own browser — nothing is sent to a server or shared with third parties. A full privacy policy will be published alongside real user accounts at launch.</p>
+      <p class="reveal">WRLD accounts and progress — your bookmarks, streak, assessment results, and account details — currently live locally in your own browser, not on a server, and are never shared with third parties. A full privacy policy will be published once WRLD moves to a real backend.</p>
     </div>
   </section>
 
 </main>
 <div id="site-footer"></div>
 <script src="data.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 document.getElementById('about-pillars').innerHTML = Object.entries(PILLARS).map(([key,p],i)=>`
   <div class="pillar card hoverable ${p.color} reveal reveal-d${i+1}">
@@ -248,7 +255,7 @@ const ABOUT_FAQ = [
   {q:'How is WRLD funded?', a:'WRLD is an early-stage project. Funding details, including how donations are used, will be published transparently as the organization grows — we\'d rather say "launching soon" than invent numbers that aren\'t real yet.'},
   {q:'Can I volunteer or become a mentor?', a:'Yes — the Mentorship Network and volunteer community are launching in phases. You can express interest from the Community or Programs pages and we\'ll follow up as spots open.'},
   {q:'Do Playbooks offer certificates or college credit?', a:'Playbooks are self-paced learning, not accredited coursework. Our live digital Programs do offer a certificate of completion for finishing the program.'},
-  {q:'Is my information private?', a:'This preview stores your progress locally in your own browser only — nothing is sent to a server. A full privacy policy will accompany real user accounts at launch.'},
+  {q:'Is my information private?', a:'WRLD stores your progress locally in your own browser only — nothing is sent to a server. A full privacy policy will accompany user accounts as they roll out.'},
   {q:'How do I get started?', a:'Take the free Adulting Readiness Assessment for personalized recommendations, or just browse the Playbook Library and start with whatever feels most relevant right now.'},
 ];
 document.getElementById('about-faq').innerHTML = ABOUT_FAQ.map(f=>`

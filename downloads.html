@@ -22,18 +22,100 @@
       <div class="filter-row reveal" id="pillar-filters"></div>
     </div>
   </section>
+
+  <section class="section" style="padding-bottom:0;">
+    <div class="container">
+      <div class="section-head reveal" style="margin-bottom:20px;">
+        <div class="eyebrow blue" id="recommended-dl-eyebrow">🎯 Recommended for You</div>
+        <h3 style="margin:0;" id="recommended-dl-heading">Picked based on your goals</h3>
+      </div>
+      <div class="assess-orbit-line reveal" id="dl-orbit-line" style="max-width:640px; margin:0 0 20px;"></div>
+      <div class="pb-grid" id="recommended-dl-grid" style="grid-template-columns:repeat(4,1fr); margin-bottom:8px;"></div>
+    </div>
+  </section>
+
   <section class="section">
     <div class="container">
+      <h3 class="mb-24 reveal">The Full Library</h3>
       <div class="pb-grid" id="dl-grid" style="grid-template-columns:repeat(3,1fr);"></div>
+      <div class="empty-state hidden" id="dl-empty-state">
+        <div class="ic">📄</div>
+        <h4>No downloads match that search</h4>
+        <p>Try a different term or browse by category instead.</p>
+        <button class="btn btn-outline mt-16" onclick="document.getElementById('dl-search').value=''; activePillar='All'; document.querySelectorAll('#pillar-filters .filter-chip').forEach(b=>b.classList.toggle('active', b.dataset.p==='All')); renderDL();">Clear search & filters</button>
+      </div>
     </div>
   </section>
 </main>
 <div id="site-footer"></div>
 <script src="data.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 let activePillar = 'All';
 const pillarOptions = ['All', ...Object.keys(PILLARS)];
+const DEFAULT_RECOMMENDED_TYPES = ['resume-template','cover-letter-template','scholarship-tracker','budget-planner','interview-worksheet'];
+const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="48" fill="var(--blue-15)"/><circle cx="50" cy="50" r="30" fill="var(--blue)"/><circle cx="41" cy="46" r="5" fill="white"/><circle cx="59" cy="46" r="5" fill="white"/><path d="M38 60 Q50 70 62 60" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+
+// --- Recommended for You: assessment/progress-aware, always non-empty ---
+function getRecommendedDownloads(){
+  const s = getState();
+
+  // Tier 1: assessment on file — lean on the weakest section's program (exact
+  // curated downloads) or, failing that, its recommended playbooks' pillars.
+  if(s.assessment){
+    const weakest = weakestAssessmentSection(s.assessment.sectionScores);
+    const rec = weakest && SECTION_RECS[weakest];
+    if(rec){
+      const program = rec.program && getProgram(rec.program);
+      if(program && program.downloads && program.downloads.length){
+        const picks = program.downloads.map(getDownload).filter(Boolean).slice(0,5);
+        if(picks.length) return {downloads:picks, reason:'assessment'};
+      }
+      const pillars = new Set((rec.playbooks||[]).map(getPlaybook).filter(Boolean).map(pb=>pb.pillar));
+      const picks = DOWNLOADS.filter(d=>pillars.has(d.pillar)).slice(0,5);
+      if(picks.length) return {downloads:picks, reason:'assessment'};
+    }
+  }
+
+  // Tier 2: no assessment yet, but the learner has completed Playbooks —
+  // recommend downloads matching those Playbooks' pillars.
+  if(s.completed && s.completed.length){
+    const pillars = new Set(s.completed.map(getPlaybook).filter(Boolean).map(pb=>pb.pillar));
+    const picks = DOWNLOADS.filter(d=>pillars.has(d.pillar)).slice(0,5);
+    if(picks.length) return {downloads:picks, reason:'progress'};
+  }
+
+  // Tier 3: brand-new learner, no signal at all — our most reached-for templates.
+  const picks = DEFAULT_RECOMMENDED_TYPES.map(getDownload).filter(Boolean);
+  return {downloads:picks, reason:'default'};
+}
+
+function renderRecommendedDownloads(){
+  const {downloads, reason} = getRecommendedDownloads();
+  const grid = document.getElementById('recommended-dl-grid');
+  const heading = document.getElementById('recommended-dl-heading');
+  const eyebrow = document.getElementById('recommended-dl-eyebrow');
+  const orbitLine = document.getElementById('dl-orbit-line');
+
+  if(!downloads.length){
+    // Should never happen given the tiered fallback, but hide gracefully rather
+    // than show an empty section if it somehow does.
+    grid.parentElement.parentElement.classList.add('hidden');
+    return;
+  }
+
+  const copy = {
+    assessment: {h:'Picked based on your assessment', o:"I picked these because they'll support the goals you shared with me."},
+    progress:   {h:'Picked based on what you\'ve completed', o:"Based on the Playbooks you've finished, these should come in handy next."},
+    default:    {h:'A few favorites to get you started', o:"You haven't taken the assessment yet, so here are some of the most useful templates to start with."},
+  }[reason];
+
+  heading.textContent = copy.h;
+  orbitLine.innerHTML = `${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">${copy.o}</p>`;
+  grid.innerHTML = downloads.map((d,i)=>dlCard(d,i)).join('');
+}
 
 function dlCard(d,i){
   return `<div class="pb-card card hoverable reveal reveal-d${(i%3)+1}" data-search-text="${d.title.toLowerCase()} ${d.desc.toLowerCase()}" data-category="${d.pillar}">
@@ -58,6 +140,7 @@ function renderDL(){
     return matchP && matchS;
   });
   document.getElementById('dl-grid').innerHTML = filtered.map(dlCard).join('');
+  document.getElementById('dl-empty-state').classList.toggle('hidden', filtered.length>0);
   setTimeout(initReveal, 20);
 }
 
@@ -71,6 +154,7 @@ document.getElementById('pillar-filters').addEventListener('click', e=>{
 document.getElementById('dl-search').addEventListener('input', renderDL);
 
 initPage('downloads');
+renderRecommendedDownloads();
 renderDL();
 </script>
 </body>

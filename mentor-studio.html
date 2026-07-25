@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mentor Studio — WRLD.</title>
+<meta name="description" content="Mentor Studio — schedule and manage your live WRLD sessions.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container">
+      <div class="eyebrow reveal">🎙️ Mentor Studio</div>
+      <h2 class="reveal">Schedule your next live session.</h2>
+      <p class="reveal" style="max-width:600px;">Pick an existing WRLD program, choose a date and platform, and publish — your session appears on Live Learning immediately.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container dash-grid">
+      <div>
+        <h3 class="mb-24 reveal">Create a Live Session</h3>
+        <div class="card reveal" style="padding:32px;">
+          <div class="form-error" id="form-error"></div>
+          <form id="session-form">
+            <div class="form-group">
+              <label class="form-label" for="ms-program">WRLD Program</label>
+              <select class="form-select" id="ms-program" required></select>
+              <p class="form-hint">Mentors schedule sessions on existing WRLD programs — no need to recreate workshop content each time.</p>
+            </div>
+            <div class="flex gap-16" style="flex-wrap:wrap;">
+              <div class="form-group" style="flex:1; min-width:160px;">
+                <label class="form-label" for="ms-date">Date</label>
+                <input class="form-input" id="ms-date" type="date" required>
+              </div>
+              <div class="form-group" style="flex:1; min-width:140px;">
+                <label class="form-label" for="ms-time">Start Time</label>
+                <input class="form-input" id="ms-time" type="time" required>
+              </div>
+            </div>
+            <div class="flex gap-16" style="flex-wrap:wrap;">
+              <div class="form-group" style="flex:1; min-width:160px;">
+                <label class="form-label" for="ms-duration">Duration</label>
+                <select class="form-select" id="ms-duration">
+                  <option value="30 min">30 minutes</option>
+                  <option value="45 min">45 minutes</option>
+                  <option value="60 min" selected>60 minutes</option>
+                  <option value="90 min">90 minutes</option>
+                  <option value="120 min">2 hours</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex:1; min-width:160px;">
+                <label class="form-label" for="ms-capacity">Participant Capacity</label>
+                <input class="form-input" id="ms-capacity" type="number" min="1" value="50" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ms-platform">Meeting Platform</label>
+              <select class="form-select" id="ms-platform" required></select>
+              <p class="form-hint">Every WRLD session is virtual — there's no in-person option, so learners anywhere can join.</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ms-link">Meeting Link</label>
+              <input class="form-input" id="ms-link" type="url" placeholder="https://zoom.us/j/..." required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ms-desc">Optional Description</label>
+              <textarea class="form-textarea" id="ms-desc" rows="3" placeholder="Anything learners should know before joining..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" id="session-submit">Publish Session →</button>
+          </form>
+        </div>
+      </div>
+
+      <div>
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">🧑‍🏫 Your Mentor Profile</h4>
+          <p style="font-size:12.5px; color:var(--ink-faint); margin-bottom:12px;">Shown on the Current Mentors directory in Community Commons.</p>
+          <div class="form-group">
+            <label class="form-label" for="mp-tagline">Short tagline</label>
+            <input class="form-input" id="mp-tagline" placeholder="e.g. Career coach & former recruiter">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="mp-bio">Short bio</label>
+            <textarea class="form-textarea" id="mp-bio" rows="3" placeholder="A sentence or two about your background..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="mp-expertise">Areas of expertise (comma-separated)</label>
+            <input class="form-input" id="mp-expertise" placeholder="Resumes, Interview Prep, Networking">
+          </div>
+          <button class="btn btn-outline btn-sm btn-block" onclick="saveMyMentorProfile()">Save Profile</button>
+        </div>
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-16">📅 Your Scheduled Sessions</h4>
+          <div id="my-sessions-list"><p style="font-size:13px; color:var(--ink-faint);">Nothing scheduled yet — publish your first session to see it here.</p></div>
+        </div>
+        <div class="dash-side-card card reveal" style="border:1.5px dashed var(--navy-10);">
+          <span class="role-pill role-mentor mb-8" style="display:inline-block;">Mentor Tools</span>
+          <h4 class="mb-8">More Mentor Studio features coming soon</h4>
+          <p style="font-size:13px;">Uploading workshop resources, publishing standalone events, and richer session management are on the roadmap as WRLD's mentor community grows.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js"></script>
+<script>
+if(requireRole([ROLES.MENTOR, ROLES.ADMIN])){
+
+  const currentUser = getCurrentUser();
+
+  // Mentor Profile
+  const myProfile = getMentorProfile(currentUser.id);
+  document.getElementById('mp-tagline').value = myProfile.tagline || '';
+  document.getElementById('mp-bio').value = myProfile.bio || '';
+  document.getElementById('mp-expertise').value = (myProfile.expertise||[]).join(', ');
+  window.saveMyMentorProfile = function(){
+    const profile = {
+      tagline: document.getElementById('mp-tagline').value.trim(),
+      bio: document.getElementById('mp-bio').value.trim(),
+      expertise: document.getElementById('mp-expertise').value.split(',').map(s=>s.trim()).filter(Boolean),
+    };
+    saveMentorProfile(currentUser.id, profile);
+    showToast('✅ Mentor profile saved');
+  };
+
+  document.getElementById('ms-program').innerHTML = PROGRAMS.map(p=>`<option value="${p.id}">${p.title}</option>`).join('');
+  document.getElementById('ms-platform').innerHTML = MEETING_PLATFORMS.map(p=>`<option value="${p}">${p}</option>`).join('');
+
+  function showFormError(msg){
+    const el = document.getElementById('form-error');
+    el.textContent = msg;
+    el.classList.toggle('show', !!msg);
+  }
+
+  function renderMySessions(){
+    const mine = getLiveSessions().filter(s=>s.mentorId===currentUser.id).sort((a,b)=>new Date(a.dateISO)-new Date(b.dateISO));
+    const el = document.getElementById('my-sessions-list');
+    if(!mine.length){
+      el.innerHTML = `<p style="font-size:13px; color:var(--ink-faint);">Nothing scheduled yet — publish your first session to see it here.</p>`;
+      return;
+    }
+    el.innerHTML = mine.map(s=>{
+      const prog = getProgram(s.programId);
+      const {dateStr, timeStr} = formatEventLocalTime(s.dateISO);
+      const isPast = new Date(s.dateISO).getTime() < Date.now();
+      return `<div class="mb-12" style="padding-bottom:12px; border-bottom:1px solid var(--navy-06);">
+        <div style="font-size:13.5px; font-weight:700; color:var(--navy);">${prog?prog.title:'Live Session'} ${isPast?'<span class="pill pill-navy" style="margin-left:6px;">Past</span>':''}</div>
+        <div style="font-size:12px; color:var(--ink-faint); margin-bottom:6px;">${dateStr} · ${timeStr} · ${s.platform}</div>
+        <button class="btn btn-outline btn-sm" onclick="removeSession('${s.id}')">Cancel Session</button>
+      </div>`;
+    }).join('');
+  }
+
+  window.removeSession = function(id){
+    cancelLiveSession(id);
+    showToast('🗑️ Session canceled');
+    renderMySessions();
+  };
+
+  document.getElementById('session-form').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    showFormError('');
+    const programId = document.getElementById('ms-program').value;
+    const date = document.getElementById('ms-date').value;
+    const time = document.getElementById('ms-time').value;
+    const duration = document.getElementById('ms-duration').value;
+    const capacity = parseInt(document.getElementById('ms-capacity').value, 10) || 0;
+    const platform = document.getElementById('ms-platform').value;
+    const link = document.getElementById('ms-link').value.trim();
+    const description = document.getElementById('ms-desc').value.trim();
+
+    if(!date || !time){ showFormError('Choose a date and start time.'); return; }
+    if(!link){ showFormError('Add a meeting link so learners can join virtually.'); return; }
+    const dateISO = new Date(`${date}T${time}`).toISOString();
+    if(new Date(dateISO).getTime() < Date.now()){ showFormError('Pick a date and time in the future.'); return; }
+
+    publishLiveSession({
+      id: 'ls_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+      programId, dateISO, duration, platform,
+      meetingLink: link, capacity, description,
+      mentorId: currentUser.id, mentorName: currentUser.name,
+      createdAt: new Date().toISOString(),
+    });
+
+    showToast('🎉 Session published — now live on Live Learning');
+    document.getElementById('session-form').reset();
+    document.getElementById('ms-duration').value = '60 min';
+    document.getElementById('ms-capacity').value = 50;
+    renderMySessions();
+  });
+
+  renderMySessions();
+  initPage(null);
+}
+</script>
+</body>
+</html>

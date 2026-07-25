@@ -61,8 +61,8 @@
     <div class="container">
       <div class="section-head center reveal">
         <div class="eyebrow">📘 WRLD Playbooks</div>
-        <h2>Not articles. Not blog posts. Playbooks.</h2>
-        <p>Every Playbook is a complete guided learning experience — lessons, worksheets, quizzes, and a clear next step. Khan Academy meets Notion, built for real life.</p>
+        <h2>Learning built for real life.</h2>
+        <p>Every WRLD Playbook is designed to help you build practical skills through lessons, worksheets, templates, quizzes, and guided action steps. Learn by doing, apply what you learn, and leave each Playbook with something valuable you can actually use.</p>
       </div>
       <div class="pb-grid" id="pb-grid-preview"></div>
       <div class="text-center mt-32">
@@ -79,7 +79,7 @@
         <h2>Guided journeys, not a pile of resources.</h2>
         <p>Every Playbook connects to the next — so you're never stuck wondering what to learn after this one.</p>
       </div>
-      <div class="grid" id="paths-grid-preview" style="display:grid; grid-template-columns:repeat(3,1fr); gap:24px;"></div>
+      <div class="grid three-col-grid" id="paths-grid-preview" style="display:grid; grid-template-columns:repeat(3,1fr); gap:24px;"></div>
       <div class="text-center mt-32">
         <a href="learning-paths.html" class="btn btn-outline">See all Learning Paths →</a>
       </div>
@@ -101,18 +101,16 @@
     </div>
   </section>
 
-  <!-- IMPACT (HONEST / SAMPLE) -->
+  <!-- IMPACT (what's real and live today) -->
   <section class="section surface-navy">
     <div class="container">
       <div class="section-head center reveal">
-        <div class="eyebrow on-dark">🌍 Our Impact</div>
-        <h2>We're just getting started.</h2>
-        <p>WRLD is a new platform — we'd rather tell you that honestly than invent numbers to look bigger than we are. Here's what "impact" will track once we're live.</p>
-      </div>
-      <div class="sample-banner reveal" style="background:rgba(245,207,87,.14); border-color:rgba(245,207,87,.5); color:#F5CF57; max-width:640px; margin:0 auto 36px;">
-        <span>🚧</span><div><strong>Launching Soon —</strong> the metrics below are illustrative placeholders showing how real impact data will be displayed once WRLD is live.</div>
+        <div class="eyebrow on-dark">🌍 What's Live Today</div>
+        <h2>A growing library, free for everyone.</h2>
+        <p>These are real numbers, not projections — and they grow every time we publish something new.</p>
       </div>
       <div class="dash-stat-row" id="impact-grid" style="max-width:900px; margin:0 auto;"></div>
+      <p class="text-center reveal mt-32" style="color:#9DBAC3; max-width:560px; margin-left:auto; margin-right:auto;">As WRLD's community grows, we'll add more here too — young people reached, mentors matched, and stories shared.</p>
     </div>
   </section>
 
@@ -128,13 +126,27 @@
     </div>
   </section>
 
+  <!-- SUPPORT WRLD -->
+  <section class="section surface-sky">
+    <div class="container container-narrow text-center">
+      <div class="eyebrow blue reveal">💙 Why is WRLD free?</div>
+      <h2 class="reveal mb-16">School teaches subjects. Life teaches consequences.</h2>
+      <p class="reveal mb-16">We believe practical life skills should be available to everyone, regardless of their financial situation. That's why every Playbook, worksheet, template, and live learning session is completely free.</p>
+      <p class="reveal mb-24">If WRLD has helped you, you can help us keep it free for the next student.</p>
+      <div class="eyebrow reveal mb-24" style="background:var(--yellow-15); color:var(--blue-dark);">🌱 Support WRLD</div><br>
+      <a href="about.html#donate" class="btn btn-primary btn-lg reveal">Support Our Mission →</a>
+    </div>
+  </section>
+
 </main>
 
 <div id="site-footer"></div>
 
 <script src="data.js"></script>
 <script src="illustrations.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 const STORY_ICONS = [
   {emoji:'🧾', label:'Taxes'}, {emoji:'🏠', label:'Rent'}, {emoji:'📄', label:'Resumes'},
@@ -167,10 +179,13 @@ document.getElementById('pb-grid-preview').innerHTML = PLAYBOOKS.filter(p=>p.fla
   <a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable reveal reveal-d${(i%3)+1}">
     <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; position:relative; overflow:hidden;">${hasIll?`<div style="width:100%; height:220%; position:absolute; top:-40%;">${hasIll}</div>`:p.emoji}</div>
     <div class="pb-body">
-      <div class="pb-meta"><span class="pill pill-blue">⏱ ${p.readTime}</span><span class="pill pill-${p.difficulty==='Beginner'?'success':p.difficulty==='Advanced'?'sample':'yellow'}">${p.difficulty}</span></div>
+      <div class="pb-meta"><span class="pill pill-${p.difficulty==='Beginner'?'success':p.difficulty==='Advanced'?'sample':'yellow'}">${p.difficulty}</span></div>
       <h4>${p.title}</h4>
-      <p>${p.dek}</p>
-      <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
+      <p style="font-weight:600; color:var(--blue-dark);">🎯 ${p.outcome}</p>
+      <div class="pb-footer">
+        <span class="flex items-center gap-8"><span class="pill pill-navy">${p.category}</span><span style="font-size:11px; color:var(--ink-faint);">⏱ ${p.readTime}</span></span>
+        <span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span>
+      </div>
     </div>
   </a>`;}).join('');
 
@@ -191,14 +206,14 @@ document.getElementById('programs-grid-preview').innerHTML = PROGRAMS.slice(0,4)
   </a>`).join('');
 
 document.getElementById('impact-grid').innerHTML = [
-  {num:0, suffix:'', label:'Young People Reached', sample:true},
-  {num:20, suffix:'', label:'Playbooks Published', sample:false},
-  {num:8, suffix:'', label:'Free Programs', sample:false},
-  {num:19, suffix:'', label:'Downloadable Worksheets', sample:false},
+  {num:PLAYBOOKS.length, label:'Playbooks Published'},
+  {num:new Set(PLAYBOOKS.map(p=>p.category)).size, label:'Learning Categories'},
+  {num:DOWNLOADS.length, label:'Downloadable Worksheets'},
+  {num:PROGRAMS.length, label:'Free Digital Programs'},
 ].map(s=>`
   <div class="dash-stat card reveal" style="background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.1);">
-    <div class="num" ${s.sample?'':`data-count="${s.num}" data-suffix="${s.suffix}"`} style="color:${s.sample?'#F5CF57':'#5FD3E8'};">${s.sample?'Growing':'0'}</div>
-    <div class="lbl" style="color:#C9DCE3;">${s.label}${s.sample?' <span style=\"opacity:.7\">(launching soon)</span>':''}</div>
+    <div class="num" data-count="${s.num}" style="color:#5FD3E8;">0</div>
+    <div class="lbl" style="color:#C9DCE3;">${s.label}</div>
   </div>`).join('');
 
 initPage('home');

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Become a Mentor — WRLD.</title>
+<meta name="description" content="Apply to become a WRLD Mentor — a volunteer role helping young people build real-world skills.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container text-center">
+      <div class="eyebrow reveal">🤝 Become a Mentor</div>
+      <h2 class="reveal">Give an hour. Change how someone sees adulthood.</h2>
+      <p class="reveal" style="max-width:600px; margin:0 auto;">WRLD Mentors are volunteers — people with real experience who show up to help young adults build practical life and career skills.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="programs-grid" style="display:grid; grid-template-columns:repeat(2,1fr); gap:24px;">
+        <div class="card reveal" style="padding:26px;">
+          <h4 class="mb-8">💼 What Mentors Do</h4>
+          <p style="font-size:13.5px;">Host live sessions on an existing WRLD program, answer questions in Community Commons, and (as WRLD grows) run Office Hours drop-ins. You're not writing curriculum from scratch — WRLD provides the structure.</p>
+        </div>
+        <div class="card reveal" style="padding:26px;">
+          <h4 class="mb-8">⏱ Expected Commitment</h4>
+          <p style="font-size:13.5px;">As little as one live session. There's no minimum hours requirement — mentor as much or as little as your schedule allows.</p>
+        </div>
+        <div class="card reveal" style="padding:26px;">
+          <h4 class="mb-8">🌱 A Volunteer Role</h4>
+          <p style="font-size:13.5px;">Mentoring on WRLD is unpaid volunteer work, the same way every part of WRLD is free for learners. You're donating time and expertise, not applying for a job.</p>
+        </div>
+        <div class="card reveal" style="padding:26px;">
+          <h4 class="mb-8">🎁 Why Mentors Do It</h4>
+          <p style="font-size:13.5px;">A public mentor profile, a genuine way to give back, practice teaching and public speaking, and the chance to be the person you wish you'd had at 18.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section surface-cream">
+    <div class="container">
+      <div class="section-head center reveal">
+        <div class="eyebrow blue">📝 Apply to Mentor</div>
+        <h2>Tell us about yourself</h2>
+        <p style="max-width:600px; margin:0 auto;">Every application is reviewed by a real person on the WRLD team — you'll remain an Explorer on your account until you're approved.</p>
+      </div>
+
+      <div class="card reveal" style="max-width:680px; margin:0 auto; padding:32px;">
+        <div class="form-error" id="form-error"></div>
+        <form id="mentor-app-form">
+          <div class="form-group">
+            <label class="form-label" for="ma-name">Full Name</label>
+            <input class="form-input" id="ma-name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ma-email">Email</label>
+            <input class="form-input" id="ma-email" type="email" required>
+          </div>
+          <div class="flex gap-16" style="flex-wrap:wrap;">
+            <div class="form-group" style="flex:1; min-width:200px;">
+              <label class="form-label" for="ma-occupation">Current Occupation</label>
+              <input class="form-input" id="ma-occupation" required>
+            </div>
+            <div class="form-group" style="flex:1; min-width:200px;">
+              <label class="form-label" for="ma-education">Education</label>
+              <input class="form-input" id="ma-education" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ma-expertise">Areas of Expertise</label>
+            <input class="form-input" id="ma-expertise" placeholder="Resumes, Interview Prep, Financial Literacy..." required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ma-languages">Languages Spoken</label>
+            <input class="form-input" id="ma-languages" placeholder="English, Spanish..." required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ma-bio">Short Biography</label>
+            <textarea class="form-textarea" id="ma-bio" rows="3" required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ma-why">Why do you want to mentor?</label>
+            <textarea class="form-textarea" id="ma-why" rows="3" required></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ma-experience">Previous Mentoring Experience</label>
+            <textarea class="form-textarea" id="ma-experience" rows="2" placeholder="Optional — include anything relevant, or leave blank."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ma-availability">Availability</label>
+            <input class="form-input" id="ma-availability" placeholder="e.g. Weekday evenings, EST" required>
+          </div>
+          <div class="flex gap-16" style="flex-wrap:wrap;">
+            <div class="form-group" style="flex:1; min-width:200px;">
+              <label class="form-label" for="ma-linkedin">LinkedIn (optional)</label>
+              <input class="form-input" id="ma-linkedin" type="url" placeholder="https://linkedin.com/in/...">
+            </div>
+            <div class="form-group" style="flex:1; min-width:200px;">
+              <label class="form-label" for="ma-portfolio">Portfolio/Website (optional)</label>
+              <input class="form-input" id="ma-portfolio" type="url" placeholder="https://...">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ma-resume">Upload Resume/CV</label>
+            <input class="form-input" id="ma-resume" type="file" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ma-certs">Upload Certifications (optional)</label>
+            <input class="form-input" id="ma-certs" type="file">
+            <p class="form-hint">Submitting opens your email client with your application prefilled — attach your resume/CV and any certifications there before sending, since a website can't attach files for you.</p>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="mentor-app-submit">Prepare My Application →</button>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js"></script>
+<script>
+function showFormError(msg){
+  const el = document.getElementById('form-error');
+  el.textContent = msg;
+  el.classList.toggle('show', !!msg);
+}
+
+document.getElementById('mentor-app-form').addEventListener('submit', e=>{
+  e.preventDefault();
+  showFormError('');
+
+  const fields = {
+    'Full Name': document.getElementById('ma-name').value.trim(),
+    'Email': document.getElementById('ma-email').value.trim(),
+    'Current Occupation': document.getElementById('ma-occupation').value.trim(),
+    'Education': document.getElementById('ma-education').value.trim(),
+    'Areas of Expertise': document.getElementById('ma-expertise').value.trim(),
+    'Languages Spoken': document.getElementById('ma-languages').value.trim(),
+    'Short Biography': document.getElementById('ma-bio').value.trim(),
+    'Why do you want to mentor?': document.getElementById('ma-why').value.trim(),
+    'Previous Mentoring Experience': document.getElementById('ma-experience').value.trim() || 'N/A',
+    'Availability': document.getElementById('ma-availability').value.trim(),
+    'LinkedIn': document.getElementById('ma-linkedin').value.trim() || 'N/A',
+    'Portfolio/Website': document.getElementById('ma-portfolio').value.trim() || 'N/A',
+  };
+
+  const required = ['Full Name','Email','Current Occupation','Education','Areas of Expertise','Languages Spoken','Short Biography','Why do you want to mentor?','Availability'];
+  const missing = required.filter(k=>!fields[k]);
+  if(missing.length || !document.getElementById('ma-resume').files.length){
+    showFormError('Please fill in every required field and attach your resume/CV.');
+    return;
+  }
+
+  const bodyLines = Object.entries(fields).map(([k,v])=>`${k}: ${v}`);
+  bodyLines.push('', '⚠️ Please attach your Resume/CV' + (document.getElementById('ma-certs').files.length ? ' and Certifications' : '') + ' before sending this email — files can\'t be attached automatically.');
+  const subject = encodeURIComponent(`WRLD Mentor Application — ${fields['Full Name']}`);
+  const body = encodeURIComponent(bodyLines.join('\n'));
+
+  window.location.href = `mailto:hello@ourwrld.org?subject=${subject}&body=${body}`;
+  showToast('📧 Opening your email client — attach your files and hit send to complete your application.');
+});
+
+initPage('become-mentor', "Mentors keep WRLD's live sessions and Office Hours running — every application gets a real, human review.");
+</script>
+</body>
+</html>

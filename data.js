@@ -3,22 +3,43 @@
    All Playbooks, Programs, Learning Paths, Downloads, Events & Community
    content lives here so every page renders from one shared source of truth.
 
-   HONESTY NOTE: WRLD is a new platform. No org history, partnerships,
+   HONESTY NOTE: WRLD is a growing platform. No org history, partnerships,
    sponsors, testimonials, mentor rosters, or impact numbers are invented.
-   Anything illustrative is explicitly tagged `sample: true` and rendered
-   with a "Sample" / "Coming Soon" label — never presented as real.
+   Every stat shown site-wide is computed from real content in this file
+   (PLAYBOOKS.length, DOWNLOADS.length, etc). Features that are genuinely
+   still rolling out are labeled "Coming Soon" — confidently, not apologetically.
    ===================================================================== */
 
-const NAV_LINKS = [
-  {label:'Assessment', href:'assessment.html', key:'assessment'},
-  {label:'Playbooks', href:'playbooks.html', key:'playbooks'},
-  {label:'Learning Paths', href:'learning-paths.html', key:'paths'},
-  {label:'Programs', href:'programs.html', key:'programs'},
-  {label:'Tools', href:'tools.html', key:'tools'},
-  {label:'Downloads', href:'downloads.html', key:'downloads'},
-  {label:'Events', href:'events.html', key:'events'},
-  {label:'Community', href:'community.html', key:'community'},
-  {label:'About', href:'about.html', key:'about'},
+/* Navigation is grouped into a small set of scalable dropdown menus so the
+   bar stays uncluttered as WRLD adds more pages — group by purpose, not by
+   a flat list of every page. */
+const NAV_GROUPS = [
+  {label:'Explore', key:'explore', items:[
+    {label:'Dashboard', href:'dashboard.html', key:'dashboard'},
+    {label:'Assessment', href:'assessment.html', key:'assessment'},
+    {label:'Journey Passport', href:'journey-passport.html', key:'passport'},
+    {label:'Learning Paths', href:'learning-paths.html', key:'paths'},
+  ]},
+  {label:'Learn', key:'learn', items:[
+    {label:'Playbooks', href:'playbooks.html', key:'playbooks'},
+    {label:'Programs', href:'programs.html', key:'programs'},
+    {label:'Live Learning', href:'events.html', key:'events'},
+    {label:'Downloads', href:'downloads.html', key:'downloads'},
+    {label:'Tools', href:'tools.html', key:'tools'},
+  ]},
+  {label:'Connect', key:'connect', items:[
+    {label:'Community', href:'community.html', key:'community'},
+    {label:'Volunteer', href:'community.html#volunteer', key:'community'},
+    {label:'Become a Mentor', href:'become-mentor.html', key:'become-mentor'},
+    {label:'Partner With Us', href:'about.html#partner', key:'about'},
+  ]},
+  {label:'About WRLD', key:'about-wrld', items:[
+    {label:'About', href:'about.html', key:'about'},
+    {label:'Support WRLD', href:'about.html#donate', key:'about'},
+    {label:'Contact', href:'about.html#contact', key:'about'},
+    {label:'Accessibility', href:'about.html#accessibility', key:'about'},
+    {label:'Privacy', href:'about.html#privacy', key:'about'},
+  ]},
 ];
 
 const PILLARS = {
@@ -39,7 +60,7 @@ const PLAYBOOKS = [
 /* ---------------------------- FIRST JOB JOURNEY ---------------------------- */
 
 {
-  slug:'resume', title:'Build Your First Resume (Even With No Experience)', pillar:'work', flagship:true,
+  slug:'resume', outcome:'Leave with a complete, ATS-ready first draft resume.', title:'Build Your First Resume (Even With No Experience)', pillar:'work', flagship:true,
   heroIllustration:'resume',
   category:'Career', emoji:'📄', color:'blue', difficulty:'Beginner',
   readTime:'16 min read', completionTime:'60 min to complete',
@@ -120,7 +141,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'cover-letter', title:'Write a Cover Letter People Actually Remember', pillar:'work',
+  slug:'cover-letter', outcome:'Leave with a reusable cover letter template you can adapt for any job.', title:'Write a Cover Letter People Actually Remember', pillar:'work',
   heroIllustration:'cover-letter',
   category:'Career', emoji:'✉️', color:'yellow', difficulty:'Beginner',
   readTime:'14 min read', completionTime:'50 min to complete',
@@ -164,7 +185,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'interview-skills', title:'How to Ace Your First Job Interview', pillar:'work', flagship:true,
+  slug:'interview-skills', outcome:'Walk into any interview with prepared answers and real confidence.', title:'How to Ace Your First Job Interview', pillar:'work', flagship:true,
   heroIllustration:'interview-skills',
   category:'Career', emoji:'🎤', color:'blue', difficulty:'Intermediate',
   readTime:'17 min read', completionTime:'65 min to complete',
@@ -230,7 +251,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'networking', title:'Networking Without the Awkwardness', pillar:'work', flagship:true,
+  slug:'networking', outcome:'Build genuine professional relationships without the awkwardness.', title:'Networking Without the Awkwardness', pillar:'work', flagship:true,
   heroIllustration:'networking',
   category:'Career', emoji:'🤝', color:'yellow', difficulty:'Intermediate',
   readTime:'15 min read', completionTime:'55 min to complete',
@@ -285,7 +306,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'salary-negotiation', title:'Negotiate Your First Salary With Confidence', pillar:'work',
+  slug:'salary-negotiation', outcome:'Negotiate your next offer with a clear number and a script.', title:'Negotiate Your First Salary With Confidence', pillar:'work',
   heroIllustration:'salary-negotiation',
   category:'Money', emoji:'💰', color:'blue', difficulty:'Advanced',
   readTime:'15 min read', completionTime:'55 min to complete',
@@ -331,7 +352,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'first-day', title:'Your First Day (and First Week) at Work', pillar:'work',
+  slug:'first-day', outcome:'Start any new job already knowing exactly what to expect.', title:'Your First Day (and First Week) at Work', pillar:'work',
   heroIllustration:'first-day',
   category:'Career', emoji:'🚪', color:'yellow', difficulty:'Beginner',
   readTime:'13 min read', completionTime:'45 min to complete',
@@ -380,7 +401,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'professional-growth', title:'Turning a Job Into a Career', pillar:'work',
+  slug:'professional-growth', outcome:'Turn any job into an intentional, growing career.', title:'Turning a Job Into a Career', pillar:'work',
   heroIllustration:'professional-growth',
   category:'Career', emoji:'📈', color:'blue', difficulty:'Intermediate',
   readTime:'14 min read', completionTime:'50 min to complete',
@@ -429,7 +450,7 @@ const PLAYBOOKS = [
 /* ---------------------------- FINANCIAL CONFIDENCE JOURNEY ---------------------------- */
 
 {
-  slug:'budgeting', title:'Creating Your First Real Budget', pillar:'resilience', flagship:true,
+  slug:'budgeting', outcome:'Build a real, working budget from your actual spending.', title:'Creating Your First Real Budget', pillar:'resilience', flagship:true,
   heroIllustration:'budgeting',
   category:'Money', emoji:'📊', color:'blue', difficulty:'Beginner',
   readTime:'16 min read', completionTime:'60 min to complete',
@@ -490,7 +511,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'bank-accounts', title:'Choosing and Using Your First Bank Account', pillar:'resilience',
+  slug:'bank-accounts', outcome:'Choose the right accounts for you and use them with confidence.', title:'Choosing and Using Your First Bank Account', pillar:'resilience',
   category:'Money', emoji:'🏦', color:'yellow', difficulty:'Beginner',
   readTime:'11 min read', completionTime:'35 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'bank-accounts',
@@ -539,7 +560,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'credit-scores', title:'Understanding Credit Scores Before You Need One', pillar:'resilience', flagship:true,
+  slug:'credit-scores', outcome:'Understand exactly what builds — or hurts — your credit score.', title:'Understanding Credit Scores Before You Need One', pillar:'resilience', flagship:true,
   heroIllustration:'credit-scores',
   category:'Money', emoji:'💳', color:'blue', difficulty:'Intermediate',
   readTime:'18 min read', completionTime:'65 min to complete',
@@ -601,7 +622,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'taxes', title:'Filing Your First Tax Return Without Panic', pillar:'resilience',
+  slug:'taxes', outcome:'File your first tax return without the panic.', title:'Filing Your First Tax Return Without Panic', pillar:'resilience',
   category:'Money', emoji:'🧾', color:'yellow', difficulty:'Intermediate',
   readTime:'12 min read', completionTime:'50 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'taxes',
@@ -648,7 +669,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'emergency-funds', title:'Building an Emergency Fund From Zero', pillar:'resilience',
+  slug:'emergency-funds', outcome:'Build a real emergency fund, starting from zero.', title:'Building an Emergency Fund From Zero', pillar:'resilience',
   category:'Money', emoji:'🛟', color:'blue', difficulty:'Beginner',
   readTime:'11 min read', completionTime:'35 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'emergency-funds',
@@ -695,7 +716,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'investing-basics', title:'Investing Basics for Complete Beginners', pillar:'resilience',
+  slug:'investing-basics', outcome:'Start investing with confidence, even with very little money.', title:'Investing Basics for Complete Beginners', pillar:'resilience',
   category:'Money', emoji:'📈', color:'yellow', difficulty:'Advanced',
   readTime:'14 min read', completionTime:'50 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'investing-basics',
@@ -749,7 +770,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'financial-planning', title:'Long-Term Financial Planning in Your 20s', pillar:'resilience',
+  slug:'financial-planning', outcome:'Build a realistic financial plan for your 20s.', title:'Long-Term Financial Planning in Your 20s', pillar:'resilience',
   category:'Money', emoji:'🧭', color:'blue', difficulty:'Advanced',
   readTime:'13 min read', completionTime:'50 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'financial-planning',
@@ -797,7 +818,7 @@ const PLAYBOOKS = [
 /* ---------------------------- UNIVERSITY JOURNEY ---------------------------- */
 
 {
-  slug:'scholarships', title:'Finding Scholarships You Actually Qualify For', pillar:'learning', flagship:true,
+  slug:'scholarships', outcome:'Find and apply to scholarships you actually qualify for.', title:'Finding Scholarships You Actually Qualify For', pillar:'learning', flagship:true,
   heroIllustration:'scholarships',
   category:'School', emoji:'🎓', color:'blue', difficulty:'Beginner',
   readTime:'16 min read', completionTime:'60 min to complete',
@@ -856,7 +877,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'time-management', title:'Time Management for Students Who Have a Life', pillar:'resilience',
+  slug:'time-management', outcome:'Build a schedule that fits school and a real life.', title:'Time Management for Students Who Have a Life', pillar:'resilience',
   category:'School', emoji:'⏰', color:'yellow', difficulty:'Beginner',
   readTime:'12 min read', completionTime:'40 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'time-management',
@@ -900,7 +921,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'study-skills', title:'Study Smarter, Not Longer', pillar:'learning',
+  slug:'study-skills', outcome:'Study smarter and retain more — in less time.', title:'Study Smarter, Not Longer', pillar:'learning',
   category:'School', emoji:'🧠', color:'blue', difficulty:'Beginner',
   readTime:'13 min read', completionTime:'45 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'study-skills',
@@ -948,7 +969,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'mental-wellness', title:'Protecting Your Mental Wellness in School', pillar:'resilience',
+  slug:'mental-wellness', outcome:'Spot burnout early and protect your mental wellness.', title:'Protecting Your Mental Wellness in School', pillar:'resilience',
   category:'Mental Wellness', emoji:'🌿', color:'yellow', difficulty:'Beginner',
   readTime:'12 min read', completionTime:'35 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'mental-wellness',
@@ -995,7 +1016,7 @@ const PLAYBOOKS = [
    beyond everyday stress — WRLD supplements, and never replaces, professional mental health support. */
 
 {
-  slug:'managing-anxiety', title:'Managing Anxiety Before Big Moments', pillar:'resilience', flagship:true,
+  slug:'managing-anxiety', outcome:'Calm pre-event anxiety before it takes over.', title:'Managing Anxiety Before Big Moments', pillar:'resilience', flagship:true,
   heroIllustration:'managing-anxiety',
   category:'Mental Wellness', emoji:'🧘', color:'yellow', difficulty:'Beginner',
   readTime:'15 min read', completionTime:'55 min to complete',
@@ -1053,7 +1074,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'apartment-renting', title:'Renting Your First Apartment', pillar:'development', flagship:true,
+  slug:'apartment-renting', outcome:'Rent your first apartment without hidden costs catching you off guard.', title:'Renting Your First Apartment', pillar:'development', flagship:true,
   heroIllustration:'apartment-renting',
   category:'Housing', emoji:'🏠', color:'blue', difficulty:'Intermediate',
   readTime:'17 min read', completionTime:'60 min to complete',
@@ -1105,7 +1126,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'internships', title:'Landing Your First Internship', pillar:'work',
+  slug:'internships', outcome:'Land an internship that actually builds your resume.', title:'Landing Your First Internship', pillar:'work',
   category:'Career', emoji:'🧳', color:'blue', difficulty:'Intermediate',
   readTime:'13 min read', completionTime:'50 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'internships',
@@ -1150,7 +1171,7 @@ const PLAYBOOKS = [
 },
 
 {
-  slug:'graduation-planning', title:'Planning Your Life After Graduation', pillar:'development',
+  slug:'graduation-planning', outcome:'Turn \'what now?\' into a real 90-day plan.', title:'Planning Your Life After Graduation', pillar:'development',
   category:'Life Skills', emoji:'🧑‍🎓', color:'yellow', difficulty:'Advanced',
   readTime:'13 min read', completionTime:'50 min to complete',
   author:'WRLD Learning Team', dateUpdated:'May 2026', heroIllustration:'graduation-planning',
@@ -1202,33 +1223,134 @@ function getPlaybook(slug){ return PLAYBOOKS.find(p=>p.slug===slug); }
 function getPlaybooksByJourney(key){ return PLAYBOOKS.filter(p=>p.journeys.includes(key)); }
 
 /* ===================================================================
+   RELATED PLAYBOOKS — curated, not just "same category" filtering.
+   Every Playbook maps to real, existing slugs so "Keep Going" and
+   "Related Playbooks" can never render an empty recommendation section.
+   =================================================================== */
+const RELATED_PLAYBOOKS = {
+  'resume': ['cover-letter','interview-skills','networking'],
+  'cover-letter': ['resume','interview-skills','networking'],
+  'interview-skills': ['resume','cover-letter','salary-negotiation'],
+  'networking': ['internships','professional-growth','interview-skills'],
+  'salary-negotiation': ['interview-skills','professional-growth','financial-planning'],
+  'first-day': ['professional-growth','networking','time-management'],
+  'professional-growth': ['salary-negotiation','networking','first-day'],
+  'budgeting': ['emergency-funds','credit-scores','bank-accounts'],
+  'bank-accounts': ['budgeting','credit-scores','emergency-funds'],
+  'credit-scores': ['budgeting','taxes','financial-planning'],
+  'taxes': ['budgeting','credit-scores','financial-planning'],
+  'emergency-funds': ['budgeting','investing-basics','financial-planning'],
+  'investing-basics': ['emergency-funds','financial-planning','budgeting'],
+  'financial-planning': ['investing-basics','emergency-funds','credit-scores'],
+  'scholarships': ['time-management','study-skills','financial-planning'],
+  'time-management': ['study-skills','graduation-planning','mental-wellness'],
+  'study-skills': ['time-management','scholarships','managing-anxiety'],
+  'mental-wellness': ['managing-anxiety','time-management','study-skills'],
+  'managing-anxiety': ['mental-wellness','interview-skills','time-management'],
+  'apartment-renting': ['emergency-funds','bank-accounts','graduation-planning'],
+  'internships': ['resume','networking','professional-growth'],
+  'graduation-planning': ['time-management','apartment-renting','financial-planning'],
+};
+function getRelatedPlaybooks(slug){
+  return (RELATED_PLAYBOOKS[slug]||[]).map(getPlaybook).filter(Boolean);
+}
+
+/* ===================================================================
    LEARNING PATHS
+   Each path organizes real, existing Playbooks into a structured journey
+   toward a meaningful outcome. skillsGained is editorial (written once,
+   not invented per-user); estimatedCompletion is computed live from real
+   completionTime fields via pathEstimatedTime() in app.js, never hardcoded.
    =================================================================== */
 const LEARNING_PATHS = [
   {
-    key:'first-job', title:'First Job Journey', icon:'💼', color:'blue',
+    key:'career-readiness', title:'Career Readiness', icon:'💼', color:'blue', status:'live',
     desc:'From your first resume to your first raise conversation — everything you need to land and grow in your first real job.',
-    steps:['resume','cover-letter','interview-skills','networking','salary-negotiation','first-day','professional-growth'],
+    skillsGained:['Writing resumes & cover letters that get read','Interviewing with real confidence','Building genuine professional relationships','Negotiating your first offer'],
+    steps:['resume','cover-letter','interview-skills','networking','salary-negotiation','first-day','professional-growth','internships'],
   },
   {
-    key:'financial', title:'Financial Confidence Journey', icon:'💰', color:'yellow',
+    key:'financial-confidence', title:'Financial Confidence', icon:'💰', color:'yellow', status:'live',
     desc:'Budgeting, banking, credit, taxes, and investing — the full financial picture, explained without jargon.',
+    skillsGained:['Building a real, working budget','Understanding credit and how it\'s built','Filing taxes without panic','Getting started with investing'],
     steps:['budgeting','bank-accounts','credit-scores','taxes','emergency-funds','investing-basics','financial-planning'],
   },
   {
-    key:'university', title:'University Journey', icon:'🎓', color:'navy',
-    desc:'Scholarships, study skills, wellness, and internships — a guided path through school and into what comes next.',
-    steps:['scholarships','time-management','study-skills','mental-wellness','internships','networking','graduation-planning'],
+    key:'university-success', title:'University Success', icon:'🎓', color:'navy', status:'live',
+    desc:'Scholarships, study skills, and internships — a guided path through school and into what comes next.',
+    skillsGained:['Finding and winning scholarships','Studying effectively, not just longer','Managing time across school and life','Planning your first steps after graduation'],
+    steps:['scholarships','time-management','study-skills','internships','graduation-planning'],
+  },
+  {
+    key:'workplace-communication', title:'Workplace Communication', icon:'💬', color:'blue', status:'live',
+    desc:'The people-skills side of work — networking, first impressions, and advocating for yourself.',
+    skillsGained:['Networking without the awkwardness','Making a strong first impression','Communicating for long-term growth','Advocating for yourself at work'],
+    steps:['networking','first-day','professional-growth','salary-negotiation'],
+  },
+  {
+    key:'becoming-independent', title:'Becoming Independent', icon:'🗝️', color:'navy', status:'live',
+    desc:'Moving out and running your own household for the first time — the practical, grown-up logistics of daily life.',
+    skillsGained:['Renting your first apartment with confidence','Building an emergency fund','Choosing and using bank accounts wisely','Planning your next chapter with intention'],
+    steps:['apartment-renting','emergency-funds','bank-accounts','graduation-planning'],
+  },
+  {
+    key:'mental-wellness-path', title:'Mental Wellness & Resilience', icon:'🌱', color:'navy', status:'live',
+    desc:'A focused, early path on resilience and wellbeing — still growing as more Playbooks join it.',
+    skillsGained:['Spotting burnout before it takes over','Calming anxiety before big moments','Building sustainable, everyday coping habits'],
+    steps:['mental-wellness','managing-anxiety'],
   },
 ];
+
 // Additional journeys referenced by the brand vision, launching as content is written —
 // shown honestly as "Coming Soon" rather than populated with placeholder lessons.
 const LEARNING_PATHS_COMING_SOON = [
-  {key:'independence', title:'Becoming Independent', icon:'🗝️', color:'blue', desc:'Moving out, apartment hunting, and running your own household for the first time.'},
   {key:'leadership', title:'Leadership', icon:'🌟', color:'yellow', desc:'Public speaking, decision-making, and leading a team or project for the first time.'},
-  {key:'wellness', title:'Mental Wellness', icon:'🌱', color:'navy', desc:'A dedicated deep-dive path on resilience, stress, and sustainable wellbeing.'},
   {key:'entrepreneurship', title:'Starting a Business', icon:'💡', color:'blue', desc:'From first idea to first customer — the fundamentals of youth entrepreneurship.'},
 ];
+
+/* Helper: fetch a Learning Path by key */
+function getPath(key){ return LEARNING_PATHS.find(lp=>lp.key===key); }
+
+/* ===================================================================
+   ASSESSMENT-DRIVEN RECOMMENDATIONS
+   Shared between assessment.html, dashboard.html, and Orbit so a
+   learner's results personalize every corner of the platform the
+   same way, not just the results page they see once.
+   =================================================================== */
+const SECTION_RECS = {
+  career:{playbooks:['resume','interview-skills','networking'], program:'career-bootcamp', path:'career-readiness'},
+  money:{playbooks:['budgeting','credit-scores'], program:'financial-literacy-academy', path:'financial-confidence'},
+  school:{playbooks:['scholarships','study-skills'], program:null, path:'university-success'},
+  home:{playbooks:['apartment-renting'], program:null, path:'becoming-independent'},
+  health:{playbooks:['managing-anxiety','mental-wellness'], program:null, path:'mental-wellness-path'},
+  relationships:{playbooks:['networking'], program:null, path:'workplace-communication'},
+  growth:{playbooks:['time-management','graduation-planning'], program:'future-leaders', path:'career-readiness'},
+  community:{playbooks:['scholarships'], program:'volunteer-hub', path:null},
+};
+
+const STAGES = [
+  {min:0, label:'Explorer', icon:'🌱', desc:'You\'re just starting to explore what adulthood involves — and that\'s exactly the right place to begin.'},
+  {min:40, label:'Navigator', icon:'🧭', desc:'You\'ve got some direction already. A bit of focused learning will build real momentum.'},
+  {min:60, label:'Builder', icon:'🛠️', desc:'You\'re actively building real skills. A few targeted Playbooks will round things out.'},
+  {min:80, label:'Trailblazer', icon:'🚀', desc:'You\'re genuinely ahead of the curve. Consider mentoring others through the Mentorship Network.'},
+];
+function getStage(pct){ return STAGES.slice().reverse().find(s=>pct>=s.min); }
+
+const SECTION_META = {
+  career:{title:'Career & Work', icon:'💼'}, money:{title:'Money & Finance', icon:'💰'},
+  school:{title:'School & Learning', icon:'🎓'}, home:{title:'Home & Independence', icon:'🏠'},
+  health:{title:'Health & Wellness', icon:'🌿'}, relationships:{title:'Relationships & Communication', icon:'💬'},
+  growth:{title:'Growth & Leadership', icon:'🚀'}, community:{title:'Community & Purpose', icon:'🌍'},
+};
+
+/* Given saved sectionScores, returns the weakest section's key — the
+   same "Focus Area" logic the Passport uses for its own Next Step. */
+function weakestAssessmentSection(sectionScores){
+  if(!sectionScores) return null;
+  const keys = Object.keys(sectionScores);
+  if(!keys.length) return null;
+  return keys.reduce((a,b)=> sectionScores[a]<=sectionScores[b] ? a : b);
+}
 
 /* ===================================================================
    PROGRAMS — all fully digital / live-online
@@ -1409,28 +1531,90 @@ const DOWNLOADS = [
 ];
 function getDownload(type){ return DOWNLOADS.find(d=>d.type===type); }
 
+/* Curated "what to do next" for each download — keeps the learning journey
+   moving forward instead of ending at a printed page. Mapped by hand so it's
+   always thematically real, e.g. Resume Template -> Interview Preparation. */
+const DOWNLOAD_NEXT_STEP = {
+  'resume-template': 'interview-skills',
+  'cover-letter-template': 'interview-skills',
+  'scholarship-tracker': 'study-skills',
+  'budget-planner': 'credit-scores',
+  'expense-tracker': 'budgeting',
+  'interview-worksheet': 'salary-negotiation',
+  'networking-planner': 'professional-growth',
+  'career-roadmap': 'professional-growth',
+  'goal-setting-workbook': 'time-management',
+  'apartment-checklist': 'emergency-funds',
+  'grocery-budget-sheet': 'budgeting',
+  'student-planner': 'time-management',
+  'habit-tracker': 'time-management',
+  'emergency-fund-calculator': 'investing-basics',
+  'tax-checklist': 'financial-planning',
+  'first-paycheque-breakdown': 'budgeting',
+  'salary-negotiation-worksheet': 'professional-growth',
+  'career-planner': 'internships',
+  'volunteer-log': null, // no natural Playbook follow-up — points to Community instead
+};
+function getDownloadNextStep(type){
+  const slug = DOWNLOAD_NEXT_STEP[type];
+  return slug ? getPlaybook(slug) : null;
+}
+
 /* ===================================================================
-   EVENTS — all virtual, live via Zoom
+   LIVE LEARNING — meeting platform options for Mentor Studio
+   Actual scheduled sessions are never hardcoded here — WRLD never shows
+   fictional workshops or fake dates. Real sessions live in localStorage
+   once a Mentor publishes one (see getLiveSessions() in app.js) and are
+   read live by events.html and mentor-studio.html.
    =================================================================== */
-const EVENTS = [
-  {id:'e1', title:'Resume Workshop: Live Feedback Session', dateISO:'2026-08-03T18:00:00-04:00', duration:'60 min', host:'WRLD Facilitator Team', capacity:100, registered:'sample', type:'Digital Workshop', replay:true},
-  {id:'e2', title:'Virtual Career Fair: Tech & Trades', dateISO:'2026-08-06T17:00:00-04:00', duration:'90 min', host:'WRLD Program Team', capacity:250, registered:'sample', type:'Career Fair', replay:true},
-  {id:'e3', title:'Financial Literacy Seminar: Budgeting 101', dateISO:'2026-08-14T19:00:00-04:00', duration:'45 min', host:'WRLD Facilitator Team', capacity:150, registered:'sample', type:'Seminar', replay:true},
-  {id:'e4', title:'Networking Night for First Jobs', dateISO:'2026-08-20T18:30:00-04:00', duration:'75 min', host:'WRLD Community Team', capacity:120, registered:'sample', type:'Virtual Networking', replay:false},
-  {id:'e5', title:'Leadership Summit: Finding Your Voice', dateISO:'2026-08-29T16:00:00-04:00', duration:'120 min', host:'WRLD Program Team', capacity:200, registered:'sample', type:'Summit', replay:true},
-  {id:'e6', title:'Ask a Mentor: Open Office Hours', dateISO:'2026-09-05T18:00:00-04:00', duration:'60 min', host:'WRLD Community Team', capacity:80, registered:'sample', type:'Office Hours', replay:false},
-];
+const MEETING_PLATFORMS = ['Zoom', 'Google Meet', 'Microsoft Teams', 'Other'];
 
 /* ===================================================================
    COMMUNITY
    =================================================================== */
 const COMMUNITY_FEATURES = [
-  {title:'Discussion Boards', icon:'💬', status:'live', desc:'Ask questions and swap advice with other young people working through the same Playbooks and journeys.'},
-  {title:'Study Groups', icon:'📚', status:'live', desc:'Form or join a small virtual study group tied to a specific course, exam, or Learning Path.'},
-  {title:'Community Challenges', icon:'🏆', status:'live', desc:'Short, low-pressure challenges — like a 7-day budgeting challenge — completed alongside the community.'},
-  {title:'Office Hours', icon:'🕐', status:'live', desc:'Recurring virtual office hours to ask questions live, no appointment required.'},
-  {title:'Volunteer Opportunities', icon:'🌍', status:'live', desc:'Browse and log virtual and remote-friendly volunteer opportunities via the Volunteer Hub.'},
-  {title:'Ask a Mentor', icon:'🤝', status:'coming-soon', desc:'Direct, matched access to a volunteer mentor — launching in phases as our mentor community grows.'},
-  {title:'Success Stories', icon:'✨', status:'coming-soon', desc:'Real stories from real WRLD members — this section will populate honestly as the community grows.'},
-  {title:'Member Spotlights', icon:'🌟', status:'coming-soon', desc:'Monthly spotlights on community members\' progress and milestones — coming as the platform launches publicly.'},
+  {title:'Community Commons', icon:'💬', status:'live', desc:'Ask questions and swap encouragement with other learners — unlocked once you complete your first Playbook.', anchor:'#discussion'},
+  {title:'Playbook Discussions', icon:'📖', status:'live', desc:'Every Playbook has its own Q&A at the bottom — ask something specific to exactly what you\'re studying.', href:'playbooks.html'},
+  {title:'Office Hours', icon:'🕐', status:'live', desc:'Recurring virtual office hours to ask questions live, no appointment required.', anchor:'#office-hours'},
+  {title:'Volunteer Opportunities', icon:'🌍', status:'live', desc:'Browse and log virtual and remote-friendly volunteer opportunities via the Volunteer Hub.', anchor:'#volunteer'},
+  {title:'Meet Our Mentors', icon:'🧑‍🏫', status:'live', desc:'Browse the real Mentors who\'ve joined WRLD, their bios, and areas of expertise.', anchor:'#mentor'},
+  {title:'Study Groups', icon:'📚', status:'coming-soon', desc:'Form or join a small virtual study group tied to a specific course, exam, or Learning Path — rolling out in phases.', anchor:'#study-groups'},
+  {title:'Accountability Partners', icon:'🧭', status:'coming-soon', desc:'Orbit-suggested pairing with another learner working toward the same goal — needs a growing, matched community to work well.', anchor:'#accountability'},
+  {title:'Ask a Mentor', icon:'🤝', status:'coming-soon', desc:'Direct, matched access to a volunteer mentor — launching in phases as our mentor community grows.', anchor:'#mentor'},
+  {title:'Success Stories', icon:'✨', status:'coming-soon', desc:'Real stories from real WRLD members — this section will populate honestly as the community grows.', anchor:'#success-stories'},
 ];
+
+/* Community Commons categories — organized by purpose, not an endless
+   general feed. 'restricted' categories can only be posted to by Mentors/
+   Administrators (e.g. official announcements); everyone can still browse. */
+const COMMONS_CATEGORIES = [
+  {key:'introductions', label:'Introductions', icon:'👋', desc:"New here? Say hello and share a bit about what brought you to WRLD."},
+  {key:'celebrations', label:'Celebrating Achievements', icon:'🎉', desc:'Finished a Playbook or hit a milestone? Share it here — this is what progress looks like.'},
+  {key:'general', label:'General Questions', icon:'❓', desc:"Ask anything about adulting that doesn't fit neatly into one Playbook."},
+  {key:'accountability', label:'Accountability & Study Partners', icon:'🤝', desc:'Find someone working toward the same goal to check in with.'},
+  {key:'announcements', label:'Announcements', icon:'📣', desc:'Updates from the WRLD team — new features, programs, and changes.', restricted:true},
+];
+function getCommonsCategory(key){ return COMMONS_CATEGORIES.find(c=>c.key===key); }
+
+/* ===================================================================
+   VOLUNTEER HUB — DIRECTORY
+   WRLD doesn't run its own volunteer placements yet, so this curates real,
+   well-known, remote/virtual-friendly volunteering platforms rather than
+   inventing WRLD-run opportunities. Every organization listed here is a
+   real, established platform — never a fabricated one.
+   =================================================================== */
+/* Skill badges use a fixed taxonomy so students immediately understand the
+   value they'll gain, rather than a different ad-hoc label per listing. */
+const VOLUNTEER_SKILL_BADGES = ['Leadership','Communication','Digital Skills','Scholarship Friendly','Remote','Flexible','Teamwork','Public Speaking','Organization','Research'];
+
+const VOLUNTEER_OPPORTUNITIES = [
+  {title:'Tutor a student remotely', org:'Idealist (formerly VolunteerMatch)', category:'Tutoring & Homework Help', icon:'📖', skills:['Communication','Remote','Scholarship Friendly'], commitment:'1-2 hrs/week', url:'https://www.idealist.org/'},
+  {title:'Share a professional skill with a nonprofit', org:'Catchafire', category:'Digital Skills Mentoring', icon:'💻', skills:['Leadership','Digital Skills','Flexible'], commitment:'Project-based, flexible', url:'https://www.catchafire.org/'},
+  {title:'Volunteer internationally, entirely online', org:'UNV Online Volunteering', category:'Community Organizing', icon:'🌐', skills:['Organization','Remote','Teamwork'], commitment:'Flexible, task-based', url:'https://www.onlinevolunteering.org/'},
+  {title:'Help translate materials into more languages', org:'Translators without Borders', category:'Content & Translation', icon:'✍️', skills:['Communication','Remote','Flexible'], commitment:'Flexible, project-based', url:'https://translatorswithoutborders.org/'},
+  {title:'Transcribe historical documents', org:'Smithsonian Digital Volunteers', category:'Content & Translation', icon:'📜', skills:['Research','Organization','Remote'], commitment:'Self-paced', url:'https://transcription.si.edu/'},
+  {title:'Support a real cause through youth campaigns', org:'DoSomething', category:'Community Organizing', icon:'🌱', skills:['Leadership','Public Speaking','Teamwork','Scholarship Friendly'], commitment:'Campaign-based, flexible', url:'https://www.dosomething.org/'},
+  {title:'Help classify real research data', org:'Zooniverse', category:'Digital Skills Mentoring', icon:'🔬', skills:['Research','Digital Skills','Flexible'], commitment:'Self-paced, any amount', url:'https://www.zooniverse.org/'},
+  {title:'Assist someone who is blind or low-vision via video call', org:'Be My Eyes', category:'Community Organizing', icon:'👁️', skills:['Communication','Remote','Flexible'], commitment:'On-demand, a few minutes at a time', url:'https://www.bemyeyes.com/'},
+];
+function volunteerCategoryList(){ return [...new Set(VOLUNTEER_OPPORTUNITIES.map(v=>v.category))]; }

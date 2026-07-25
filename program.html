@@ -49,7 +49,7 @@
           <div class="lesson-table-wrap mb-32">
             <table class="lesson-table">
               <tbody>
-                <tr><td style="font-weight:700; width:220px;">Prerequisites</td><td id="prog-prereqs"></td></tr>
+                <tr><td style="font-weight:700; width:35%; min-width:130px;">Prerequisites</td><td id="prog-prereqs"></td></tr>
                 <tr><td style="font-weight:700;">Expected Commitment</td><td id="prog-commitment"></td></tr>
               </tbody>
             </table>
@@ -71,8 +71,8 @@
           <div class="card" style="padding:26px; display:flex; gap:20px; align-items:center; border:1.5px dashed var(--navy-10);">
             <div style="font-size:40px;">🎓</div>
             <div>
-              <span class="pill pill-sample mb-8" style="display:inline-block;">Sample Preview</span>
-              <p style="margin:0;">Everyone who completes this program's modules and projects receives a WRLD Certificate of Completion — shareable on LinkedIn and downloadable as a PDF. Certificate design shown here is a preview; issuance begins as each cohort completes.</p>
+              <span class="pill pill-sample mb-8" style="display:inline-block;">Coming Soon</span>
+              <p style="margin:0;">Everyone who completes this program's modules and projects earns a WRLD Certificate of Completion — shareable on LinkedIn and downloadable as a PDF. Certificate issuing is launching alongside full WRLD accounts, beginning with the first completed cohorts.</p>
             </div>
           </div>
 
@@ -119,7 +119,9 @@
 </main>
 <div id="site-footer"></div>
 <script src="data.js"></script>
+<script src="auth.js"></script>
 <script src="app.js"></script>
+<script src="orbit.js"></script>
 <script>
 function getParam(name){ return new URLSearchParams(location.search).get(name); }
 
@@ -166,9 +168,8 @@ function loadProgram(){
     <div class="person-card">
       <svg class="person-avatar" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="${p.color==='yellow'?'#F5CF57':'#2EA8C7'}"/><circle cx="50" cy="42" r="16" fill="#1F3D4D"/><path d="M22 88c4-22 24-30 28-30s24 8 28 30z" fill="#1F3D4D"/></svg>
       <div>
-        <span class="pill pill-sample mb-8" style="display:inline-block;">Sample instructor profile</span>
         <div style="font-weight:700; color:var(--navy);">WRLD Facilitator Team</div>
-        <p style="margin:0; font-size:13.5px;">Live sessions are hosted by WRLD's instructional team and guest practitioners. Individual instructor bios will populate here as facilitators are confirmed for each cohort.</p>
+        <p style="margin:0; font-size:13.5px;">Live sessions are hosted by WRLD's instructional team and guest practitioners from the field. Individual instructor bios are added here as facilitators are confirmed for each upcoming cohort.</p>
       </div>
     </div>`;
 
@@ -181,7 +182,7 @@ function loadProgram(){
     <div class="accordion-item"><button class="accordion-trigger">${f.q}<span class="chev">▾</span></button><div class="accordion-panel"><div class="accordion-panel-inner">${f.a}</div></div></div>`).join('');
   initAccordions();
 
-  // Progress tracker (mock — tied to bookmark/enrollment state)
+  // Progress tracker — tied to local enrollment state until real cohort progress lands
   const enrolled = getState().bookmarks.includes('program-'+p.id);
   document.getElementById('prog-progress').innerHTML = enrolled ? `
     <div class="flex justify-between items-center mb-8"><span style="font-weight:700; color:var(--navy);">Your progress</span><span style="color:var(--blue); font-weight:700;">Module 1 of ${p.modules.length}</span></div>
@@ -207,9 +208,9 @@ function loadProgram(){
       enrollBoxEl.innerHTML = `
         <div style="font-size:13px; font-weight:700; color:var(--success); margin-bottom:12px;">● 100% Free</div>
         <h4 style="margin-bottom:10px;">${isEnrolled?"You're enrolled!":'Ready to start?'}</h4>
-        <p style="font-size:13.5px; margin-bottom:18px;">Live cohorts run continuously — enroll anytime and join the next available session.</p>
+        <p style="font-size:13.5px; margin-bottom:18px;">Enroll anytime — live sessions for this program appear on Live Learning as WRLD mentors publish them.</p>
         <button class="btn btn-primary btn-block" id="enroll-btn">${isEnrolled?'✓ Enrolled — View Dashboard':'Enroll for Free'}</button>
-        <a href="events.html" class="btn btn-outline btn-block mt-8">📅 See Upcoming Sessions</a>`;
+        <a href="events.html" class="btn btn-outline btn-block mt-8">📅 See Live Learning</a>`;
       document.getElementById('enroll-btn').addEventListener('click', ()=>{
         if(isEnrolled){ location.href='dashboard.html'; return; }
         const s = getState(); const key='program-'+p.id;
