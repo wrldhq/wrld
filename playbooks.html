@@ -56,8 +56,10 @@ function diffPill(d){ return d==='Beginner'?'success':d==='Advanced'?'sample':'y
 
 function pbCard(p,i){
   const hasIll = p.heroIllustration && typeof renderIllustration==='function' && renderIllustration(p.heroIllustration);
+  const featured = typeof getFeatured==='function' ? getFeatured() : {};
+  const isFeatured = featured.playbookSlug === p.slug;
   return `<a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable reveal reveal-d${(i%3)+1}" data-category="${p.category}" data-search-text="${p.title.toLowerCase()} ${p.dek.toLowerCase()} ${p.category.toLowerCase()}">
-    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; position:relative; overflow:hidden;">${hasIll?`<div style="width:100%; height:220%; position:absolute; top:-40%;">${hasIll}</div>`:p.emoji} ${p.flagship?'<span class="pill pill-sample" style="position:absolute; top:10px; left:12px; background:rgba(255,255,255,.9);">⭐ Flagship</span>':''}${isComplete(p.slug)?'<span style="position:absolute; top:12px; right:14px; font-size:16px;">✅</span>':''}</div>
+    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; position:relative; overflow:hidden;">${hasIll?`<div style="width:100%; height:220%; position:absolute; top:-40%;">${hasIll}</div>`:p.emoji} ${p.flagship?'<span class="pill pill-sample" style="position:absolute; top:10px; left:12px; background:rgba(255,255,255,.9);">⭐ Flagship</span>':''}${isComplete(p.slug)?'<span style="position:absolute; top:12px; right:14px; font-size:16px;">✅</span>':''}${isFeatured?'<span class="pill pill-yellow" style="position:absolute; bottom:10px; left:12px; background:rgba(255,255,255,.95);">🌟 Featured by WRLD</span>':''}</div>
     <div class="pb-body">
       <div class="pb-meta">
         <span class="pill pill-${diffPill(p.difficulty)}">${p.difficulty}</span>

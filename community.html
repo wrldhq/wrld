@@ -32,6 +32,11 @@
         <p style="max-width:600px; margin:0 auto;">Posting unlocks once you've completed your first Playbook — that way every conversation here is with someone who actually knows what WRLD is about.</p>
       </div>
 
+      <div class="card reveal hidden" id="community-announcement" style="max-width:680px; margin:0 auto 20px; padding:16px 20px; background:var(--sky); border:none;">
+        <div class="eyebrow blue mb-4" style="font-size:11px;">📢 From WRLD</div>
+        <p id="community-announcement-text" style="font-size:13.5px; font-weight:600; color:var(--navy); margin:0;"></p>
+      </div>
+
       <div class="assess-orbit-line reveal" id="commons-gate-line" style="max-width:680px; margin:0 auto 20px; display:none;"></div>
 
       <div class="flex gap-8 justify-center mb-24 reveal" id="commons-tabs" style="flex-wrap:wrap;"></div>
@@ -68,7 +73,7 @@
         <p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">Study Groups are rolling out in phases — they need real, matched members to be worth joining, so WRLD is building this alongside its growing community rather than launching it empty.</p>
       </div>
       <div class="flex gap-20 mt-24" style="flex-wrap:wrap; justify-content:center;">
-        <div class="coming-soon-card reveal" style="max-width:340px;">
+        <div class="coming-soon-card reveal" id="study-groups-card" style="max-width:340px;">
           <div style="font-size:30px; margin-bottom:12px;">📚</div>
           <h4 style="margin-bottom:8px;">Study Groups — Coming Soon</h4>
           <p style="font-size:13px;">Each Study Group will include its own discussion board, shared goals, recommended resources, upcoming Live Learning sessions, and Orbit recommendations.</p>
@@ -230,6 +235,8 @@ renderVolunteerGrid();
 /* --- Current Mentors: real directory from registered Mentor accounts --- */
 function renderMentorsList(){
   const mentors = (typeof getUsers==='function' ? getUsers() : []).filter(u=>u.role==='mentor');
+  const featured = typeof getFeatured==='function' ? getFeatured() : {};
+  mentors.sort((a,b)=>(b.id===featured.mentorUserId)-(a.id===featured.mentorUserId));
   const wrap = document.getElementById('mentors-list');
   if(!mentors.length){
     wrap.innerHTML = `<div class="card reveal text-center" style="padding:28px;">
@@ -242,11 +249,15 @@ function renderMentorsList(){
     const profile = getMentorProfile(m.id);
     const sessionCount = (typeof getLiveSessions==='function' ? getLiveSessions() : []).filter(s=>s.mentorId===m.id).length;
     const memberSince = new Date(m.createdAt).toLocaleDateString(undefined,{month:'long', year:'numeric'});
-    return `<div class="card reveal reveal-d${(i%4)+1} mb-16" style="padding:22px;">
+    const isHighlighted = m.id===featured.mentorUserId;
+    return `<div class="card reveal reveal-d${(i%4)+1} mb-16" style="padding:22px; ${isHighlighted?'border:1.5px solid var(--yellow-deep);':''}">
       <div class="flex gap-14 items-start">
         <span class="user-menu-avatar" style="width:44px; height:44px; font-size:15px; flex-shrink:0;">${userInitials(m.name)}</span>
         <div style="flex:1;">
-          <h4 style="margin-bottom:2px;">${m.name}</h4>
+          <div class="flex items-center gap-8 mb-2" style="flex-wrap:wrap;">
+            <h4 style="margin-bottom:2px;">${m.name}</h4>
+            ${isHighlighted ? `<span class="pill pill-yellow" style="font-size:10.5px;">⭐ Highlighted by WRLD</span>` : ''}
+          </div>
           <p style="font-size:12.5px; color:var(--blue-dark); font-weight:600; margin-bottom:6px;">${profile.tagline || 'WRLD Mentor'}</p>
           ${profile.bio ? `<p style="font-size:13px; margin-bottom:8px;">${profile.bio}</p>` : ''}
           ${profile.expertise && profile.expertise.length ? `<div class="flex gap-6 mb-8" style="flex-wrap:wrap;">${profile.expertise.map(e=>`<span class="pill pill-blue" style="font-size:11px;">${e}</span>`).join('')}</div>` : ''}
@@ -360,6 +371,24 @@ function postCommonsReply(postId){
   if(!res.ok){ showToast(res.error); return; }
   showToast(res.reply.status==='held' ? "✅ Reply posted — it's being reviewed before going public." : '✅ Reply posted');
   renderCommonsList();
+}
+
+// Owner Dashboard "Organization > Feature toggles" controls whether these
+// two Coming Soon cards are shown at all — a real, functioning toggle,
+// not a cosmetic one. Both default to visible.
+if(typeof getFeatureToggles==='function'){
+  const toggles = getFeatureToggles();
+  if(!toggles.studyGroups) document.getElementById('study-groups-card')?.classList.add('hidden');
+  if(!toggles.accountabilityPartners) document.getElementById('accountability')?.classList.add('hidden');
+}
+
+// Latest Owner/Admin announcement, published from the Owner Dashboard's Content tab
+if(typeof getLatestAnnouncement==='function'){
+  const latest = getLatestAnnouncement();
+  if(latest){
+    document.getElementById('community-announcement').classList.remove('hidden');
+    document.getElementById('community-announcement-text').textContent = latest.message;
+  }
 }
 
 renderCommonsTabs();

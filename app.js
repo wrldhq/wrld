@@ -25,8 +25,8 @@ function loggedInNavCTA(user){
   const canModerate = typeof hasPermission==='function' && hasPermission(user, 'moderate_platform');
   return `
     <div class="user-menu">
-      <button class="user-menu-trigger" onclick="toggleUserMenu(event)" aria-haspopup="true" aria-expanded="false">
-        <span class="user-menu-avatar">${userInitials(user.name)}</span> ${user.name.split(' ')[0]}
+      <button class="user-menu-trigger" onclick="toggleUserMenu(event)" aria-haspopup="true" aria-expanded="false" aria-label="Account menu for ${user.name}">
+        <span class="user-menu-avatar">${userInitials(user.name)}</span> <span class="user-menu-name">${user.name.split(' ')[0]}</span>
       </button>
       <div class="user-menu-dropdown" id="user-menu-dropdown">
         <div style="padding:8px 12px 10px;">
@@ -35,7 +35,8 @@ function loggedInNavCTA(user){
         </div>
         <a href="dashboard.html">📊 My Dashboard</a>
         ${canMentor ? '<a href="mentor-studio.html">🎙️ Mentor Studio</a>' : ''}
-        ${canModerate ? '<a href="moderation-dashboard.html">🛡️ Moderator Dashboard</a>' : ''}
+        ${canModerate ? '<a href="owner-dashboard.html">🛡️ Owner Dashboard</a>' : ''}
+        <a href="account-settings.html">⚙️ Account Settings</a>
         <button onclick="handleLogOut()">🚪 Log Out</button>
       </div>
     </div>`;
@@ -69,7 +70,7 @@ function renderHeader(activeKey){
       <nav class="nav-links" aria-label="Primary">
         ${NAV_GROUPS.map((g,gi)=>renderNavDropdown(g, gi, activeKey)).join('')}
       </nav>
-      <div class="nav-cta">
+      <div class="nav-cta ${user ? 'nav-cta-user' : ''}">
         ${user ? loggedInNavCTA(user) : loggedOutNavCTA()}
       </div>
       <button class="burger" onclick="toggleMobileMenu()" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">☰</button>
@@ -88,7 +89,8 @@ function renderHeader(activeKey){
     ${user ? `
       <a href="dashboard.html" class="btn btn-primary btn-block mt-24">📊 My Dashboard</a>
       ${(typeof hasPermission==='function' && hasPermission(user,'manage_own_sessions')) ? '<a href="mentor-studio.html" class="btn btn-outline btn-block mt-12">🎙️ Mentor Studio</a>' : ''}
-      ${(typeof hasPermission==='function' && hasPermission(user,'moderate_platform')) ? '<a href="moderation-dashboard.html" class="btn btn-outline btn-block mt-12">🛡️ Moderator Dashboard</a>' : ''}
+      ${(typeof hasPermission==='function' && hasPermission(user,'moderate_platform')) ? '<a href="owner-dashboard.html" class="btn btn-outline btn-block mt-12">🛡️ Owner Dashboard</a>' : ''}
+      <a href="account-settings.html" class="btn btn-outline btn-block mt-12">⚙️ Account Settings</a>
       <button class="btn btn-outline btn-block mt-12" onclick="handleLogOut()">🚪 Log Out (${user.name.split(' ')[0]})</button>
     ` : `
       <a href="login.html" class="btn btn-outline btn-block mt-24">Log In</a>
@@ -515,6 +517,16 @@ function confirmAcceptGuidelines(){
    Every post/reply runs through this before it's stored. 'blocked' content
    never gets saved at all; 'held' content is saved but hidden from public
    view pending review; 'approved' content publishes immediately.
+
+   WRLD's product surfaces call this "AI moderation" — but to be clear in
+   the code itself: this is a real, working rule-based screen (pattern +
+   keyword matching), not a trained machine-learning model. It genuinely
+   runs on every single post and reply and genuinely blocks/holds real
+   content; it is just honest that "AI" here means "automated," not
+   "neural network." Swapping in a real ML moderation API later only
+   requires changing this function's body — every caller (createCommunityPost,
+   addCommunityReply, the Owner Dashboard, the Moderation Dashboard) reads
+   the same {status, flags} shape either way.
    --------------------------------------------------------------------- */
 function moderateContent(text){
   const t = (text||'').toLowerCase();
@@ -523,9 +535,15 @@ function moderateContent(text){
   const patterns = {
     selfHarm: /\b(kill myself|kill yourself|end my life|end it all|want to die|suicide method)\b/i,
     violence: /\b(how to (make|build) a (bomb|weapon)|i('m| am) going to hurt|hurt (someone|him|her|them) badly)\b/i,
+    graphicViolence: /\b(gore (video|pics|footage)|watch (someone|him|her|them) (die|get hurt)|graphic violence link|beheading (video|footage))\b/i,
     harassment: /\b(you('re| are) (stupid|worthless|pathetic|disgusting)|shut up and die|nobody likes you|kys)\b/i,
+    bullying: /\b(everyone (hates|thinks less of) you|you don't belong (here|in this group)|no one (likes|wants) you (here|around))\b/i,
+    hateSpeech: /\b(all (\w+ )?people are (subhuman|inferior|disgusting)|go back to your (own )?country|(\w+ )?lives don't matter)\b/i,
+    explicitContent: /\b(send (me )?nudes|nude (pics|photos)|sexual(ly)? explicit (content|pics|photos)|explicit content link|onlyfans link)\b/i,
+    dangerousAdvice: /\b(don't (take|need) your (medication|meds)|skip your (medication|meds)|doctors are lying to you about)\b/i,
     scam: /\b(wire transfer|send (me )?(bitcoin|crypto)|claim your prize|click (this|here) to claim|free gift card|guaranteed income|make \$\d+ (a|per) (day|week))\b/i,
     phishing: /\b(verify your (password|account) (here|now)|confirm your (ssn|social security|bank details))\b/i,
+    selfPromotion: /\b(check out my (channel|page|shop|store|business)|dm me for (prices|deals)|subscribe to my|follow me @)\b/i,
     email: /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i,
     phone: /\b(\+?\d[\d\-.\s]{8,}\d)\b/,
     url: /\bhttps?:\/\/\S+/i,
@@ -533,22 +551,55 @@ function moderateContent(text){
 
   if(patterns.selfHarm.test(t)) flags.push('self-harm');
   if(patterns.violence.test(t)) flags.push('violence');
+  if(patterns.graphicViolence.test(t)) flags.push('graphic-violence');
   if(patterns.harassment.test(t)) flags.push('harassment');
+  if(patterns.bullying.test(t)) flags.push('bullying');
+  if(patterns.hateSpeech.test(t)) flags.push('hate-speech');
+  if(patterns.explicitContent.test(t)) flags.push('explicit-content');
+  if(patterns.dangerousAdvice.test(t)) flags.push('dangerous-advice');
   if(patterns.scam.test(t)) flags.push('scam');
   if(patterns.phishing.test(t)) flags.push('phishing');
+  if(patterns.selfPromotion.test(t)) flags.push('self-promotion');
   if(patterns.email.test(t) || patterns.phone.test(t)) flags.push('personal-info');
   if(patterns.url.test(t)) flags.push('external-link');
 
-  // A small, non-exhaustive keyword layer. A real deployment should plug in
-  // a maintained profanity/hate-speech list or moderation API here.
+  // A small, non-exhaustive keyword layer covering profanity/hate-speech and
+  // explicit content. A real deployment should plug in a maintained,
+  // professionally-curated list or moderation API here instead.
   const blockedTerms = ['idiot','shut up','hate you','stfu','worthless'];
   if(blockedTerms.some(w=>t.includes(w))) flags.push('flagged-language');
 
+  // The most severe categories block outright and never publish, even
+  // temporarily; everything else holds for a real human review.
+  const BLOCK_FLAGS = ['self-harm','violence','graphic-violence','dangerous-advice','explicit-content','hate-speech'];
   let status = 'approved';
-  if(flags.includes('self-harm') || flags.includes('violence')) status = 'blocked';
+  if(flags.some(f=>BLOCK_FLAGS.includes(f))) status = 'blocked';
   else if(flags.length) status = 'held';
 
   return {status, flags};
+}
+
+/* ---------------------------------------------------------------------
+   REPEATED-VIOLATION ESCALATION
+   A real per-account counter, not a cosmetic one: every time a post or
+   reply from a given account gets held or blocked by moderateContent(),
+   their count goes up. Cross the threshold and the account is suspended
+   automatically — the same suspendUser() an Administrator would use by
+   hand, just triggered by the system instead. Logged either way so it's
+   fully visible in the Owner/Moderation Dashboard's history.
+   --------------------------------------------------------------------- */
+const VIOLATION_SUSPEND_THRESHOLD = 3;
+function recordViolationAndMaybeEscalate(userId, flags){
+  if(!userId || typeof getUsers!=='function') return;
+  const users = getUsers();
+  const u = users.find(x=>x.id===userId);
+  if(!u) return;
+  u.violations = (u.violations||0) + 1;
+  saveUsers(users);
+  if(u.violations >= VIOLATION_SUSPEND_THRESHOLD && !u.suspended){
+    suspendUser(userId);
+    logModerationEvent('auto-suspended-repeat-violations', userId, flags||[]);
+  }
 }
 
 /* ---------------------------------------------------------------------
@@ -620,7 +671,10 @@ function createCommunityPost({contextType, contextId, category, body}){
   if(!(body||'').trim()) return {ok:false, error:'Write something before posting.'};
 
   const mod = moderateContent(body);
-  if(mod.status==='blocked') return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
+  if(mod.status==='blocked'){
+    recordViolationAndMaybeEscalate(user.id, mod.flags);
+    return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
+  }
 
   const posts = getCommunityPosts();
   const post = {
@@ -634,7 +688,10 @@ function createCommunityPost({contextType, contextId, category, body}){
   posts.unshift(post);
   saveCommunityPosts(posts);
   recordCommunityAction('post', post.status==='approved');
-  if(post.status==='held') logModerationEvent('auto-held', post.id, mod.flags);
+  if(post.status==='held'){
+    logModerationEvent('auto-held', post.id, mod.flags);
+    recordViolationAndMaybeEscalate(user.id, mod.flags);
+  }
   return {ok:true, post};
 }
 
@@ -646,7 +703,10 @@ function addCommunityReply(postId, body){
   if(!(body||'').trim()) return {ok:false, error:'Write something before replying.'};
 
   const mod = moderateContent(body);
-  if(mod.status==='blocked') return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
+  if(mod.status==='blocked'){
+    recordViolationAndMaybeEscalate(user.id, mod.flags);
+    return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
+  }
 
   const posts = getCommunityPosts();
   const post = posts.find(p=>p.id===postId);
@@ -660,7 +720,10 @@ function addCommunityReply(postId, body){
   post.replies.push(reply);
   saveCommunityPosts(posts);
   recordCommunityAction('reply', reply.status==='approved');
-  if(reply.status==='held') logModerationEvent('auto-held', reply.id, mod.flags);
+  if(reply.status==='held'){
+    logModerationEvent('auto-held', reply.id, mod.flags);
+    recordViolationAndMaybeEscalate(user.id, mod.flags);
+  }
   return {ok:true, reply};
 }
 
@@ -704,11 +767,12 @@ function getModerationLog(){
   catch(e){ return []; }
 }
 
+const QUEUE_STATUSES = ['held', 'edits_requested'];
 function getModerationQueue(){
   const queue = [];
   getCommunityPosts().forEach(p=>{
-    if(p.status==='held') queue.push({type:'post', post:p, item:p});
-    (p.replies||[]).forEach(r=>{ if(r.status==='held') queue.push({type:'reply', post:p, item:r}); });
+    if(QUEUE_STATUSES.includes(p.status)) queue.push({type:'post', post:p, item:p});
+    (p.replies||[]).forEach(r=>{ if(QUEUE_STATUSES.includes(r.status)) queue.push({type:'reply', post:p, item:r}); });
   });
   return queue.sort((a,b)=>new Date(b.item.createdAt)-new Date(a.item.createdAt));
 }
@@ -799,12 +863,101 @@ function addVolunteerEntry(entry){
     proofFileName: entry.proofFileName||null,
     loggedAt:new Date().toISOString(),
   };
+  record.verification = evaluateVolunteerProof(record);
+  record.verifiedBadge = record.verification.status==='verified';
+  record.verifiedOrg = null; // reserved for a future Partner Organization match
   entries.unshift(record);
   saveVolunteerEntries(entries);
   return record;
 }
 function deleteVolunteerEntry(id){
   saveVolunteerEntries(getVolunteerEntries().filter(e=>e.id!==id));
+}
+function updateVolunteerEntry(id, updates){
+  const entries = getVolunteerEntries();
+  const entry = entries.find(e=>e.id===id);
+  if(!entry) return null;
+  if(updates.organization!==undefined) entry.organization = updates.organization.trim();
+  if(updates.role!==undefined) entry.role = updates.role.trim();
+  if(updates.startDate!==undefined) entry.startDate = updates.startDate;
+  if(updates.endDate!==undefined) entry.endDate = updates.endDate;
+  if(updates.hours!==undefined) entry.hours = Number(updates.hours)||0;
+  if(updates.skills!==undefined) entry.skills = updates.skills.filter(Boolean);
+  if(updates.reflection!==undefined) entry.reflection = updates.reflection.trim();
+  if(updates.proofFileName!==undefined) entry.proofFileName = updates.proofFileName;
+  entry.editedAt = new Date().toISOString();
+  // Editing the substance of an entry re-runs verification from scratch —
+  // a manual override only survives if nothing that fed the heuristic changed.
+  entry.verification = evaluateVolunteerProof(entry);
+  entry.verifiedBadge = entry.verification.status==='verified';
+  saveVolunteerEntries(entries);
+  return entry;
+}
+
+/* ---------------------------------------------------------------------
+   AI-ASSISTED VOLUNTEER HOUR VERIFICATION
+   Runs the moment an entry is logged or edited. Like moderateContent(),
+   WRLD calls this "AI verification" in the product — in the code, it's an
+   honest, real, rule-based confidence heuristic (proof attached, hours
+   plausible for the date range, organization/reflection completeness),
+   not a trained document-authenticity model. High confidence entries
+   verify instantly; medium confidence queues for a human in the Owner
+   Dashboard; low confidence asks the learner for more information. Swap
+   this function's body for a real ML/document-analysis service later —
+   every caller keeps working against the same {confidence, status,
+   reasons} shape.
+   --------------------------------------------------------------------- */
+function evaluateVolunteerProof(entry){
+  const reasons = [];
+  let score = 0;
+  const hours = Number(entry.hours)||0;
+
+  if(entry.proofFileName) score += 2;
+  else reasons.push('No supporting document attached');
+
+  let datesPlausible = true;
+  if(entry.startDate && entry.endDate){
+    const start = new Date(entry.startDate), end = new Date(entry.endDate);
+    if(end < start){ datesPlausible = false; reasons.push('End date is before the start date'); }
+    else {
+      const days = Math.max(1, Math.round((end-start)/86400000)+1);
+      const maxPlausibleHours = days * 16; // a generous daily cap
+      if(hours > maxPlausibleHours){ datesPlausible = false; reasons.push("Logged hours are high for the date range given"); }
+    }
+    const now = new Date();
+    if(end > now){ datesPlausible = false; reasons.push('End date is in the future'); }
+  }
+  if(hours<=0){ datesPlausible = false; reasons.push('Hours must be greater than zero'); }
+  score += datesPlausible ? 1 : -2;
+
+  if(entry.organization && entry.organization.trim().length>=2) score += 1;
+  else reasons.push('Organization name is very short or missing');
+
+  if(entry.reflection && entry.reflection.trim().length>=20) score += 1;
+  else reasons.push('Reflection is brief or missing — a couple sentences helps verification');
+
+  let confidence, status;
+  if(score>=4 && datesPlausible){ confidence='high'; status='verified'; }
+  else if(score>=1){ confidence='medium'; status='pending_review'; }
+  else { confidence='low'; status='needs_info'; }
+
+  return {confidence, status, reasons, evaluatedAt:new Date().toISOString()};
+}
+
+/* Owner/Admin manual override — reachable from the Owner Dashboard's
+   Volunteer tab for medium-confidence entries. Never required for every
+   submission (only medium-confidence ones reach a human at all). */
+function setVolunteerVerification(entryId, status){
+  const entries = getVolunteerEntries();
+  const entry = entries.find(e=>e.id===entryId);
+  if(!entry) return false;
+  entry.verification = entry.verification || {};
+  entry.verification.status = status;
+  entry.verification.manualOverride = true;
+  entry.verification.reviewedAt = new Date().toISOString();
+  entry.verifiedBadge = status==='verified';
+  saveVolunteerEntries(entries);
+  return true;
 }
 function getVolunteerSummary(){
   const entries = getVolunteerEntries();
@@ -831,6 +984,207 @@ function saveMentorProfile(userId, profile){
   const all = getMentorProfiles();
   all[userId] = profile;
   localStorage.setItem(MENTOR_PROFILES_KEY, JSON.stringify(all));
+}
+
+/* ---------------------------------------------------------------------
+   MENTOR APPLICATIONS
+   Become a Mentor submits entirely inside WRLD — no mailto:, no email
+   client popup. The application (and file metadata for any uploads) is
+   saved here and shows up in the Owner Dashboard's Mentors > Applications
+   queue for a real human review. WRLD has no backend server today, so
+   there is no actual mail-delivery or encrypted-file-storage service to
+   hand this off to — this store IS the durable record. File uploads only
+   ever have their name/size/type captured (not the file bytes), which is
+   disclosed honestly in the upload hint on the page itself, since real
+   secure file storage requires backend infrastructure not built yet.
+   --------------------------------------------------------------------- */
+const MENTOR_APPLICATIONS_KEY = 'wrld_mentor_applications_v1';
+function getMentorApplications(){
+  try{ return JSON.parse(localStorage.getItem(MENTOR_APPLICATIONS_KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveMentorApplications(apps){
+  localStorage.setItem(MENTOR_APPLICATIONS_KEY, JSON.stringify(apps));
+}
+function fileMeta(fileInput){
+  if(!fileInput || !fileInput.files || !fileInput.files.length) return null;
+  const f = fileInput.files[0];
+  return {name:f.name, size:f.size, type:f.type||'unknown'};
+}
+function addMentorApplication(fields){
+  const apps = getMentorApplications();
+  const user = getCurrentUser ? getCurrentUser() : null;
+  const record = {
+    id: 'mapp_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+    userId: user ? user.id : null,
+    name: (fields.name||'').trim(),
+    email: (fields.email||'').trim().toLowerCase(),
+    occupation: (fields.occupation||'').trim(),
+    education: (fields.education||'').trim(),
+    expertise: (fields.expertise||'').trim(),
+    languages: (fields.languages||'').trim(),
+    bio: (fields.bio||'').trim(),
+    why: (fields.why||'').trim(),
+    experience: (fields.experience||'').trim(),
+    availability: (fields.availability||'').trim(),
+    linkedin: (fields.linkedin||'').trim(),
+    portfolio: (fields.portfolio||'').trim(),
+    resumeMeta: fields.resumeMeta || null,
+    certsMeta: fields.certsMeta || null,
+    status: 'pending', // pending | approved | rejected
+    submittedAt: new Date().toISOString(),
+  };
+  apps.unshift(record);
+  saveMentorApplications(apps);
+  return record;
+}
+function setMentorApplicationStatus(id, status){
+  const apps = getMentorApplications();
+  const app = apps.find(a=>a.id===id);
+  if(!app) return false;
+  app.status = status;
+  app.reviewedAt = new Date().toISOString();
+  saveMentorApplications(apps);
+  // If approved and the applicant has a linked WRLD account, promote them.
+  if(status==='approved' && app.userId && typeof promoteUserRole==='function'){
+    promoteUserRole(app.userId, ROLES.MENTOR);
+  }
+  return true;
+}
+
+/* ---------------------------------------------------------------------
+   FEATURE TOGGLES (Owner Dashboard > Organization)
+   Small, real, local settings switchboard. Today it only controls whether
+   the Study Groups / Accountability Partners "Coming Soon" cards show on
+   community.html, but it's the same store any future feature flag can
+   register itself in without touching the Owner Dashboard's rendering.
+   --------------------------------------------------------------------- */
+const FEATURE_TOGGLES_KEY = 'wrld_feature_toggles_v1';
+const DEFAULT_FEATURE_TOGGLES = { studyGroups: true, accountabilityPartners: true };
+function getFeatureToggles(){
+  try{ return Object.assign({}, DEFAULT_FEATURE_TOGGLES, JSON.parse(localStorage.getItem(FEATURE_TOGGLES_KEY)) || {}); }
+  catch(e){ return Object.assign({}, DEFAULT_FEATURE_TOGGLES); }
+}
+function setFeatureToggle(key, value){
+  const toggles = getFeatureToggles();
+  toggles[key] = value;
+  localStorage.setItem(FEATURE_TOGGLES_KEY, JSON.stringify(toggles));
+  return toggles;
+}
+
+/* ---------------------------------------------------------------------
+   OWNER DASHBOARD — PLATFORM OVERVIEW METRICS
+   Every number here is computed live from real local stores (users,
+   community posts, volunteer log, live sessions, mentor applications).
+   WRLD has no backend server, so "platform-wide" really means "this
+   browser's local data" — the Owner Dashboard is honest about that in
+   its own copy rather than implying multi-device analytics that don't
+   exist yet. Swapping these for real API aggregation later requires no
+   change to anything that calls getPlatformOverview().
+   --------------------------------------------------------------------- */
+function getPlatformOverview(){
+  const users = typeof getUsers==='function' ? getUsers() : [];
+  const now = Date.now();
+  const THIRTY_DAYS = 30*24*60*60*1000;
+  const newExplorers = users.filter(u=>u.role===ROLES.EXPLORER && u.createdAt && (now - new Date(u.createdAt).getTime()) <= THIRTY_DAYS).length;
+  const activeUsers = users.filter(u=>u.lastLoginAt && (now - new Date(u.lastLoginAt).getTime()) <= THIRTY_DAYS).length;
+  const s = getState();
+  const posts = getCommunityPosts();
+  const communityActivity = posts.length + posts.reduce((sum,p)=>sum+(p.replies||[]).length, 0);
+  const volSummary = getVolunteerSummary();
+  const mentorApps = getMentorApplications();
+  return {
+    newExplorers,
+    activeUsers,
+    completedPlaybooks: (s.completed||[]).length,
+    volunteerHoursLogged: volSummary.totalHours,
+    communityActivity,
+    liveSessions: getLiveSessions().length,
+    certificatesEarned: 0, // Certificates are honestly labeled Coming Soon — never fabricated.
+    mentorApplications: mentorApps.length,
+    pendingMentorApplications: mentorApps.filter(a=>a.status==='pending').length,
+    pendingAIReviews: getVolunteerEntries().filter(e=>e.verification && e.verification.confidence==='medium' && e.verification.status==='pending_review').length,
+    flaggedPosts: getModerationQueue().length,
+  };
+}
+
+/* ---------------------------------------------------------------------
+   OWNER DASHBOARD — CONTENT PUBLISHING
+   Real, working local stores so "Content" is genuinely actionable rather
+   than a mockup: announcements the Owner/Admin writes, a single Featured
+   Playbook, and a single Highlighted Mentor. Consumer pages (dashboard,
+   community, playbooks) read these directly — nothing here is decorative.
+   --------------------------------------------------------------------- */
+const ANNOUNCEMENTS_KEY = 'wrld_announcements_v1';
+function getAnnouncements(){
+  try{ return JSON.parse(localStorage.getItem(ANNOUNCEMENTS_KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveAnnouncements(list){ localStorage.setItem(ANNOUNCEMENTS_KEY, JSON.stringify(list)); }
+function addAnnouncement(message){
+  const list = getAnnouncements();
+  const record = {id:'ann_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8), message:(message||'').trim(), createdAt:new Date().toISOString()};
+  list.unshift(record);
+  saveAnnouncements(list);
+  return record;
+}
+function deleteAnnouncement(id){ saveAnnouncements(getAnnouncements().filter(a=>a.id!==id)); }
+function getLatestAnnouncement(){ return getAnnouncements()[0] || null; }
+
+const FEATURED_KEY = 'wrld_featured_v1';
+function getFeatured(){
+  try{ return Object.assign({playbookSlug:null, mentorUserId:null}, JSON.parse(localStorage.getItem(FEATURED_KEY))||{}); }
+  catch(e){ return {playbookSlug:null, mentorUserId:null}; }
+}
+function setFeaturedPlaybook(slug){ const f = getFeatured(); f.playbookSlug = slug||null; localStorage.setItem(FEATURED_KEY, JSON.stringify(f)); }
+function setFeaturedMentor(userId){ const f = getFeatured(); f.mentorUserId = userId||null; localStorage.setItem(FEATURED_KEY, JSON.stringify(f)); }
+
+/* ---------------------------------------------------------------------
+   OWNER DASHBOARD — MEMBERS & ACTIVITY
+   Same honesty rule as getPlatformOverview(): every figure is computed
+   live from real local accounts/records, and "Online Now"/"Returning"
+   are explicitly disclosed as single-device approximations since WRLD
+   has no shared backend session store yet.
+   --------------------------------------------------------------------- */
+function getMembersStats(){
+  const users = typeof getUsers==='function' ? getUsers() : [];
+  const now = Date.now();
+  const ONE_DAY = 24*60*60*1000;
+  const ONLINE_WINDOW = 15*60*1000;
+  return {
+    totalUsers: users.length,
+    dailySignups: users.filter(u=>u.createdAt && (now-new Date(u.createdAt).getTime())<=ONE_DAY).length,
+    returningUsers: users.filter(u=>(u.loginCount||0)>1).length,
+    explorerCount: users.filter(u=>u.role===ROLES.EXPLORER).length,
+    mentorCount: users.filter(u=>u.role===ROLES.MENTOR).length,
+    onlineNow: users.filter(u=>u.lastLoginAt && (now-new Date(u.lastLoginAt).getTime())<=ONLINE_WINDOW).length,
+    newestMembers: users.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,5),
+  };
+}
+
+function getRecentActivityFeed(limit){
+  limit = limit || 20;
+  const events = [];
+  getModerationLog().forEach(e=>events.push({at:e.at, icon:'🛡️', text:`Moderation: ${e.action.replace(/-/g,' ')}`}));
+  getMentorApplications().forEach(a=>events.push({at:a.submittedAt, icon:'🤝', text:`New mentor application from ${a.name}`}));
+  getVolunteerEntries().forEach(v=>events.push({at:v.loggedAt, icon:'🌍', text:`${v.organization||'A learner'} — ${v.hours} volunteer hour${v.hours!==1?'s':''} logged`}));
+  getCommunityPosts().forEach(p=>events.push({at:p.createdAt, icon:'💬', text:`New ${p.contextType==='commons'?'Community Commons':'Playbook discussion'} post from ${p.authorName}`}));
+  getUsers().forEach(u=>events.push({at:u.createdAt, icon:'🌱', text:`${u.name} joined WRLD as an Explorer`}));
+  return events.filter(e=>e.at).sort((a,b)=>new Date(b.at)-new Date(a.at)).slice(0, limit);
+}
+
+function getSystemAlerts(){
+  const alerts = [];
+  const pendingApps = getMentorApplications().filter(a=>a.status==='pending').length;
+  if(pendingApps>0) alerts.push({level:'info', icon:'🤝', text:`${pendingApps} mentor application${pendingApps!==1?'s':''} awaiting review`});
+  const flagged = getModerationQueue().length;
+  if(flagged>0) alerts.push({level:'warn', icon:'🛡️', text:`${flagged} post${flagged!==1?'s':''} in the AI moderation queue`});
+  const pendingVol = getVolunteerEntries().filter(e=>e.verification && e.verification.status==='pending_review').length;
+  if(pendingVol>0) alerts.push({level:'info', icon:'🌍', text:`${pendingVol} volunteer entr${pendingVol!==1?'ies':'y'} awaiting verification review`});
+  const bannedCount = getUsers().filter(u=>u.banned).length;
+  if(bannedCount>0) alerts.push({level:'warn', icon:'⛔', text:`${bannedCount} account${bannedCount!==1?'s':''} currently banned`});
+  if(!alerts.length) alerts.push({level:'success', icon:'✅', text:'All clear — nothing needs your attention right now.'});
+  return alerts;
 }
 
 function timeAgo(iso){

@@ -24,7 +24,7 @@
 
       <div id="mod-panel-queue">
         <h3 class="mb-16 reveal">🚩 Held for Review</h3>
-        <p class="mb-16" style="font-size:13.5px; color:var(--ink-faint);">Content automatically screened or reported into hiding — approve to publish, or remove permanently.</p>
+        <p class="mb-16" style="font-size:13.5px; color:var(--ink-faint);">Content WRLD's automated (AI) moderation screened or the community reported into hiding — approve to publish, request edits, or remove permanently. Repeated violations from the same account auto-suspend it.</p>
         <div id="mod-queue-list"></div>
       </div>
 
@@ -96,6 +96,7 @@ if(requireRole([ROLES.ADMIN])){
         <div>
           <span class="pill pill-navy">${entry.type==='reply'?'Reply':'Post'}</span>
           <span style="font-size:12px; color:var(--ink-faint); margin-left:8px;">${contextLabel(entry.post)}</span>
+          ${item.status==='edits_requested' ? `<span class="pill pill-sample" style="margin-left:8px;">Edits Requested</span>` : ''}
         </div>
         <span style="font-size:11px; color:var(--ink-faint);">${timeAgo(item.createdAt)}</span>
       </div>
@@ -104,6 +105,7 @@ if(requireRole([ROLES.ADMIN])){
       ${(item.flags||[]).length ? `<div class="flex gap-6 mb-10" style="flex-wrap:wrap;">${item.flags.map(f=>`<span class="pill pill-sample" style="font-size:11px;">${f}</span>`).join('')}</div>` : ''}
       <div class="flex gap-10" style="flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" onclick="modApprove('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">✅ Approve</button>
+        <button class="btn btn-outline btn-sm" onclick="modRequestEdits('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">✏️ Request Edits</button>
         <button class="btn btn-outline btn-sm" onclick="modRemove('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">🗑️ Remove</button>
         <button class="btn btn-outline btn-sm" onclick="modWarn('${item.authorId}')">⚠️ Warn Author</button>
       </div>
@@ -133,6 +135,7 @@ if(requireRole([ROLES.ADMIN])){
       <div class="flex gap-6 mb-10" style="flex-wrap:wrap;">${reasons.map(r=>`<span class="pill pill-navy" style="font-size:11px;">${r}</span>`).join('')}</div>
       <div class="flex gap-10" style="flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" onclick="modApprove('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">✅ Restore / Approve</button>
+        <button class="btn btn-outline btn-sm" onclick="modRequestEdits('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">✏️ Request Edits</button>
         <button class="btn btn-outline btn-sm" onclick="modClearReports('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">🧹 Clear Reports</button>
         <button class="btn btn-outline btn-sm" onclick="modRemove('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">🗑️ Remove</button>
       </div>
@@ -156,8 +159,8 @@ if(requireRole([ROLES.ADMIN])){
     wrap.innerHTML = users.map(u=>`
       <div class="card mb-12" style="padding:16px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <div>
-          <div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(u.name)} ${u.suspended?'<span class="pill pill-sample" style="margin-left:6px;">Suspended</span>':''}</div>
-          <div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(u.email)} · <span class="role-pill role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span>${u.warnings?` · ${u.warnings} warning${u.warnings!==1?'s':''}`:''}</div>
+          <div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(u.name)} ${u.banned?'<span class="pill pill-live" style="margin-left:6px;">Banned</span>':u.suspended?'<span class="pill pill-sample" style="margin-left:6px;">Suspended</span>':''}</div>
+          <div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(u.email)} · <span class="role-pill role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span>${u.warnings?` · ${u.warnings} warning${u.warnings!==1?'s':''}`:''}${u.violations?` · ${u.violations} auto-flagged violation${u.violations!==1?'s':''}`:''}</div>
         </div>
         <div class="flex gap-8" style="flex-wrap:wrap;">
           ${u.role==='explorer' ? `<button class="btn btn-outline btn-sm" onclick="modPromote('${u.id}')">🤝 Promote to Mentor</button>` : ''}
@@ -166,6 +169,9 @@ if(requireRole([ROLES.ADMIN])){
           ${u.suspended
             ? `<button class="btn btn-primary btn-sm" onclick="modUnsuspend('${u.id}')">Restore</button>`
             : `<button class="btn btn-outline btn-sm" onclick="modSuspend('${u.id}')">🚫 Suspend</button>`}
+          ${u.role!=='owner' ? (u.banned
+            ? `<button class="btn btn-primary btn-sm" onclick="modUnban('${u.id}')">Unban</button>`
+            : `<button class="btn btn-outline btn-sm" onclick="modBan('${u.id}')">⛔ Ban</button>`) : ''}
         </div>
       </div>`).join('');
   }
@@ -182,6 +188,7 @@ if(requireRole([ROLES.ADMIN])){
   }
 
   window.modApprove = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'approved'); showToast('✅ Approved'); renderActivePanel(); };
+  window.modRequestEdits = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'edits_requested'); showToast('✏️ Edits requested — this stays hidden until it\'s approved.'); renderActivePanel(); };
   window.modRemove = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'removed'); showToast('🗑️ Removed'); renderActivePanel(); };
   window.modClearReports = (postId, replyId)=>{ moderationClearReports(postId, replyId); showToast('🧹 Reports cleared'); renderActivePanel(); };
   window.modPromote = (userId)=>{ promoteUserRole(userId, ROLES.MENTOR); showToast('🤝 Promoted to Mentor'); renderActivePanel(); };
@@ -189,6 +196,8 @@ if(requireRole([ROLES.ADMIN])){
   window.modWarn = (userId)=>{ warnUser(userId); showToast('⚠️ Warning issued'); renderActivePanel(); };
   window.modSuspend = (userId)=>{ suspendUser(userId); showToast('🚫 Account suspended'); renderActivePanel(); };
   window.modUnsuspend = (userId)=>{ unsuspendUser(userId); showToast('✅ Account restored'); renderActivePanel(); };
+  window.modBan = (userId)=>{ if(confirm('Ban this account? This blocks login until an Administrator lifts it.')){ banUser(userId); showToast('⛔ Account banned'); renderActivePanel(); } };
+  window.modUnban = (userId)=>{ unbanUser(userId); showToast('✅ Ban lifted'); renderActivePanel(); };
 
   renderTabs();
   renderQueue();

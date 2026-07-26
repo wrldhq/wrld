@@ -52,6 +52,11 @@
       </div>
 
       <div>
+        <div class="dash-side-card card reveal hidden" id="announcement-card" style="background:var(--sky); border:none;">
+          <div class="eyebrow blue mb-8">📢 From WRLD</div>
+          <p style="font-size:13.5px; margin:0; font-weight:600; color:var(--navy);" id="announcement-text"></p>
+        </div>
+
         <div class="dash-side-card card reveal">
           <h4 class="mb-16">🔥 Learning Streak</h4>
           <div class="flex items-center gap-12">
@@ -284,6 +289,13 @@ function renderDashboard(){
   document.getElementById('volunteer-summary').innerHTML = volSummary.entryCount>0
     ? `<p style="font-size:13.5px;"><strong>${volSummary.totalHours}</strong> hour${volSummary.totalHours!==1?'s':''} across <strong>${volSummary.organizationCount}</strong> organization${volSummary.organizationCount!==1?'s':''}.</p>`
     : `<p style="font-size:13px; color:var(--ink-faint);">🌱 Nothing logged yet — track your first volunteer experience.</p>`;
+
+  // Latest Owner/Admin announcement, if one has been published
+  const latestAnnouncement = typeof getLatestAnnouncement==='function' ? getLatestAnnouncement() : null;
+  if(latestAnnouncement){
+    document.getElementById('announcement-card').classList.remove('hidden');
+    document.getElementById('announcement-text').textContent = latestAnnouncement.message;
+  }
 
   setTimeout(initReveal, 30);
 }

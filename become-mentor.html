@@ -51,6 +51,13 @@
 
       <div class="card reveal" style="max-width:680px; margin:0 auto; padding:32px;">
         <div class="form-error" id="form-error"></div>
+
+        <div id="mentor-app-success" class="hidden text-center" style="padding:12px 4px;">
+          <div style="font-size:2.4rem; margin-bottom:8px;">✅</div>
+          <h3 class="mb-8">Thank you.</h3>
+          <p style="font-size:14px; max-width:420px; margin:0 auto;">Your mentor application has been received. Our team will review your application and contact you if we believe you're a good fit.</p>
+        </div>
+
         <form id="mentor-app-form">
           <div class="form-group">
             <label class="form-label" for="ma-name">Full Name</label>
@@ -111,9 +118,9 @@
           <div class="form-group">
             <label class="form-label" for="ma-certs">Upload Certifications (optional)</label>
             <input class="form-input" id="ma-certs" type="file">
-            <p class="form-hint">Submitting opens your email client with your application prefilled — attach your resume/CV and any certifications there before sending, since a website can't attach files for you.</p>
+            <p class="form-hint">Your application is submitted directly here — no email client, nothing to send yourself. We save the file name for each upload; real secure file storage is on our roadmap as WRLD's backend grows.</p>
           </div>
-          <button type="submit" class="btn btn-primary btn-block" id="mentor-app-submit">Prepare My Application →</button>
+          <button type="submit" class="btn btn-primary btn-block" id="mentor-app-submit">Submit My Application →</button>
         </form>
       </div>
     </div>
@@ -136,34 +143,41 @@ document.getElementById('mentor-app-form').addEventListener('submit', e=>{
   showFormError('');
 
   const fields = {
-    'Full Name': document.getElementById('ma-name').value.trim(),
-    'Email': document.getElementById('ma-email').value.trim(),
-    'Current Occupation': document.getElementById('ma-occupation').value.trim(),
-    'Education': document.getElementById('ma-education').value.trim(),
-    'Areas of Expertise': document.getElementById('ma-expertise').value.trim(),
-    'Languages Spoken': document.getElementById('ma-languages').value.trim(),
-    'Short Biography': document.getElementById('ma-bio').value.trim(),
-    'Why do you want to mentor?': document.getElementById('ma-why').value.trim(),
-    'Previous Mentoring Experience': document.getElementById('ma-experience').value.trim() || 'N/A',
-    'Availability': document.getElementById('ma-availability').value.trim(),
-    'LinkedIn': document.getElementById('ma-linkedin').value.trim() || 'N/A',
-    'Portfolio/Website': document.getElementById('ma-portfolio').value.trim() || 'N/A',
+    name: document.getElementById('ma-name').value.trim(),
+    email: document.getElementById('ma-email').value.trim(),
+    occupation: document.getElementById('ma-occupation').value.trim(),
+    education: document.getElementById('ma-education').value.trim(),
+    expertise: document.getElementById('ma-expertise').value.trim(),
+    languages: document.getElementById('ma-languages').value.trim(),
+    bio: document.getElementById('ma-bio').value.trim(),
+    why: document.getElementById('ma-why').value.trim(),
+    experience: document.getElementById('ma-experience').value.trim(),
+    availability: document.getElementById('ma-availability').value.trim(),
+    linkedin: document.getElementById('ma-linkedin').value.trim(),
+    portfolio: document.getElementById('ma-portfolio').value.trim(),
   };
 
-  const required = ['Full Name','Email','Current Occupation','Education','Areas of Expertise','Languages Spoken','Short Biography','Why do you want to mentor?','Availability'];
+  const required = ['name','email','occupation','education','expertise','languages','bio','why','availability'];
   const missing = required.filter(k=>!fields[k]);
   if(missing.length || !document.getElementById('ma-resume').files.length){
     showFormError('Please fill in every required field and attach your resume/CV.');
     return;
   }
 
-  const bodyLines = Object.entries(fields).map(([k,v])=>`${k}: ${v}`);
-  bodyLines.push('', '⚠️ Please attach your Resume/CV' + (document.getElementById('ma-certs').files.length ? ' and Certifications' : '') + ' before sending this email — files can\'t be attached automatically.');
-  const subject = encodeURIComponent(`WRLD Mentor Application — ${fields['Full Name']}`);
-  const body = encodeURIComponent(bodyLines.join('\n'));
+  const btn = document.getElementById('mentor-app-submit');
+  btn.disabled = true; btn.textContent = 'Submitting...';
 
-  window.location.href = `mailto:hello@ourwrld.org?subject=${subject}&body=${body}`;
-  showToast('📧 Opening your email client — attach your files and hit send to complete your application.');
+  fields.resumeMeta = fileMeta(document.getElementById('ma-resume'));
+  fields.certsMeta = fileMeta(document.getElementById('ma-certs'));
+
+  // Saved directly in WRLD — no email client, nothing the applicant has to
+  // send themselves. This becomes a real, actionable row in the Owner
+  // Dashboard's Mentors > Applications queue for human review.
+  addMentorApplication(fields);
+
+  document.getElementById('mentor-app-form').classList.add('hidden');
+  document.getElementById('mentor-app-success').classList.remove('hidden');
+  showToast('✅ Application submitted');
 });
 
 initPage('become-mentor', "Mentors keep WRLD's live sessions and Office Hours running — every application gets a real, human review.");

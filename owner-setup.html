@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Owner Setup — WRLD.</title>
+<meta name="description" content="One-time WRLD Owner account setup.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="auth-shell">
+    <div class="card auth-card reveal">
+      <div class="text-center mb-24">
+        <div class="eyebrow">🛡️ One-Time Setup</div>
+        <h2 style="font-size:1.6rem; margin-top:8px;">Set your Owner password</h2>
+        <p style="font-size:13.5px; margin-top:6px;">This runs exactly once. No password is ever hardcoded — you're creating it right now.</p>
+      </div>
+
+      <div class="form-error" id="form-error"></div>
+      <div id="already-done" class="hidden text-center">
+        <p style="font-size:14px; margin-bottom:16px;">Owner setup has already been completed on this device.</p>
+        <a href="login.html" class="btn btn-primary btn-block">Go to Log In →</a>
+      </div>
+
+      <form id="owner-setup-form">
+        <div class="form-group">
+          <label class="form-label">Owner Email</label>
+          <input class="form-input" id="os-email" disabled>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="os-password">New Password</label>
+          <input class="form-input" id="os-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="os-password2">Confirm Password</label>
+          <input class="form-input" id="os-password2" type="password" placeholder="Re-enter your password" autocomplete="new-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="setup-submit">Create Owner Password →</button>
+      </form>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js"></script>
+<script>
+function showFormError(msg){
+  const el = document.getElementById('form-error');
+  el.textContent = msg;
+  el.classList.toggle('show', !!msg);
+}
+
+if(!ownerNeedsSetup()){
+  document.getElementById('owner-setup-form').classList.add('hidden');
+  document.getElementById('already-done').classList.remove('hidden');
+} else {
+  document.getElementById('os-email').value = OWNER_EMAIL;
+}
+
+document.getElementById('owner-setup-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  showFormError('');
+  const p1 = document.getElementById('os-password').value;
+  const p2 = document.getElementById('os-password2').value;
+  if(p1 !== p2){ showFormError("Those passwords don't match — try again."); return; }
+
+  const btn = document.getElementById('setup-submit');
+  btn.disabled = true; btn.textContent = 'Setting up...';
+  const result = await setupOwnerPassword(p1);
+  btn.disabled = false; btn.textContent = 'Create Owner Password →';
+
+  if(!result.ok){ showFormError(result.error); return; }
+  showToast('✅ Owner account ready');
+  location.href = 'owner-dashboard.html';
+});
+
+initPage(null, "This is the one and only time this setup screen will run.");
+</script>
+</body>
+</html>

@@ -28,7 +28,19 @@
   <section class="section">
     <div class="container dash-grid">
       <div>
-        <h3 class="mb-24 reveal">Recent Activity</h3>
+        <div class="flex justify-between items-center mb-16 reveal" style="flex-wrap:wrap; gap:12px;">
+          <h3 style="margin:0;">Recent Activity</h3>
+          <select class="form-select" id="vol-sort" style="max-width:200px; padding:8px 12px; font-size:13px;">
+            <option value="recent">Sort: Most Recent</option>
+            <option value="hours-desc">Sort: Most Hours</option>
+            <option value="hours-asc">Sort: Fewest Hours</option>
+            <option value="org">Sort: Organization (A–Z)</option>
+          </select>
+        </div>
+        <div class="search-wrap mb-20 reveal">
+          <span class="search-icon">🔍</span>
+          <input class="search-input" id="vol-search" placeholder="Search by organization, role, or skill...">
+        </div>
         <div id="vol-entries-list"></div>
       </div>
 
@@ -76,11 +88,16 @@
           </form>
         </div>
 
+        <div class="dash-side-card card reveal">
+          <h4 class="mb-12">📤 Export &amp; Share</h4>
+          <button class="btn btn-outline btn-sm btn-block mb-8" id="export-record-btn" onclick="exportVolunteerRecordPDF()">📄 Export Volunteer Record (PDF)</button>
+          <button class="btn btn-outline btn-sm btn-block" id="export-scholarship-btn" onclick="exportScholarshipReportPDF()">🎓 Scholarship-Ready Report</button>
+        </div>
+
         <div class="dash-side-card card reveal" style="border:1.5px dashed var(--navy-10);">
-          <h4 class="mb-12">🔜 Coming Soon</h4>
-          <button class="btn btn-outline btn-sm btn-block mb-8" onclick="showToast('📄 Exporting your record as a PDF is on the roadmap — for now, your log is safe here.')">📄 Export Volunteer Record (PDF)</button>
-          <button class="btn btn-outline btn-sm btn-block mb-8" onclick="showToast('🎓 Scholarship-ready volunteer reports are on the roadmap.')">🎓 Scholarship-Ready Report</button>
-          <button class="btn btn-outline btn-sm btn-block" onclick="showToast('✅ Verified volunteer hours (confirmed by the hosting organization) are on the roadmap.')">✅ Verified Hours</button>
+          <span class="pill pill-sample mb-8" style="display:inline-block;">Coming Soon</span>
+          <h4 class="mb-8">✅ Verified Hours</h4>
+          <p style="font-size:13px;">Every entry with proof attached is automatically evaluated for credibility — high-confidence entries verify instantly, others queue for a quick human check. Organization-confirmed verification is on the roadmap next.</p>
         </div>
       </div>
     </div>
@@ -91,25 +108,83 @@
 <script src="auth.js"></script>
 <script src="app.js"></script>
 <script src="orbit.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 if(requireAuth()){
 
+  let volSearch = '';
+  let volSort = 'recent';
+  let editingEntryId = null;
+
   function entryCard(e){
     const dateRange = [e.startDate, e.endDate].filter(Boolean).join(' – ');
+    if(editingEntryId===e.id) return editForm(e);
+    const v = e.verification;
+    const badge = !v ? '' : v.status==='verified'
+      ? `<span class="pill pill-success" title="${v.manualOverride?'Confirmed by a WRLD reviewer':'High-confidence automatic verification'}">✅ Verified</span>`
+      : v.status==='pending_review'
+        ? `<span class="pill pill-sample" title="Medium confidence — a WRLD reviewer will confirm this soon">🔍 Pending Review</span>`
+        : `<span class="pill pill-navy" title="${escapeHtml((v.reasons||[]).join('; '))}">⚠️ Needs More Info</span>`;
     return `<div class="card reveal mb-16" style="padding:22px;">
       <div class="flex justify-between items-start mb-8" style="flex-wrap:wrap; gap:10px;">
         <div>
           <h4 style="margin-bottom:2px;">${escapeHtml(e.organization)}</h4>
           <p style="font-size:13px; color:var(--blue-dark); font-weight:600; margin:0;">${escapeHtml(e.role)}</p>
         </div>
-        <span class="pill pill-navy">${e.hours} hr${e.hours!==1?'s':''}</span>
+        <div class="flex gap-8 items-center" style="flex-wrap:wrap;">
+          ${badge}
+          <span class="pill pill-navy">${e.hours} hr${e.hours!==1?'s':''}</span>
+        </div>
       </div>
+      ${v && v.status==='needs_info' ? `<p style="font-size:12px; color:var(--ink-faint); margin-bottom:8px;">💡 ${escapeHtml((v.reasons||[])[0]||'Add more detail to help verify this entry.')}</p>` : ''}
       ${dateRange ? `<p style="font-size:12px; color:var(--ink-faint); margin-bottom:8px;">${dateRange}</p>` : ''}
       ${e.skills.length ? `<div class="flex gap-6 mb-10" style="flex-wrap:wrap;">${e.skills.map(s=>`<span class="pill pill-blue" style="font-size:11px;">${escapeHtml(s)}</span>`).join('')}</div>` : ''}
       ${e.reflection ? `<p style="font-size:13.5px; margin-bottom:10px;">${escapeHtml(e.reflection)}</p>` : ''}
       ${e.proofFileName ? `<p style="font-size:11.5px; color:var(--ink-faint); margin-bottom:10px;">📎 ${escapeHtml(e.proofFileName)}</p>` : ''}
-      <button class="thread-action muted" onclick="removeVolunteerEntry('${e.id}')">Remove</button>
+      ${e.editedAt ? `<p style="font-size:11px; color:var(--ink-faint); margin-bottom:10px;">Edited ${timeAgo(e.editedAt)}</p>` : ''}
+      <div class="flex gap-16">
+        <button class="thread-action" onclick="editVolunteerEntry('${e.id}')">Edit</button>
+        <button class="thread-action muted" onclick="removeVolunteerEntry('${e.id}')">Remove</button>
+      </div>
     </div>`;
+  }
+
+  function editForm(e){
+    return `<div class="card reveal mb-16" style="padding:22px; border:1.5px solid var(--blue-15);">
+      <h4 class="mb-16">Edit Experience</h4>
+      <div class="form-group"><label class="form-label">Organization</label><input class="form-input" id="edit-org-${e.id}" value="${escapeHtml(e.organization)}"></div>
+      <div class="form-group"><label class="form-label">Role</label><input class="form-input" id="edit-role-${e.id}" value="${escapeHtml(e.role)}"></div>
+      <div class="flex gap-16" style="flex-wrap:wrap;">
+        <div class="form-group" style="flex:1; min-width:130px;"><label class="form-label">Start Date</label><input class="form-input" id="edit-start-${e.id}" type="date" value="${e.startDate||''}"></div>
+        <div class="form-group" style="flex:1; min-width:130px;"><label class="form-label">End Date</label><input class="form-input" id="edit-end-${e.id}" type="date" value="${e.endDate||''}"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Hours</label><input class="form-input" id="edit-hours-${e.id}" type="number" min="0" step="0.5" value="${e.hours}"></div>
+      <div class="form-group"><label class="form-label">Skills (comma-separated)</label><input class="form-input" id="edit-skills-${e.id}" value="${escapeHtml(e.skills.join(', '))}"></div>
+      <div class="form-group"><label class="form-label">Reflection</label><textarea class="form-textarea" id="edit-reflection-${e.id}" rows="3">${escapeHtml(e.reflection||'')}</textarea></div>
+      <div class="flex gap-10">
+        <button class="btn btn-primary btn-sm" onclick="saveVolunteerEntry('${e.id}')">Save Changes</button>
+        <button class="btn btn-outline btn-sm" onclick="cancelEditVolunteerEntry()">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  function getFilteredSortedEntries(){
+    const summary = getVolunteerSummary();
+    let entries = summary.entries;
+    const q = volSearch.trim().toLowerCase();
+    if(q){
+      entries = entries.filter(e =>
+        (e.organization||'').toLowerCase().includes(q) ||
+        (e.role||'').toLowerCase().includes(q) ||
+        (e.skills||[]).some(s=>s.toLowerCase().includes(q))
+      );
+    }
+    entries = entries.slice();
+    if(volSort==='hours-desc') entries.sort((a,b)=>b.hours-a.hours);
+    else if(volSort==='hours-asc') entries.sort((a,b)=>a.hours-b.hours);
+    else if(volSort==='org') entries.sort((a,b)=>(a.organization||'').localeCompare(b.organization||''));
+    // 'recent' is already the natural order from getVolunteerSummary() (unshift-newest-first)
+    return entries;
   }
 
   function renderVolunteerTracker(){
@@ -125,9 +200,12 @@ if(requireAuth()){
         <div style="font-size:11.5px; color:var(--ink-faint); margin-top:4px;">${s.label}</div>
       </div>`).join('');
 
-    document.getElementById('vol-entries-list').innerHTML = summary.entries.length
-      ? summary.entries.map(entryCard).join('')
-      : `<div class="empty-state"><div class="ic">🌍</div><h4>Nothing logged yet</h4><p>Log your first volunteer experience to start building your record.</p></div>`;
+    const visible = getFilteredSortedEntries();
+    document.getElementById('vol-entries-list').innerHTML = visible.length
+      ? visible.map(entryCard).join('')
+      : summary.entryCount===0
+        ? `<div class="empty-state"><div class="ic">🌍</div><h4>Nothing logged yet</h4><p>Log your first volunteer experience to start building your record.</p></div>`
+        : `<div class="empty-state"><div class="ic">🔍</div><h4>No matching entries</h4><p>Try a different search term.</p></div>`;
   }
 
   window.removeVolunteerEntry = function(id){
@@ -135,6 +213,34 @@ if(requireAuth()){
     showToast('Entry removed');
     renderVolunteerTracker();
   };
+  window.editVolunteerEntry = function(id){
+    editingEntryId = id;
+    renderVolunteerTracker();
+  };
+  window.cancelEditVolunteerEntry = function(){
+    editingEntryId = null;
+    renderVolunteerTracker();
+  };
+  window.saveVolunteerEntry = function(id){
+    const organization = document.getElementById(`edit-org-${id}`).value.trim();
+    const role = document.getElementById(`edit-role-${id}`).value.trim();
+    const hours = document.getElementById(`edit-hours-${id}`).value;
+    if(!organization || !role || !hours){ showToast('Organization, role, and hours are required.'); return; }
+    updateVolunteerEntry(id, {
+      organization, role,
+      startDate: document.getElementById(`edit-start-${id}`).value,
+      endDate: document.getElementById(`edit-end-${id}`).value,
+      hours,
+      skills: document.getElementById(`edit-skills-${id}`).value.split(',').map(s=>s.trim()).filter(Boolean),
+      reflection: document.getElementById(`edit-reflection-${id}`).value,
+    });
+    editingEntryId = null;
+    showToast('✅ Entry updated');
+    renderVolunteerTracker();
+  };
+
+  document.getElementById('vol-search').addEventListener('input', e=>{ volSearch = e.target.value; renderVolunteerTracker(); });
+  document.getElementById('vol-sort').addEventListener('change', e=>{ volSort = e.target.value; renderVolunteerTracker(); });
 
   document.getElementById('vol-form').addEventListener('submit', e=>{
     e.preventDefault();
@@ -162,6 +268,154 @@ if(requireAuth()){
     showToast('✅ Volunteer experience logged');
     renderVolunteerTracker();
   });
+
+  /* ---------------------------------------------------------------------
+     PDF EXPORTS — real jsPDF documents built entirely from this account's
+     actual logged entries. Nothing here is a mockup: every number, date,
+     organization, and reflection comes straight from getVolunteerSummary().
+     --------------------------------------------------------------------- */
+  function pdfHeader(doc, title){
+    doc.setFillColor(31, 61, 77); // --navy
+    doc.rect(0, 0, 612, 86, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold'); doc.setFontSize(20);
+    doc.text('wrld.', 48, 42);
+    doc.setFontSize(13); doc.setFont('helvetica','normal');
+    doc.text(title, 48, 66);
+    doc.setTextColor(31,61,77);
+  }
+  function pdfFooter(doc, pageNum){
+    doc.setFontSize(9); doc.setTextColor(140,150,160);
+    doc.text(`ourwrld.org · Generated ${new Date().toLocaleDateString()} · Page ${pageNum}`, 48, 770);
+    doc.setTextColor(31,61,77);
+  }
+  function ensureSpace(doc, y, needed, pageNumRef, title){
+    if(y + needed > 740){
+      pdfFooter(doc, pageNumRef.n);
+      doc.addPage();
+      pageNumRef.n++;
+      pdfHeader(doc, title);
+      return 120;
+    }
+    return y;
+  }
+
+  window.exportVolunteerRecordPDF = function(){
+    const summary = getVolunteerSummary();
+    if(!summary.entryCount){ showToast('Log at least one volunteer experience before exporting.'); return; }
+    if(typeof window.jspdf === 'undefined'){ showToast('PDF export needs an internet connection to load — try again once back online.'); return; }
+    const user = getCurrentUser();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'pt', format:'letter'});
+    const title = 'Volunteer Record';
+    const pageNumRef = {n:1};
+    pdfHeader(doc, title);
+
+    let y = 120;
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('User Information', 48, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    doc.text(`Name: ${user.name}`, 48, y); y += 16;
+    doc.text(`Email: ${user.email}`, 48, y); y += 28;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('Summary', 48, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    doc.text(`Total Hours: ${summary.totalHours}`, 48, y); y += 16;
+    doc.text(`Organizations: ${summary.organizationCount}`, 48, y); y += 16;
+    doc.text(`Experiences Logged: ${summary.entryCount}`, 48, y); y += 28;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('Volunteer Experiences', 48, y); y += 22;
+
+    summary.entries.forEach(e=>{
+      y = ensureSpace(doc, y, 90, pageNumRef, title);
+      doc.setFont('helvetica','bold'); doc.setFontSize(11.5);
+      doc.text(`${e.organization} — ${e.role}`, 48, y); y += 15;
+      doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+      const dateRange = [e.startDate, e.endDate].filter(Boolean).join(' – ') || 'Dates not specified';
+      doc.text(`${dateRange} · ${e.hours} hour${e.hours!==1?'s':''}`, 48, y); y += 14;
+      if(e.skills && e.skills.length){ doc.text(`Skills: ${e.skills.join(', ')}`, 48, y); y += 14; }
+      if(e.reflection){
+        const lines = doc.splitTextToSize(`Reflection: ${e.reflection}`, 500);
+        lines.forEach(line=>{ y = ensureSpace(doc, y, 14, pageNumRef, title); doc.text(line, 48, y); y += 14; });
+      }
+      y += 12;
+    });
+
+    pdfFooter(doc, pageNumRef.n);
+    doc.save(`WRLD-Volunteer-Record-${user.name.replace(/\s+/g,'-')}.pdf`);
+    showToast('📄 Volunteer Record downloaded');
+  };
+
+  window.exportScholarshipReportPDF = function(){
+    const summary = getVolunteerSummary();
+    if(!summary.entryCount){ showToast('Log at least one volunteer experience before exporting.'); return; }
+    if(typeof window.jspdf === 'undefined'){ showToast('PDF export needs an internet connection to load — try again once back online.'); return; }
+    const user = getCurrentUser();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'pt', format:'letter'});
+    const title = 'Scholarship-Ready Volunteer Report';
+    const pageNumRef = {n:1};
+    pdfHeader(doc, title);
+
+    const allSkills = [...new Set(summary.entries.flatMap(e=>e.skills||[]))];
+    const orgs = [...new Set(summary.entries.map(e=>e.organization).filter(Boolean))];
+    const reflections = summary.entries.filter(e=>e.reflection).map(e=>({org:e.organization, text:e.reflection}));
+
+    let y = 120;
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('Applicant', 48, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    doc.text(`${user.name} · ${user.email}`, 48, y); y += 28;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('Summary', 48, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    const summaryLine = `${user.name.split(' ')[0]} has logged ${summary.totalHours} volunteer hour${summary.totalHours!==1?'s':''} across ${summary.organizationCount} organization${summary.organizationCount!==1?'s':''} through WRLD, developing skills including ${allSkills.slice(0,5).join(', ') || 'hands-on experience'}.`;
+    doc.splitTextToSize(summaryLine, 500).forEach(line=>{ doc.text(line, 48, y); y += 14; });
+    y += 14;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('Volunteer Experience & Hours', 48, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+    summary.entries.forEach(e=>{
+      y = ensureSpace(doc, y, 30, pageNumRef, title);
+      const dateRange = [e.startDate, e.endDate].filter(Boolean).join(' – ') || 'Dates not specified';
+      doc.text(`• ${e.organization} (${e.role}) — ${e.hours} hrs, ${dateRange}`, 48, y); y += 16;
+    });
+    y += 12;
+
+    y = ensureSpace(doc, y, 60, pageNumRef, title);
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('Skills Developed', 48, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    doc.splitTextToSize(allSkills.length ? allSkills.join(', ') : 'No specific skills logged yet.', 500).forEach(line=>{ y = ensureSpace(doc, y, 14, pageNumRef, title); doc.text(line, 48, y); y += 14; });
+    y += 14;
+
+    y = ensureSpace(doc, y, 60, pageNumRef, title);
+    doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('Organizations Served', 48, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    doc.splitTextToSize(orgs.length ? orgs.join(', ') : 'None logged yet.', 500).forEach(line=>{ y = ensureSpace(doc, y, 14, pageNumRef, title); doc.text(line, 48, y); y += 14; });
+    y += 14;
+
+    if(reflections.length){
+      y = ensureSpace(doc, y, 60, pageNumRef, title);
+      doc.setFont('helvetica','bold'); doc.setFontSize(13);
+      doc.text('Reflection Highlights', 48, y); y += 20;
+      doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+      reflections.forEach(r=>{
+        y = ensureSpace(doc, y, 30, pageNumRef, title);
+        doc.splitTextToSize(`"${r.text}" — ${r.org}`, 500).forEach(line=>{ y = ensureSpace(doc, y, 14, pageNumRef, title); doc.text(line, 48, y); y += 14; });
+        y += 8;
+      });
+    }
+
+    pdfFooter(doc, pageNumRef.n);
+    doc.save(`WRLD-Scholarship-Report-${user.name.replace(/\s+/g,'-')}.pdf`);
+    showToast('🎓 Scholarship-Ready Report downloaded');
+  };
 
   renderVolunteerTracker();
   initPage(null, "Every hour you log here is real — nothing here is invented or estimated.");

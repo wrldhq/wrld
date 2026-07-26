@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Account Settings — WRLD.</title>
+<meta name="description" content="Manage your WRLD account — change your password and security settings.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container">
+      <p class="mb-16" style="font-size:13px;"><a href="dashboard.html" style="color:var(--blue-dark); font-weight:600;">← Dashboard</a></p>
+      <div class="eyebrow reveal">⚙️ Account Settings</div>
+      <h2 class="reveal" id="as-heading">Your WRLD account</h2>
+      <p class="reveal" style="max-width:600px;">Manage your password and security preferences.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container" style="max-width:640px; margin:0 auto;">
+
+      <div class="card reveal mb-24" style="padding:28px;">
+        <h4 class="mb-4">Account</h4>
+        <p style="font-size:13.5px; margin-bottom:16px;" id="as-account-line">—</p>
+      </div>
+
+      <div class="card reveal mb-24" style="padding:28px;">
+        <h4 class="mb-16">🔒 Change Password</h4>
+        <div class="form-error" id="cp-error"></div>
+        <div id="cp-success" class="hidden" style="background:var(--sky); border-radius:var(--r-md); padding:12px 16px; font-size:13.5px; font-weight:600; color:var(--navy); margin-bottom:16px;">✅ Password updated successfully.</div>
+        <form id="cp-form">
+          <div class="form-group">
+            <label class="form-label" for="cp-current">Current Password</label>
+            <input class="form-input" id="cp-current" type="password" autocomplete="current-password" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cp-new">New Password</label>
+            <input class="form-input" id="cp-new" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cp-new2">Confirm New Password</label>
+            <input class="form-input" id="cp-new2" type="password" autocomplete="new-password" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="cp-submit">Update Password →</button>
+        </form>
+      </div>
+
+      <div class="card reveal mb-24" style="padding:28px;">
+        <h4 class="mb-16">✉️ Email Verification</h4>
+        <p style="font-size:13.5px; margin-bottom:12px;">Confirm this is really your inbox — adds an extra layer of trust to your account.</p>
+        <span class="pill pill-sample" style="display:inline-block;">Coming Soon</span>
+        <p style="font-size:12.5px; color:var(--ink-faint); margin-top:8px;">Sending real verification emails requires a backend mail service WRLD hasn't built yet — the account model is already structured to support it.</p>
+      </div>
+
+      <div class="card reveal mb-24" style="padding:28px;">
+        <h4 class="mb-16">📱 Two-Factor Authentication</h4>
+        <p style="font-size:13.5px; margin-bottom:12px;">Add a second step at login for extra protection.</p>
+        <span class="pill pill-sample" style="display:inline-block;">Coming Soon</span>
+        <p style="font-size:12.5px; color:var(--ink-faint); margin-top:8px;">2FA needs a real code-delivery service (SMS or authenticator) that WRLD's current static platform doesn't have — the login flow is built so it can slot in later without a redesign.</p>
+      </div>
+
+      <div id="owner-security-panel" class="hidden card reveal" style="padding:28px; border:1.5px solid var(--blue-15);">
+        <h4 class="mb-4">👑 Owner Security</h4>
+        <p style="font-size:13.5px; margin-bottom:16px;">Owner-only controls. Only one account on WRLD can ever hold this role.</p>
+        <ul style="font-size:13.5px; padding-left:18px; margin:0;">
+          <li>Owner account: <strong id="owner-email-line">hello@ourwrld.org</strong></li>
+          <li>Use the Change Password form above to update the Owner password at any time.</li>
+          <li>Manage Administrators from the <a href="owner-dashboard.html" style="color:var(--blue-dark); font-weight:700;">Owner Dashboard → Administrators</a> tab.</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="data.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js"></script>
+<script>
+if(requireAuth()){
+  const user = getCurrentUser();
+  document.getElementById('as-heading').textContent = `Hi, ${user.name.split(' ')[0]}`;
+  document.getElementById('as-account-line').innerHTML = `${escapeHtml(user.email)} &nbsp;·&nbsp; <span class="role-pill role-${user.role}">${ROLE_LABELS[user.role]||user.role}</span>`;
+
+  if(roleAtLeast(user, ROLES.OWNER)){
+    document.getElementById('owner-security-panel').classList.remove('hidden');
+    document.getElementById('owner-email-line').textContent = user.email;
+  }
+
+  document.getElementById('cp-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const errEl = document.getElementById('cp-error');
+    errEl.classList.remove('show'); errEl.textContent = '';
+    document.getElementById('cp-success').classList.add('hidden');
+
+    const current = document.getElementById('cp-current').value;
+    const next = document.getElementById('cp-new').value;
+    const next2 = document.getElementById('cp-new2').value;
+    if(next !== next2){ errEl.textContent = "Those new passwords don't match — try again."; errEl.classList.add('show'); return; }
+
+    const btn = document.getElementById('cp-submit');
+    btn.disabled = true; btn.textContent = 'Updating...';
+    const result = await changePassword(user.id, current, next);
+    btn.disabled = false; btn.textContent = 'Update Password →';
+
+    if(!result.ok){ errEl.textContent = result.error; errEl.classList.add('show'); return; }
+    document.getElementById('cp-form').reset();
+    document.getElementById('cp-success').classList.remove('hidden');
+    showToast('✅ Password updated');
+  });
+
+  initPage(null, "Your account, your rules — update your password any time.");
+}
+</script>
+</body>
+</html>

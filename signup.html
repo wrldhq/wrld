@@ -20,7 +20,17 @@
 
       <div class="form-error" id="form-error"></div>
 
-      <p class="form-hint mb-16" style="text-align:center; background:var(--sky); border-radius:var(--r-md); padding:12px 16px;">Every new WRLD account starts as an <strong>Explorer</strong> — track progress, complete Playbooks, join the community, and build your dashboard. <a href="become-mentor.html" style="color:var(--blue-dark); font-weight:700;">Want to mentor instead?</a></p>
+      <div id="existing-email-panel" class="hidden card" style="padding:22px; background:var(--sky); border:none; margin-bottom:20px;">
+        <h4 class="mb-8">An account already exists with this email</h4>
+        <p style="font-size:13px; margin-bottom:16px;">Pick up where you left off, reset your password, or use a different email.</p>
+        <div class="flex gap-10" style="flex-wrap:wrap;">
+          <a href="login.html" class="btn btn-primary btn-sm">Log In</a>
+          <a href="forgot-password.html" class="btn btn-outline btn-sm">Forgot Password</a>
+          <button type="button" class="btn btn-outline btn-sm" onclick="dismissExistingEmailPanel()">Use a Different Email</button>
+        </div>
+      </div>
+
+      <p class="form-hint mb-16" id="explorer-hint" style="text-align:center; background:var(--sky); border-radius:var(--r-md); padding:12px 16px;">Every new WRLD account starts as an <strong>Explorer</strong> — track progress, complete Playbooks, join the community, and build your dashboard. <a href="become-mentor.html" style="color:var(--blue-dark); font-weight:700;">Want to mentor instead?</a></p>
 
       <form id="signup-form">
         <div class="form-group">
@@ -58,6 +68,19 @@ function showFormError(msg){
   el.classList.toggle('show', !!msg);
 }
 
+function showExistingEmailPanel(){
+  document.getElementById('existing-email-panel').classList.remove('hidden');
+  document.getElementById('signup-form').classList.add('hidden');
+  document.getElementById('explorer-hint').classList.add('hidden');
+}
+function dismissExistingEmailPanel(){
+  document.getElementById('existing-email-panel').classList.add('hidden');
+  document.getElementById('signup-form').classList.remove('hidden');
+  document.getElementById('explorer-hint').classList.remove('hidden');
+  document.getElementById('su-email').value = '';
+  document.getElementById('su-email').focus();
+}
+
 document.getElementById('signup-form').addEventListener('submit', async (e)=>{
   e.preventDefault();
   showFormError('');
@@ -67,6 +90,10 @@ document.getElementById('signup-form').addEventListener('submit', async (e)=>{
   const password2 = document.getElementById('su-password2').value;
   if(password !== password2){ showFormError("Those passwords don't match — try again."); return; }
 
+  // Check for an existing account first so we can show a friendly panel
+  // instead of a raw inline error, the way a modern SaaS product would.
+  if(emailExists(email)){ showExistingEmailPanel(); return; }
+
   const btn = document.getElementById('signup-submit');
   btn.disabled = true; btn.textContent = 'Creating your account...';
   // Every public signup becomes an Explorer — signUp() itself enforces this,
@@ -74,7 +101,11 @@ document.getElementById('signup-form').addEventListener('submit', async (e)=>{
   const result = await signUp({name, email, password});
   btn.disabled = false; btn.textContent = 'Create My Account →';
 
-  if(!result.ok){ showFormError(result.error); return; }
+  if(!result.ok){
+    if(result.error && result.error.toLowerCase().includes('already exists')){ showExistingEmailPanel(); return; }
+    showFormError(result.error);
+    return;
+  }
   const params = new URLSearchParams(location.search);
   location.href = params.get('next') || 'welcome.html';
 });

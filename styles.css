@@ -568,6 +568,21 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
 .role-pill.role-explorer{background:var(--blue-15); color:var(--blue-dark);}
 .role-pill.role-mentor{background:var(--yellow-15); color:#8A6A1A;}
 .role-pill.role-admin{background:var(--navy); color:white;}
+.role-pill.role-owner{background:linear-gradient(135deg, var(--blue-dark), var(--navy)); color:white;}
+.owner-tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:28px;}
+.owner-metric-row{display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:8px;}
+.owner-metric{padding:18px; text-align:center;}
+.owner-metric .num{font-family:'Plus Jakarta Sans'; font-weight:800; font-size:1.5rem; color:var(--blue);}
+.owner-metric .lbl{font-size:11px; color:var(--ink-soft); font-weight:600; margin-top:4px;}
+.owner-row{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:16px 20px;}
+.owner-toggle-row{display:flex; justify-content:space-between; align-items:center; gap:16px; padding:14px 0; border-bottom:1px solid var(--navy-06);}
+.owner-toggle-row:last-child{border-bottom:none;}
+.owner-switch{position:relative; width:44px; height:24px; flex-shrink:0; border-radius:var(--r-full); background:var(--navy-10); border:none; cursor:pointer; transition:background .18s;}
+.owner-switch::after{content:''; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:white; transition:transform .18s; box-shadow:0 1px 3px rgba(0,0,0,.2);}
+.owner-switch.on{background:var(--blue);}
+.owner-switch.on::after{transform:translateX(20px);}
+@media (max-width:980px){ .owner-metric-row{grid-template-columns:repeat(3,1fr);} }
+@media (max-width:560px){ .owner-metric-row{grid-template-columns:repeat(2,1fr);} }
 .user-menu{position:relative;}
 .user-menu-trigger{display:flex; align-items:center; gap:8px; background:var(--sky); border:1.5px solid var(--blue-15); border-radius:var(--r-full); padding:6px 14px 6px 6px; cursor:pointer; font-weight:700; font-size:13px; color:var(--navy);}
 .user-menu-avatar{width:26px; height:26px; border-radius:50%; background:var(--blue); color:white; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex-shrink:0;}
@@ -588,7 +603,12 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   .dash-grid{grid-template-columns:1fr;}
 }
 @media(max-width:980px){
-  .nav-links, .nav-cta{display:none;}
+  /* Collapse the nav LINKS into the hamburger first — the logged-in user's
+     avatar (nav-cta-user) is never allowed to disappear into the menu, so
+     only the logged-out Login/Sign Up buttons collapse alongside the links. */
+  .nav-links{display:none;}
+  .nav-cta{display:none;}
+  .nav-cta.nav-cta-user{display:flex;}
   .burger{display:flex; align-items:center; justify-content:center; width:44px; height:44px;}
   .pillars-grid, .pb-grid, .programs-grid, .dash-stat-row, .values-grid, .diff-grid{grid-template-columns:repeat(2,1fr) !important;}
   .footer-grid{grid-template-columns:repeat(2,1fr);}
@@ -596,6 +616,14 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   .three-col-grid{grid-template-columns:repeat(2,1fr) !important;}
   h1{font-size:clamp(2rem, 6vw, var(--fs-3xl));}
   h2{font-size:clamp(1.7rem, 5vw, var(--fs-2xl));}
+
+  /* Mobile header: logo, avatar, and hamburger share one tight row — the
+     avatar becomes a compact circle (name hidden) so all three always fit
+     without crowding, on any phone width down to 320px. */
+  .nav{padding:12px 16px; gap:10px;}
+  .user-menu-name{display:none;}
+  .user-menu-trigger{padding:5px; gap:0; min-width:44px; min-height:44px; justify-content:center;}
+  .user-menu-dropdown{right:-8px;}
 }
 
 /* ---- 720px: general phone tightening ---- */
@@ -621,13 +649,28 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   .hero-inner{padding:28px 20px 0;}
   .hero .sub{margin:16px auto 28px;}
 
+  /* Hero decorations: on desktop these clouds/icons are tuned to sit beside
+     a short hero. On phones the h1 + sub wrap onto several lines, pushing
+     the hero much taller, so fixed top:260/300px offsets land squarely on
+     top of the heading/paragraph/buttons. Pull every decoration up into a
+     thin strip above the text, shrink it, and fade it back so it reads as
+     texture rather than clutter competing with the copy. */
+  .hero-deco{transform:scale(.55); opacity:.5;}
+  .hero-deco-cloud-1{top:8px !important; left:2%!important;}
+  .hero-deco-cloud-2{top:6px !important; right:2%!important;}
+  .hero-deco-globe{top:44px !important; left:4%!important;}
+  .hero-deco-coin{top:38px !important; right:4%!important;}
+
   /* Founder portrait: full-bleed on mobile instead of a fixed 280px column */
   .founder-portrait-wrap{max-width:240px;}
 
-  /* Two-column flex sections (founder story, mentor CTA, program hero) use
-     inline min-width:280/300px to prevent premature squeezing on tablet —
-     on phones that same min-width can force horizontal overflow, so relax it. */
-  [style*="min-width:300px"], [style*="min-width:280px"]{min-width:0 !important;}
+  /* Any element using an inline min-width (two-column flex sections, form
+     rows, side-by-side cards) to prevent premature squeezing on tablet can
+     force real horizontal overflow once the viewport itself is narrower
+     than that min-width. Rather than papering over it with overflow:hidden,
+     remove the floor entirely below phone breakpoints — flex-wrap and
+     flex:1 already handle correct sizing without it. */
+  [style*="min-width:"]{min-width:0 !important;}
 
   /* Cards / grids: single column and tighter padding across the board */
   .pillars-grid, .pb-grid, .programs-grid, .dash-stat-row, .values-grid, .diff-grid{grid-template-columns:1fr !important;}

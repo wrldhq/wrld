@@ -20,13 +20,6 @@
 
       <div class="form-error" id="form-error"></div>
 
-      <div class="flex gap-6 mb-20" style="background:var(--sky); border-radius:var(--r-full); padding:4px;" id="login-tabs">
-        <button type="button" class="btn btn-sm btn-block" data-role="explorer" style="background:white; box-shadow:var(--shadow-xs);" onclick="setLoginTab('explorer')">🌍 Explorer</button>
-        <button type="button" class="btn btn-sm btn-block btn-ghost" data-role="mentor" onclick="setLoginTab('mentor')">🤝 Mentor</button>
-        <button type="button" class="btn btn-sm btn-block btn-ghost" data-role="admin" onclick="setLoginTab('admin')">🛡️ Admin</button>
-      </div>
-      <p class="form-hint mb-16" id="login-tab-hint" style="text-align:center;">Log in with your Explorer account.</p>
-
       <form id="login-form">
         <div class="form-group">
           <label class="form-label" for="li-email">Email address</label>
@@ -52,22 +45,14 @@
 <script src="app.js"></script>
 <script src="orbit.js"></script>
 <script>
-let loginTab = 'explorer';
-const LOGIN_TAB_COPY = {
-  explorer:{hint:'Log in with your Explorer account.', dest:'dashboard.html'},
-  mentor:{hint:'Log in with your Mentor account.', dest:'mentor-studio.html'},
-  admin:{hint:'Log in with your Administrator account.', dest:'moderation-dashboard.html'},
+// One login for everyone — the account's real, stored role decides where
+// you land. Nobody ever picks "Explorer" or "Admin" here.
+const ROLE_DESTINATIONS = {
+  explorer: 'dashboard.html',
+  mentor: 'mentor-studio.html',
+  admin: 'owner-dashboard.html',
+  owner: 'owner-dashboard.html',
 };
-function setLoginTab(role){
-  loginTab = role;
-  document.querySelectorAll('#login-tabs button').forEach(btn=>{
-    const active = btn.dataset.role===role;
-    btn.className = 'btn btn-sm btn-block' + (active?'':' btn-ghost');
-    btn.style.background = active ? 'white' : '';
-    btn.style.boxShadow = active ? 'var(--shadow-xs)' : '';
-  });
-  document.getElementById('login-tab-hint').textContent = LOGIN_TAB_COPY[role].hint;
-}
 
 function showFormError(msg){
   const el = document.getElementById('form-error');
@@ -84,23 +69,16 @@ document.getElementById('login-form').addEventListener('submit', async (e)=>{
   const btn = document.getElementById('login-submit');
   btn.disabled = true; btn.textContent = 'Logging in...';
   const result = await logIn(email, password);
+  btn.disabled = false; btn.textContent = 'Log In →';
 
-  // The tab picked is a UX convenience only — it never grants access.
-  // The account's real, stored role is always re-checked after a
-  // successful password check, and any mismatch is rejected outright.
-  if(result.ok && result.user.role !== loginTab){
-    logOut();
-    btn.disabled = false; btn.textContent = 'Log In →';
-    const article = (loginTab==='admin'||loginTab==='explorer') ? 'an' : 'a';
-    showFormError(`This account isn't registered as ${article} ${ROLE_LABELS[loginTab]} — try a different login type.`);
+  if(!result.ok){
+    if(result.needsOwnerSetup){ location.href = 'owner-setup.html'; return; }
+    showFormError(result.error);
     return;
   }
 
-  btn.disabled = false; btn.textContent = 'Log In →';
-  if(!result.ok){ showFormError(result.error); return; }
-
   const params = new URLSearchParams(location.search);
-  location.href = params.get('next') || LOGIN_TAB_COPY[loginTab].dest;
+  location.href = params.get('next') || ROLE_DESTINATIONS[result.user.role] || 'dashboard.html';
 });
 
 initPage(null);
