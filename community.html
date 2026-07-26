@@ -162,6 +162,9 @@
   </section>
 </main>
 <div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
 <script src="data.js"></script>
 <script src="auth.js"></script>
 <script src="app.js"></script>
@@ -233,36 +236,43 @@ document.getElementById('vol-search').addEventListener('input', e=>{
 
 renderVolunteerGrid();
 
-/* --- Current Mentors: real directory from registered Mentor accounts --- */
-function renderMentorsList(){
-  const mentors = (typeof getUsers==='function' ? getUsers() : []).filter(u=>u.role==='mentor');
-  const featured = typeof getFeatured==='function' ? getFeatured() : {};
-  mentors.sort((a,b)=>(b.id===featured.mentorUserId)-(a.id===featured.mentorUserId));
+/* --- Current Mentors: real directory from registered Mentor accounts ---
+   Reads via the get_mentor_directory() database function instead of
+   getUsers() — getUsers() now only returns the caller's own row for
+   non-Administrators (profiles_select_own_or_admin RLS, see
+   supabase/migrations/012), so a public-safe RPC exposes just the
+   fields this directory actually needs (name, role, tagline, bio,
+   expertise) for every Mentor/Admin/Owner account, to any signed-in
+   member. See supabase/migrations/013. */
+async function renderMentorsList(){
   const wrap = document.getElementById('mentors-list');
+  const { data, error } = await sbClient.rpc('get_mentor_directory');
+  const mentors = (error || !data) ? [] : data.filter(u=>u.role==='mentor');
+  const featured = typeof getFeatured==='function' ? getFeatured() : {};
+  mentors.sort((a,b)=>(b.user_id===featured.mentorUserId)-(a.user_id===featured.mentorUserId));
   if(!mentors.length){
     wrap.innerHTML = `<div class="card reveal text-center" style="padding:28px;">
-      <p style="font-size:13.5px; margin-bottom:4px;">No Mentors have joined yet on this device.</p>
+      <p style="font-size:13.5px; margin-bottom:4px;">No Mentors have joined yet.</p>
       <p style="font-size:12.5px; color:var(--ink-faint);">WRLD is actively building its volunteer mentor community — check back soon, or be the first to sign up.</p>
     </div>`;
     return;
   }
   wrap.innerHTML = mentors.map((m,i)=>{
-    const profile = getMentorProfile(m.id);
-    const sessionCount = (typeof getLiveSessions==='function' ? getLiveSessions() : []).filter(s=>s.mentorId===m.id).length;
-    const memberSince = new Date(m.createdAt).toLocaleDateString(undefined,{month:'long', year:'numeric'});
-    const isHighlighted = m.id===featured.mentorUserId;
+    const sessionCount = (typeof getLiveSessions==='function' ? getLiveSessions() : []).filter(s=>s.mentorId===m.user_id).length;
+    const isHighlighted = m.user_id===featured.mentorUserId;
+    const expertise = Array.isArray(m.expertise) ? m.expertise : [];
     return `<div class="card reveal reveal-d${(i%4)+1} mb-16" style="padding:22px; ${isHighlighted?'border:1.5px solid var(--yellow-deep);':''}">
       <div class="flex gap-14 items-start">
         <span class="user-menu-avatar" style="width:44px; height:44px; font-size:15px; flex-shrink:0;">${userInitials(m.name)}</span>
         <div style="flex:1;">
           <div class="flex items-center gap-8 mb-2" style="flex-wrap:wrap;">
-            <h4 style="margin-bottom:2px;">${m.name}</h4>
+            <h4 style="margin-bottom:2px;">${escapeHtml(m.name)}</h4>
             ${isHighlighted ? `<span class="pill pill-yellow" style="font-size:10.5px;">⭐ Highlighted by WRLD</span>` : ''}
           </div>
-          <p style="font-size:12.5px; color:var(--blue-dark); font-weight:600; margin-bottom:6px;">${profile.tagline || 'WRLD Mentor'}</p>
-          ${profile.bio ? `<p style="font-size:13px; margin-bottom:8px;">${profile.bio}</p>` : ''}
-          ${profile.expertise && profile.expertise.length ? `<div class="flex gap-6 mb-8" style="flex-wrap:wrap;">${profile.expertise.map(e=>`<span class="pill pill-blue" style="font-size:11px;">${e}</span>`).join('')}</div>` : ''}
-          <p style="font-size:11.5px; color:var(--ink-faint); margin:0;">Mentor since ${memberSince}${sessionCount ? ` · ${sessionCount} session${sessionCount!==1?'s':''} hosted` : ''}</p>
+          <p style="font-size:12.5px; color:var(--blue-dark); font-weight:600; margin-bottom:6px;">${m.tagline ? escapeHtml(m.tagline) : 'WRLD Mentor'}</p>
+          ${m.bio ? `<p style="font-size:13px; margin-bottom:8px;">${escapeHtml(m.bio)}</p>` : ''}
+          ${expertise.length ? `<div class="flex gap-6 mb-8" style="flex-wrap:wrap;">${expertise.map(e=>`<span class="pill pill-blue" style="font-size:11px;">${escapeHtml(String(e))}</span>`).join('')}</div>` : ''}
+          ${sessionCount ? `<p style="font-size:11.5px; color:var(--ink-faint); margin:0;">${sessionCount} session${sessionCount!==1?'s':''} hosted</p>` : ''}
         </div>
       </div>
     </div>`;
@@ -393,8 +403,14 @@ if(typeof getLatestAnnouncement==='function'){
 }
 
 renderCommonsTabs();
-renderCommons();
-initPage('community');
+// renderCommons() reads getCurrentUser() to decide the posting-gate state
+// — wait for the Supabase session cache to resolve first so a logged-in
+// visitor doesn't briefly see the logged-out "gate" on first paint.
+(async () => {
+  await window.wrldAuthReady;
+  renderCommons();
+  initPage('community');
+})();
 </script>
 </body>
 </html>

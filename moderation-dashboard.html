@@ -49,12 +49,20 @@
   </section>
 </main>
 <div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
 <script src="data.js"></script>
 <script src="auth.js"></script>
 <script src="app.js"></script>
 <script src="orbit.js"></script>
 <script>
-if(requireRole([ROLES.ADMIN])){
+(async () => {
+await window.wrldAuthReady;
+// V14 fix: requireRole([ROLES.ADMIN]) was an exact-membership check that
+// excluded the Owner. requireCapability(canAccessModerationDashboard) is
+// hierarchy-based (Administrator and Owner both pass).
+if(requireCapability(canAccessModerationDashboard)){
 
   const TABS = [
     {key:'queue', label:'🚩 Held for Review'},
@@ -192,18 +200,24 @@ if(requireRole([ROLES.ADMIN])){
   window.modRequestEdits = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'edits_requested'); showToast('✏️ Edits requested — this stays hidden until it\'s approved.'); renderActivePanel(); };
   window.modRemove = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'removed'); showToast('🗑️ Removed'); renderActivePanel(); };
   window.modClearReports = (postId, replyId)=>{ moderationClearReports(postId, replyId); showToast('🧹 Reports cleared'); renderActivePanel(); };
-  window.modPromote = (userId)=>{ promoteUserRole(userId, ROLES.MENTOR); showToast('🤝 Promoted to Mentor'); renderActivePanel(); };
-  window.modDemote = (userId)=>{ promoteUserRole(userId, ROLES.EXPLORER); showToast('Reverted to Explorer'); renderActivePanel(); };
-  window.modWarn = (userId)=>{ warnUser(userId); showToast('⚠️ Warning issued'); renderActivePanel(); };
-  window.modSuspend = (userId)=>{ suspendUser(userId); showToast('🚫 Account suspended'); renderActivePanel(); };
-  window.modUnsuspend = (userId)=>{ unsuspendUser(userId); showToast('✅ Account restored'); renderActivePanel(); };
-  window.modBan = (userId)=>{ if(confirm('Ban this account? This blocks login until an Administrator lifts it.')){ banUser(userId); showToast('⛔ Account banned'); renderActivePanel(); } };
-  window.modUnban = (userId)=>{ unbanUser(userId); showToast('✅ Ban lifted'); renderActivePanel(); };
+  // These now write to Supabase (profiles table) instead of localStorage,
+  // so each handler awaits the write, then re-pulls the fresh user list
+  // via refreshUsersCache() before re-rendering — otherwise the panel
+  // would flash back to the pre-action state for a moment.
+  window.modPromote = async (userId)=>{ await promoteUserRole(userId, ROLES.MENTOR); showToast('🤝 Promoted to Mentor'); await refreshUsersCache(); renderActivePanel(); };
+  window.modDemote = async (userId)=>{ await promoteUserRole(userId, ROLES.EXPLORER); showToast('Reverted to Explorer'); await refreshUsersCache(); renderActivePanel(); };
+  window.modWarn = async (userId)=>{ await warnUser(userId); showToast('⚠️ Warning issued'); await refreshUsersCache(); renderActivePanel(); };
+  window.modSuspend = async (userId)=>{ await suspendUser(userId); showToast('🚫 Account suspended'); await refreshUsersCache(); renderActivePanel(); };
+  window.modUnsuspend = async (userId)=>{ await unsuspendUser(userId); showToast('✅ Account restored'); await refreshUsersCache(); renderActivePanel(); };
+  window.modBan = async (userId)=>{ if(confirm('Ban this account? This blocks login until an Administrator lifts it.')){ await banUser(userId); showToast('⛔ Account banned'); await refreshUsersCache(); renderActivePanel(); } };
+  window.modUnban = async (userId)=>{ await unbanUser(userId); showToast('✅ Ban lifted'); await refreshUsersCache(); renderActivePanel(); };
 
+  await refreshUsersCache();
   renderTabs();
   renderQueue();
-  initPage(null, "Everything here is real, local moderation data — nothing simulated. Let me know if you need help interpreting a report.");
+  initPage(null, "Everything here is real moderation data from WRLD's database — nothing simulated. Let me know if you need help interpreting a report.");
 }
+})();
 </script>
 </body>
 </html>

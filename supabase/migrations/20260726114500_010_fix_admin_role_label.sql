@@ -1,0 +1,13 @@
+-- ============================================================
+-- 010: The app's existing JS (auth.js: ROLES.ADMIN = 'admin') and CSS
+-- (.role-pill.role-admin) already use the short label "admin" — 001-009
+-- mistakenly introduced "administrator" as the Postgres enum label
+-- instead of matching that convention. Rename the enum value rather than
+-- touch every policy: existing policies reference this member by OID
+-- internally, so pg_policies keeps displaying them correctly with the
+-- new label with no DROP/CREATE POLICY needed. (The role_at_least()
+-- function body itself DOES need a fix — see 011 — because it's a
+-- `language sql` function whose body text is re-validated against the
+-- catalog, unlike a policy's pre-resolved Const.)
+-- ============================================================
+alter type public.wrld_role rename value 'administrator' to 'admin';

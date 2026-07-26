@@ -1,0 +1,11 @@
+Confirm your email — WRLD
+
+Welcome to WRLD — the curriculum for adulthood.
+
+Confirm {{ .Email }} to finish setting up your account:
+{{ .ConfirmationURL }}
+
+This link expires soon for your security. If you didn't create a WRLD account, you can safely ignore this email.
+
+— WRLD
+hello@ourwrld.org

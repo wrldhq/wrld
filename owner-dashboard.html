@@ -15,7 +15,7 @@
     <div class="container">
       <div class="eyebrow reveal" id="od-eyebrow">🛡️ Owner Dashboard</div>
       <h2 class="reveal" id="od-heading">The command center for WRLD.</h2>
-      <p class="reveal" style="max-width:640px;">Every number and record on this page is real and local to this device — nothing here is invented, simulated, or estimated.</p>
+      <p class="reveal" style="max-width:640px;">Every number and record on this page is real — nothing here is invented, simulated, or estimated. Overview and Users are live, cross-device data from the database; Mentors, Volunteer, Community, and Content still reflect this browser only until they're synced (see the Roadmap tab).</p>
     </div>
   </section>
 
@@ -27,12 +27,22 @@
   </section>
 </main>
 <div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
 <script src="data.js"></script>
 <script src="auth.js"></script>
 <script src="app.js"></script>
 <script src="orbit.js"></script>
 <script>
-if(requireMinRole(ROLES.ADMIN)){
+(async () => {
+await window.wrldAuthReady;
+// V14: requireMinRole(ROLES.ADMIN) already worked correctly for Owner
+// (hierarchy-based), switched to requireCapability(canAccessOwnerDashboard)
+// purely for consistency with the rest of the capability-based access
+// model — see auth.js.
+if(requireCapability(canAccessOwnerDashboard)){
+  await refreshUsersCache();
   const me = getCurrentUser();
   const isOwner = roleAtLeast(me, ROLES.OWNER);
   document.getElementById('od-heading').textContent = isOwner ? 'The command center for WRLD.' : 'The Administrator control center.';
@@ -48,6 +58,7 @@ if(requireMinRole(ROLES.ADMIN)){
     {key:'organization', label:'🏢 Organization'},
     {key:'analytics', label:'📈 Analytics'},
     {key:'notifications', label:'🔔 Notifications'},
+    {key:'roadmap', label:'🧭 Roadmap'},
   ];
   if(isOwner){
     TABS.push({key:'administrators', label:'👑 Administrators'});
@@ -71,140 +82,447 @@ if(requireMinRole(ROLES.ADMIN)){
   }
 
   /* ---------------- OVERVIEW ---------------- */
-  function renderOverview(){
-    const o = getPlatformOverview();
-    return panelShell(`
+  // Backed by admin_platform_overview()/admin_most_popular_playbooks()/
+  // admin_most_active_users()/admin_user_list() (supabase/migrations/022-025)
+  // — real, server-aggregated, cross-device numbers computed in Postgres,
+  // not fetched-and-reduced client-side. Community activity (the one feed
+  // below sourced from getRecentActivityFeed()) is still per-browser,
+  // called out honestly rather than presented as a global count.
+  async function renderOverview(){
+    document.getElementById('od-panels').innerHTML = panelShell(`<h3 class="mb-16">Platform Overview</h3><p style="font-size:13px; color:var(--ink-faint);">Loading live platform metrics…</p>`);
+    const [ovRes, popRes, activeRes, recentRes] = await Promise.all([
+      sbClient.rpc('admin_platform_overview'),
+      sbClient.rpc('admin_most_popular_playbooks', {limit_n:5}),
+      sbClient.rpc('admin_most_active_users', {limit_n:5}),
+      sbClient.rpc('admin_user_list', {search:'', role_filter:'', status_filter:'', verified_filter:'', sort_by:'newest', page_limit:5, page_offset:0}),
+    ]);
+    if(ovRes.error){
+      document.getElementById('od-panels').innerHTML = panelShell(`<h3 class="mb-16">Platform Overview</h3><div class="empty-state"><div class="ic">⚠️</div><h4>Couldn't load platform metrics</h4><p>${escapeHtml(ovRes.error.message)}</p></div>`);
+      return;
+    }
+    const o = (ovRes.data && ovRes.data[0]) || {};
+    const popular = popRes.data || [];
+    const active = activeRes.data || [];
+    const recent = recentRes.data || [];
+    const feed = typeof getRecentActivityFeed === 'function' ? getRecentActivityFeed(8) : [];
+    document.getElementById('od-panels').innerHTML = panelShell(`
       <h3 class="mb-16">Platform Overview</h3>
-      <p style="font-size:13px; color:var(--ink-faint); margin-bottom:20px;">These figures reflect real accounts and activity stored on this device. WRLD doesn't yet have a shared backend, so this is a single-device view rather than a global, multi-device count.</p>
+      <p style="font-size:13px; color:var(--ink-faint); margin-bottom:20px;">Every figure below is computed live in the database — real, cross-device counts, not per-browser estimates.</p>
       <div class="owner-metric-row mb-16">
-        ${metricCard(o.newExplorers, 'New Explorers (30d)')}
-        ${metricCard(o.activeUsers, 'Active Users (30d)')}
-        ${metricCard(o.completedPlaybooks, 'Completed Playbooks')}
-        ${metricCard(o.volunteerHoursLogged, 'Volunteer Hours Logged')}
-        ${metricCard(o.communityActivity, 'Community Activity')}
+        ${metricCard(o.total_users||0, 'Total Users')}
+        ${metricCard(o.active_users_30d||0, 'Active Users (30d)')}
+        ${metricCard(o.new_today||0, 'New Today')}
+        ${metricCard(o.new_week||0, 'New This Week')}
+        ${metricCard(o.new_month||0, 'New This Month')}
       </div>
-      <div class="owner-metric-row">
-        ${metricCard(o.liveSessions, 'Live Sessions')}
-        ${metricCard(o.certificatesEarned, 'Certificates Earned')}
-        ${metricCard(o.mentorApplications, 'Mentor Applications')}
-        ${metricCard(o.pendingAIReviews, 'Pending AI Reviews')}
-        ${metricCard(o.flaggedPosts, 'Flagged Posts')}
+      <div class="owner-metric-row mb-24">
+        ${metricCard((o.verified_pct||0)+'%', 'Email Verified')}
+        ${metricCard(o.online_now||0, 'Active Sessions (~15m)')}
+        ${metricCard(o.total_volunteer_hours||0, 'Volunteer Hours Logged')}
+        ${metricCard(o.total_playbooks_completed||0, 'Playbooks Completed')}
+        ${metricCard(o.avg_completed_per_user||0, 'Avg. Completed / User')}
       </div>
-      ${o.certificatesEarned===0 ? `<p style="font-size:12px; color:var(--ink-faint); margin-top:14px;">🎓 Certificates are honestly labeled Coming Soon platform-wide — this will read real numbers the moment issuing goes live.</p>` : ''}
+      <div class="flex gap-16 mb-24" style="flex-wrap:wrap;">
+        <div class="card" style="flex:1; min-width:280px; padding:20px 22px;">
+          <h4 class="mb-12">🏆 Most Popular Playbooks</h4>
+          ${popular.length ? popular.map((row,i)=>{
+            const pb = PLAYBOOKS.find(p=>p.slug===row.slug);
+            return `<div class="owner-list-item"><span style="font-size:13px;"><span class="owner-rank">${i+1}</span> ${escapeHtml(pb?pb.title:row.slug)}</span><span style="font-size:12px; color:var(--ink-faint);">${row.completions} completion${row.completions!==1?'s':''}</span></div>`;
+          }).join('') : `<p style="font-size:12.5px; color:var(--ink-faint);">No completions logged yet.</p>`}
+        </div>
+        <div class="card" style="flex:1; min-width:280px; padding:20px 22px;">
+          <h4 class="mb-12">⭐ Most Active Users</h4>
+          ${active.length && active.some(u=>Number(u.activity_score)>0) ? active.map((u,i)=>`<div class="owner-list-item"><span style="font-size:13px;"><span class="owner-rank">${i+1}</span> ${escapeHtml(u.name)}</span><span style="font-size:12px; color:var(--ink-faint);">${u.completed_count} completed · ${u.volunteer_hours} hrs</span></div>`).join('') : `<p style="font-size:12.5px; color:var(--ink-faint);">No activity logged yet.</p>`}
+        </div>
+      </div>
+      <div class="flex gap-16 mb-16" style="flex-wrap:wrap;">
+        <div class="card" style="flex:1; min-width:280px; padding:20px 22px;">
+          <h4 class="mb-12">🌱 Recent Sign Ups</h4>
+          ${recent.length ? recent.map(u=>`<div class="owner-list-item"><span style="font-size:13px; font-weight:600; color:var(--navy);">${escapeHtml(u.name)}</span><span style="font-size:11.5px; color:var(--ink-faint);">${timeAgo(u.created_at)}</span></div>`).join('') : `<p style="font-size:12.5px; color:var(--ink-faint);">No signups yet.</p>`}
+        </div>
+        <div class="card" style="flex:1; min-width:280px; padding:20px 22px;">
+          <h4 class="mb-12">🕐 Recent Activity</h4>
+          ${feed.length ? feed.slice(0,6).map(e=>`<div class="owner-list-item"><span style="font-size:13px;">${e.icon} ${escapeHtml(e.text)}</span><span style="font-size:11px; color:var(--ink-faint);">${timeAgo(e.at)}</span></div>`).join('') : `<p style="font-size:12.5px; color:var(--ink-faint);">Nothing yet — community and volunteer activity on this browser will show here.</p>`}
+        </div>
+      </div>
+      <p style="font-size:11.5px; color:var(--ink-faint);">📢 The Recent Activity feed above is still per-browser (community/mentor data hasn't been synced to the database yet — see the Community tab) while every metric above it is real and cross-device.</p>
+      ${o.total_playbooks_completed===0 ? `<p style="font-size:12px; color:var(--ink-faint); margin-top:10px;">🎓 Certificates are honestly labeled Coming Soon platform-wide — this will read real numbers the moment issuing goes live.</p>` : ''}
     `);
+    setTimeout(initReveal, 20);
   }
 
   /* ---------------- USERS ---------------- */
-  let userSearch = '';
+  // Real search/filter/sort/pagination, backed by admin_user_list()
+  // (supabase/migrations/022-025) instead of fetching every account and
+  // reducing client-side — necessary for "managing thousands of future
+  // users" per the product requirement. odUsers holds the current query
+  // state; odFetchUsers() re-runs the RPC whenever it changes.
+  let odUsers = { search:'', role:'', status:'', verified:'', sort:'newest', page:0, pageSize:20, totalCount:0, rows:[] };
+  async function odFetchUsers(){
+    const { data, error } = await sbClient.rpc('admin_user_list', {
+      search: odUsers.search, role_filter: odUsers.role, status_filter: odUsers.status,
+      verified_filter: odUsers.verified, sort_by: odUsers.sort,
+      page_limit: odUsers.pageSize, page_offset: odUsers.page * odUsers.pageSize,
+    });
+    if(error){ console.warn('WRLD: could not load user list', error.message); odUsers.rows = []; odUsers.totalCount = 0; return; }
+    odUsers.rows = data || [];
+    odUsers.totalCount = (data && data[0] && Number(data[0].total_count)) || 0;
+  }
   function userRow(u){
     const status = u.banned ? '<span class="pill pill-live">Banned</span>' : u.suspended ? '<span class="pill pill-sample">Suspended</span>' : u.deactivated ? '<span class="pill pill-navy">Deactivated</span>' : '<span class="pill pill-success">Active</span>';
     const canDemoteToExplorer = u.role===ROLES.MENTOR;
     const canPromoteToMentor = u.role===ROLES.EXPLORER;
-    return `<div class="card owner-row mb-12">
-      <div>
-        <div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(u.name)} ${status}</div>
-        <div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(u.email)} · <span class="role-pill role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span>${u.warnings?` · ${u.warnings} warning${u.warnings!==1?'s':''}`:''}${u.lastLoginAt?` · last active ${timeAgo(u.lastLoginAt)}`:''}</div>
+    const totalPlaybooks = PLAYBOOKS.length;
+    const pct = totalPlaybooks ? Math.round((Number(u.completed_count)||0)/totalPlaybooks*100) : 0;
+    return `<div class="card owner-row mb-12" style="flex-direction:column; align-items:stretch;">
+      <div class="flex justify-between items-start" style="flex-wrap:wrap; gap:12px;">
+        <div style="flex:1; min-width:240px;">
+          <div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(u.name)} ${status} ${u.email_verified ? '<span class="pill pill-success" style="font-size:10px;">✓ Verified</span>' : '<span class="pill pill-sample" style="font-size:10px;">Unverified</span>'}</div>
+          <div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(u.email)} · <span class="role-pill role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span>${u.warnings?` · ${u.warnings} warning${u.warnings!==1?'s':''}`:''}${u.last_login_at?` · last active ${timeAgo(u.last_login_at)}`:''} · joined ${new Date(u.created_at).toLocaleDateString()}</div>
+          <div class="owner-mini-progress" style="max-width:280px;">
+            <div class="lbl"><span>${u.completed_count||0} of ${totalPlaybooks} Playbooks</span><span>${pct}%</span></div>
+            <div class="progress-bar"><div style="width:${pct}%;"></div></div>
+          </div>
+          <div style="font-size:11.5px; color:var(--ink-faint); margin-top:6px;">🔥 ${u.streak||0}-day streak · 🌍 ${u.volunteer_hours||0} volunteer hrs (${u.volunteer_verified_count||0} verified)</div>
+        </div>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="odViewProgress('${u.id}')">📊 View Progress</button>
+          ${canPromoteToMentor ? `<button class="btn btn-outline btn-sm" onclick="odPromote('${u.id}')">🤝 Make Mentor</button>` : ''}
+          ${canDemoteToExplorer ? `<button class="btn btn-outline btn-sm" onclick="odDemote('${u.id}')">Revert to Explorer</button>` : ''}
+          ${u.role!==ROLES.OWNER ? `<button class="btn btn-outline btn-sm" onclick="odResetPassword('${u.email}')">🔑 Reset Password</button>` : ''}
+          ${u.role!==ROLES.OWNER ? (u.suspended ? `<button class="btn btn-primary btn-sm" onclick="odUnsuspend('${u.id}')">Restore</button>` : `<button class="btn btn-outline btn-sm" onclick="odSuspend('${u.id}')">🚫 Suspend</button>`) : ''}
+          ${u.role!==ROLES.OWNER ? (u.deactivated ? `<button class="btn btn-primary btn-sm" onclick="odReactivate('${u.id}')">Reactivate</button>` : `<button class="btn btn-outline btn-sm" onclick="odDeactivate('${u.id}')">🗑️ Deactivate</button>`) : ''}
+          ${u.role!==ROLES.OWNER ? (u.banned ? `<button class="btn btn-primary btn-sm" onclick="odUnban('${u.id}')">Unban</button>` : `<button class="btn btn-outline btn-sm" style="border-color:#F5C6C2; color:#B3403A;" onclick="odBan('${u.id}')">⛔ Ban</button>`) : ''}
+        </div>
       </div>
-      <div class="flex gap-8" style="flex-wrap:wrap;">
-        ${canPromoteToMentor ? `<button class="btn btn-outline btn-sm" onclick="odPromote('${u.id}')">🤝 Make Mentor</button>` : ''}
-        ${canDemoteToExplorer ? `<button class="btn btn-outline btn-sm" onclick="odDemote('${u.id}')">Revert to Explorer</button>` : ''}
-        ${u.role!==ROLES.OWNER ? `<button class="btn btn-outline btn-sm" onclick="odResetPassword('${u.email}')">🔑 Reset Password</button>` : ''}
-        ${u.role!==ROLES.OWNER ? (u.suspended ? `<button class="btn btn-primary btn-sm" onclick="odUnsuspend('${u.id}')">Restore</button>` : `<button class="btn btn-outline btn-sm" onclick="odSuspend('${u.id}')">🚫 Suspend</button>`) : ''}
-        ${u.role!==ROLES.OWNER ? (u.deactivated ? `<button class="btn btn-primary btn-sm" onclick="odReactivate('${u.id}')">Reactivate</button>` : `<button class="btn btn-outline btn-sm" onclick="odDeactivate('${u.id}')">🗑️ Deactivate</button>`) : ''}
-      </div>
+      <div id="user-progress-${u.id}" class="hidden" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--gray);"></div>
     </div>`;
   }
-  function renderUsers(){
-    const all = getUsers();
-    const q = userSearch.trim().toLowerCase();
-    const filtered = q ? all.filter(u=>u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)) : all;
-    const m = getMembersStats();
-    return panelShell(`
+  // Real per-user progress drill-down — reads directly from learner_state
+  // and volunteer_entries (RLS permits Administrator+ to read any user's
+  // row, see supabase/migrations/009/012). Toggles open/closed rather
+  // than opening a modal (WRLD has no modal system elsewhere — matching
+  // the existing accordion-style show/hide pattern instead).
+  window.odViewProgress = async (id)=>{
+    const el = document.getElementById('user-progress-'+id);
+    if(!el) return;
+    if(!el.classList.contains('hidden')){ el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    el.innerHTML = `<p style="font-size:12.5px; color:var(--ink-faint);">Loading progress…</p>`;
+    const [stateRes, volRes] = await Promise.all([
+      sbClient.from('learner_state').select('*').eq('user_id', id).maybeSingle(),
+      sbClient.from('volunteer_entries').select('hours,status').eq('user_id', id),
+    ]);
+    const s = stateRes.data;
+    const vol = volRes.data || [];
+    const volHours = vol.reduce((sum,v)=>sum+(Number(v.hours)||0), 0);
+    const volVerified = vol.filter(v=>v.status==='verified').length;
+    if(!s && !vol.length){
+      el.innerHTML = `<p style="font-size:12.5px; color:var(--ink-faint);">No learning or volunteer activity logged yet.</p>`;
+      return;
+    }
+    const completed = (s && s.completed) || [];
+    const bookmarks = (s && s.bookmarks) || [];
+    const quizScores = (s && s.quizScores) || {};
+    const quizCount = Object.keys(quizScores).length;
+    const totalPlaybooks = PLAYBOOKS.length;
+    const pct = totalPlaybooks ? Math.round((completed.length/totalPlaybooks)*100) : 0;
+    const recentCompleted = completed.slice(-5).reverse().map(slug=>{ const p = PLAYBOOKS.find(pb=>pb.slug===slug); return p ? p.title : slug; });
+    const inProgress = bookmarks.filter(slug=>!completed.includes(slug)).map(slug=>{ const p = PLAYBOOKS.find(pb=>pb.slug===slug); return p ? p.title : slug; });
+    el.innerHTML = `
+      <div class="owner-mini-progress mb-12" style="max-width:380px;">
+        <div class="lbl"><span>Overall Playbook Completion</span><span>${pct}%</span></div>
+        <div class="progress-bar"><div style="width:${pct}%;"></div></div>
+      </div>
+      <div class="owner-metric-row">
+        ${metricCard(completed.length, 'Playbooks Completed')}
+        ${metricCard(bookmarks.length, 'Saved / Bookmarked')}
+        ${metricCard(s ? (s.streak||0) : 0, 'Day Streak')}
+        ${metricCard(quizCount, 'Quizzes Taken')}
+        ${metricCard(volHours, 'Volunteer Hours')}
+      </div>
+      ${inProgress.length ? `<p style="font-size:12.5px; margin-top:12px;"><strong>Currently working on:</strong> ${inProgress.map(escapeHtml).join(', ')}</p>` : ''}
+      ${recentCompleted.length ? `<p style="font-size:12.5px; margin-top:8px;"><strong>Recently completed:</strong> ${recentCompleted.map(escapeHtml).join(', ')}</p>` : ''}
+      <p style="font-size:12px; color:var(--ink-faint); margin-top:10px;">🌍 ${volHours} volunteer hours logged across ${vol.length} entr${vol.length!==1?'ies':'y'}, ${volVerified} verified.</p>
+      ${s && s.assessment ? `<p style="font-size:12px; color:var(--ink-faint); margin-top:6px;">✅ Has completed the Adulting Readiness Assessment.</p>` : `<p style="font-size:12px; color:var(--ink-faint); margin-top:6px;">Hasn't taken the Assessment yet.</p>`}
+      <p style="font-size:11px; color:var(--ink-faint); margin-top:6px;">🎓 Certificates: Coming Soon platform-wide, not yet issued to anyone. Program enrollment/completion isn't tracked in learner_state yet, so it isn't shown here either — see Roadmap.</p>
+    `;
+  };
+  async function renderUsers(){
+    document.getElementById('od-panels').innerHTML = panelShell(`<h3 class="mb-16">Members</h3><p style="font-size:13px; color:var(--ink-faint);">Loading members from the database…</p>`);
+    await odFetchUsers();
+    const totalPages = Math.max(1, Math.ceil(odUsers.totalCount / odUsers.pageSize));
+    document.getElementById('od-panels').innerHTML = panelShell(`
       <h3 class="mb-16">Members</h3>
-      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:16px;">"Online Now" and "Returning" are single-device approximations — WRLD doesn't have a shared backend session store yet.</p>
-      <div class="owner-metric-row mb-16">
-        ${metricCard(m.totalUsers, 'Total Users')}
-        ${metricCard(m.dailySignups, 'Signups Today')}
-        ${metricCard(m.returningUsers, 'Returning Users')}
-        ${metricCard(m.onlineNow, 'Online Now')}
-      </div>
-      <div class="owner-metric-row mb-24">
-        ${metricCard(m.explorerCount, 'Explorers')}
-        ${metricCard(m.mentorCount, 'Mentors')}
-      </div>
-      <h4 class="mb-12">All Members</h4>
-      <div class="search-wrap mb-20" style="max-width:420px;">
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:16px;">Real, cross-device data from the database — every account, role, and progress figure below is live, not per-browser. "Online Now" on the Overview tab is still an approximation (based on recent login activity, not live presence).</p>
+      <div class="search-wrap mb-16" style="max-width:420px; margin:0 0 16px;">
         <span class="search-icon">🔍</span>
-        <input class="search-input" id="od-user-search" placeholder="Search by name or email..." value="${escapeHtml(userSearch)}">
+        <input class="search-input" id="od-user-search" placeholder="Search by name or email..." value="${escapeHtml(odUsers.search)}">
       </div>
-      <div id="od-user-list">${filtered.length ? filtered.map(userRow).join('') : `<div class="empty-state"><div class="ic">👤</div><h4>No matching accounts</h4></div>`}</div>
+      <div class="owner-filter-row">
+        <select id="od-filter-role">
+          <option value="">All roles</option>
+          <option value="explorer" ${odUsers.role==='explorer'?'selected':''}>Explorer</option>
+          <option value="mentor" ${odUsers.role==='mentor'?'selected':''}>Mentor</option>
+          <option value="admin" ${odUsers.role==='admin'?'selected':''}>Administrator</option>
+          <option value="owner" ${odUsers.role==='owner'?'selected':''}>Owner</option>
+        </select>
+        <select id="od-filter-status">
+          <option value="">All statuses</option>
+          <option value="active" ${odUsers.status==='active'?'selected':''}>Active</option>
+          <option value="suspended" ${odUsers.status==='suspended'?'selected':''}>Suspended</option>
+          <option value="deactivated" ${odUsers.status==='deactivated'?'selected':''}>Deactivated</option>
+          <option value="banned" ${odUsers.status==='banned'?'selected':''}>Banned</option>
+        </select>
+        <select id="od-filter-verified">
+          <option value="">Any verification</option>
+          <option value="verified" ${odUsers.verified==='verified'?'selected':''}>Email verified</option>
+          <option value="unverified" ${odUsers.verified==='unverified'?'selected':''}>Unverified</option>
+        </select>
+        <select id="od-filter-sort">
+          <option value="newest" ${odUsers.sort==='newest'?'selected':''}>Newest first</option>
+          <option value="oldest" ${odUsers.sort==='oldest'?'selected':''}>Oldest first</option>
+          <option value="active" ${odUsers.sort==='active'?'selected':''}>Most active</option>
+          <option value="alpha" ${odUsers.sort==='alpha'?'selected':''}>Alphabetical</option>
+        </select>
+      </div>
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:14px;">${odUsers.totalCount} member${odUsers.totalCount!==1?'s':''} found</p>
+      <div id="od-user-list">${odUsers.rows.length ? odUsers.rows.map(userRow).join('') : `<div class="empty-state"><div class="ic">👤</div><h4>No matching accounts</h4></div>`}</div>
+      ${odUsers.totalCount > odUsers.pageSize ? `
+        <div class="owner-pagination">
+          <button class="btn btn-outline btn-sm" ${odUsers.page===0?'disabled':''} onclick="odUserPage(-1)">← Previous</button>
+          <span>Page ${odUsers.page+1} of ${totalPages}</span>
+          <button class="btn btn-outline btn-sm" ${odUsers.page>=totalPages-1?'disabled':''} onclick="odUserPage(1)">Next →</button>
+        </div>` : ''}
     `);
+    wireUsersPanel();
+    setTimeout(initReveal, 20);
   }
+  let odUserSearchTimer = null;
   function wireUsersPanel(){
     const input = document.getElementById('od-user-search');
     if(!input) return;
-    input.addEventListener('input', e=>{ userSearch = e.target.value; document.getElementById('od-user-list').innerHTML = (()=>{
-      const all = getUsers();
-      const q = userSearch.trim().toLowerCase();
-      const filtered = q ? all.filter(u=>u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)) : all;
-      return filtered.length ? filtered.map(userRow).join('') : `<div class="empty-state"><div class="ic">👤</div><h4>No matching accounts</h4></div>`;
-    })(); });
+    input.addEventListener('input', e=>{
+      const val = e.target.value;
+      clearTimeout(odUserSearchTimer);
+      odUserSearchTimer = setTimeout(()=>{ odUsers.search = val; odUsers.page = 0; renderUsers(); }, 350);
+    });
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
+    const roleSel = document.getElementById('od-filter-role');
+    const statusSel = document.getElementById('od-filter-status');
+    const verifiedSel = document.getElementById('od-filter-verified');
+    const sortSel = document.getElementById('od-filter-sort');
+    if(roleSel) roleSel.addEventListener('change', e=>{ odUsers.role = e.target.value; odUsers.page = 0; renderUsers(); });
+    if(statusSel) statusSel.addEventListener('change', e=>{ odUsers.status = e.target.value; odUsers.page = 0; renderUsers(); });
+    if(verifiedSel) verifiedSel.addEventListener('change', e=>{ odUsers.verified = e.target.value; odUsers.page = 0; renderUsers(); });
+    if(sortSel) sortSel.addEventListener('change', e=>{ odUsers.sort = e.target.value; odUsers.page = 0; renderUsers(); });
   }
-  window.odPromote = (id)=>{ promoteUserRole(id, ROLES.MENTOR); showToast('🤝 Promoted to Mentor'); renderPanel(); };
-  window.odDemote = (id)=>{ promoteUserRole(id, ROLES.EXPLORER); showToast('Reverted to Explorer'); renderPanel(); };
-  window.odSuspend = (id)=>{ suspendUser(id); showToast('🚫 Account suspended'); renderPanel(); };
-  window.odUnsuspend = (id)=>{ unsuspendUser(id); showToast('✅ Account restored'); renderPanel(); };
-  window.odDeactivate = (id)=>{ deactivateUser(id); showToast('🗑️ Account deactivated'); renderPanel(); };
-  window.odReactivate = (id)=>{ reactivateUser(id); showToast('✅ Account reactivated'); renderPanel(); };
-  window.odResetPassword = (email)=>{
-    const result = requestPasswordReset(email);
-    if(!result.exists){ showToast('No account found for that email.'); return; }
-    const link = `${location.origin}${location.pathname.replace('owner-dashboard.html','reset-password.html')}?token=${encodeURIComponent(result.token)}`;
-    navigator.clipboard?.writeText(link).catch(()=>{});
-    showToast('🔑 Reset link copied to clipboard — WRLD has no email service yet, so share it with the user directly.');
+  window.odUserPage = (delta)=>{ odUsers.page = Math.max(0, odUsers.page + delta); renderUsers(); };
+  // Each of these writes to Supabase (profiles table) and is awaited
+  // before the panel re-renders — otherwise the UI would flash back to
+  // the pre-action state for a moment. refreshUsersCache() is also kept
+  // in sync so the Mentors/Administrators tabs (which still read the
+  // synchronous getUsers() cache) reflect the change too.
+  window.odPromote = async (id)=>{ await promoteUserRole(id, ROLES.MENTOR); showToast('🤝 Promoted to Mentor'); await refreshUsersCache(); renderPanel(); };
+  window.odDemote = async (id)=>{ await promoteUserRole(id, ROLES.EXPLORER); showToast('Reverted to Explorer'); await refreshUsersCache(); renderPanel(); };
+  window.odSuspend = async (id)=>{ await suspendUser(id); showToast('🚫 Account suspended'); await refreshUsersCache(); renderPanel(); };
+  window.odUnsuspend = async (id)=>{ await unsuspendUser(id); showToast('✅ Account restored'); await refreshUsersCache(); renderPanel(); };
+  window.odDeactivate = async (id)=>{ await deactivateUser(id); showToast('🗑️ Account deactivated'); await refreshUsersCache(); renderPanel(); };
+  window.odReactivate = async (id)=>{ await reactivateUser(id); showToast('✅ Account reactivated'); await refreshUsersCache(); renderPanel(); };
+  window.odBan = async (id)=>{ if(!confirm('Ban this account? This also suspends it immediately and can be reversed later.')) return; await banUser(id); showToast('⛔ Account banned'); await refreshUsersCache(); renderPanel(); };
+  window.odUnban = async (id)=>{ await unbanUser(id); showToast('✅ Ban lifted'); await refreshUsersCache(); renderPanel(); };
+  window.odResetPassword = async (email)=>{
+    // Supabase now sends a real password-reset email itself (see
+    // requestPasswordReset() in auth.js) — there's no local token to
+    // copy/paste anymore, so this just triggers that real email.
+    await requestPasswordReset(email);
+    showToast(`🔑 Password reset email sent to ${email}`);
   };
 
-  /* ---------------- MENTORS ---------------- */
-  function appRow(a){
-    return `<div class="card mb-12" style="padding:18px 20px;">
-      <div class="flex justify-between items-start mb-8" style="flex-wrap:wrap; gap:10px;">
-        <div>
-          <div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(a.name)}</div>
-          <div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(a.email)} · ${escapeHtml(a.occupation)}</div>
+  /* ---------------- MENTORS (V14 — real, Supabase-backed applications) ----------------
+     mentor_applications/mentor_application_status_history now live in the
+     database (supabase/migrations/031-032) — search/filter/sort here are
+     client-side over one fetched batch (mentor-application volume is
+     nowhere near "thousands" the way Users needed server-side paging).
+     Status changes and notes go through set_mentor_application_status()/
+     add_mentor_application_note() (security-definer RPCs, Administrator+
+     only, self-guarded server-side) rather than a direct table UPDATE. */
+  let odMentors = { search:'', status:'', expertise:'', sort:'newest', rows:[], loaded:false, lastRefreshed:null };
+  const MENTOR_STATUS_LABELS = {
+    submitted:'Pending Review', under_review:'Under Review', more_information_requested:'More Info Requested',
+    approved:'Approved', declined:'Declined', withdrawn:'Withdrawn', pending:'Pending Review',
+  };
+  const MENTOR_STATUS_PILL = {
+    submitted:'pill-sample', under_review:'pill-yellow', more_information_requested:'pill-yellow',
+    approved:'pill-success', declined:'pill-navy', withdrawn:'pill-navy', pending:'pill-sample',
+  };
+  async function odFetchMentorApps(){
+    const { data, error } = await sbClient.from('mentor_applications').select('*').order('created_at', {ascending:false});
+    if(error){ console.warn('WRLD: could not load mentor applications', error.message); odMentors.rows = []; return; }
+    odMentors.rows = data||[];
+    odMentors.loaded = true;
+    odMentors.lastRefreshed = new Date();
+  }
+  function mentorAppFiltered(){
+    const q = odMentors.search.trim().toLowerCase();
+    let rows = odMentors.rows.filter(a=>{
+      if(q && !((a.name||'').toLowerCase().includes(q) || (a.email||'').toLowerCase().includes(q))) return false;
+      if(odMentors.status && a.status!==odMentors.status) return false;
+      if(odMentors.expertise && !((a.expertise||'').toLowerCase().includes(odMentors.expertise.toLowerCase()))) return false;
+      return true;
+    });
+    rows.sort((a,b)=> odMentors.sort==='oldest' ? new Date(a.created_at)-new Date(b.created_at) : new Date(b.created_at)-new Date(a.created_at));
+    return rows;
+  }
+  function mentorAppCard(a){
+    const users = typeof getUsers==='function' ? getUsers() : [];
+    const linkedUser = a.user_id ? users.find(u=>u.id===a.user_id) : null;
+    const verified = linkedUser ? linkedUser.emailVerified : null;
+    const statusLabel = MENTOR_STATUS_LABELS[a.status] || a.status;
+    const statusPill = MENTOR_STATUS_PILL[a.status] || 'pill-navy';
+    return `<div class="card owner-row mb-12" style="flex-direction:column; align-items:stretch;">
+      <div class="flex justify-between items-start" style="flex-wrap:wrap; gap:12px;">
+        <div style="flex:1; min-width:220px;">
+          <div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(a.name)} <span class="pill ${statusPill}" style="font-size:10px;">${statusLabel}</span> ${verified===true?'<span class="pill pill-success" style="font-size:10px;">✓ Verified</span>':verified===false?'<span class="pill pill-sample" style="font-size:10px;">Unverified</span>':''}</div>
+          <div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(a.email)}${a.expertise?` · ${escapeHtml(a.expertise)}`:''} · applied ${timeAgo(a.created_at)}</div>
+          <div style="font-size:11.5px; color:var(--ink-faint); margin-top:4px;">📎 ${a.resume_filename?escapeHtml(a.resume_filename):'No résumé attached'}${a.certs_filename?` · ${escapeHtml(a.certs_filename)}`:''}</div>
         </div>
-        <span style="font-size:11px; color:var(--ink-faint);">${timeAgo(a.submittedAt)}</span>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="odToggleMentorApp('${a.id}')">📄 View Full Application</button>
+          ${a.status==='submitted' || a.status==='under_review' ? `<button class="btn btn-primary btn-sm" onclick="odMentorStatus('${a.id}','approved')">✅ Approve</button><button class="btn btn-outline btn-sm" onclick="odMentorStatus('${a.id}','declined')">Decline</button>` : ''}
+        </div>
       </div>
-      <p style="font-size:13px; margin-bottom:6px;"><strong>Expertise:</strong> ${escapeHtml(a.expertise)}</p>
-      <p style="font-size:13px; margin-bottom:6px;"><strong>Why mentor:</strong> ${escapeHtml(a.why)}</p>
-      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:10px;">📎 ${a.resumeMeta?escapeHtml(a.resumeMeta.name):'No resume attached'}${a.certsMeta?` · ${escapeHtml(a.certsMeta.name)}`:''}</p>
-      ${a.status==='pending' ? `
-        <div class="flex gap-10">
-          <button class="btn btn-primary btn-sm" onclick="odApproveMentor('${a.id}')">✅ Approve</button>
-          <button class="btn btn-outline btn-sm" onclick="odRejectMentor('${a.id}')">Decline</button>
-        </div>` : `<span class="pill ${a.status==='approved'?'pill-success':'pill-navy'}">${a.status==='approved'?'Approved':'Declined'}</span>`}
+      <div id="mentor-app-detail-${a.id}" class="hidden" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--gray);"></div>
     </div>`;
   }
-  function renderMentors(){
-    const apps = getMentorApplications();
-    const pending = apps.filter(a=>a.status==='pending');
-    const decided = apps.filter(a=>a.status!=='pending');
+  window.odToggleMentorApp = async (id)=>{
+    const el = document.getElementById('mentor-app-detail-'+id);
+    if(!el) return;
+    if(!el.classList.contains('hidden')){ el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    el.innerHTML = `<p style="font-size:12.5px; color:var(--ink-faint);">Loading status history…</p>`;
+    const a = odMentors.rows.find(x=>x.id===id);
+    if(!a){ el.innerHTML = `<p style="font-size:12.5px; color:var(--ink-faint);">Application not found.</p>`; return; }
+    const { data: history } = await sbClient.from('mentor_application_status_history').select('*').eq('application_id', id).order('created_at', {ascending:false});
+    const field = (label, val) => val ? `<p style="font-size:13px; margin-bottom:8px;"><strong>${label}:</strong> ${escapeHtml(val)}</p>` : '';
+    el.innerHTML = `
+      ${field('Occupation', a.occupation)}
+      ${field('Education', a.education)}
+      ${field('Languages', a.languages)}
+      ${field('Availability', a.availability)}
+      ${field('Previous experience', a.experience)}
+      ${field('Why they want to mentor', a.why)}
+      ${field('Bio', a.bio)}
+      ${a.linkedin ? `<p style="font-size:13px; margin-bottom:8px;"><strong>LinkedIn:</strong> <a href="${escapeHtml(a.linkedin)}" target="_blank" rel="noopener" style="color:var(--blue-dark); font-weight:600;">${escapeHtml(a.linkedin)}</a></p>` : ''}
+      ${a.portfolio ? `<p style="font-size:13px; margin-bottom:8px;"><strong>Portfolio:</strong> <a href="${escapeHtml(a.portfolio)}" target="_blank" rel="noopener" style="color:var(--blue-dark); font-weight:600;">${escapeHtml(a.portfolio)}</a></p>` : ''}
+      <div class="flex gap-10 mb-16" style="flex-wrap:wrap;">
+        ${a.resume_file_path ? `<button class="btn btn-outline btn-sm" onclick="odOpenMentorFile('${a.resume_file_path}')">👁️ View Résumé</button>` : `<span style="font-size:12px; color:var(--ink-faint);">No résumé on file</span>`}
+        ${a.certs_path ? `<button class="btn btn-outline btn-sm" onclick="odOpenMentorFile('${a.certs_path}')">👁️ View Supporting Document</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="odCopyEmail('${escapeHtml(a.email)}')">📋 Copy Email</button>
+        ${a.user_id ? `<button class="btn btn-outline btn-sm" onclick="odViewProgress('${a.user_id}')">👤 View Associated User</button>` : ''}
+      </div>
+      <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="odMentorStatus('${a.id}','under_review')">Mark Under Review</button>
+        <button class="btn btn-outline btn-sm" onclick="odMentorStatus('${a.id}','more_information_requested')">Request More Info</button>
+        <button class="btn btn-primary btn-sm" onclick="odMentorStatus('${a.id}','approved')">✅ Approve</button>
+        <button class="btn btn-outline btn-sm" onclick="odMentorStatus('${a.id}','declined')">Decline</button>
+      </div>
+      <h5 class="mb-8" style="font-size:12.5px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.03em;">Internal Notes (not visible to the applicant)</h5>
+      <div class="mb-10">${(a.internal_notes||[]).length ? a.internal_notes.map(n=>`<div class="card mb-6" style="padding:10px 14px; background:var(--gray);"><div style="font-size:12px; color:var(--ink-faint); margin-bottom:2px;">${escapeHtml(n.authorName)} · ${timeAgo(n.at)}</div><div style="font-size:13px;">${escapeHtml(n.note)}</div></div>`).join('') : `<p style="font-size:12px; color:var(--ink-faint);">No internal notes yet.</p>`}</div>
+      <div class="flex gap-10 mb-16">
+        <input class="form-input" id="mentor-note-${id}" placeholder="Add an internal note...">
+        <button class="btn btn-outline btn-sm" style="flex-shrink:0;" onclick="odAddMentorNote('${id}')">Add Note</button>
+      </div>
+      <h5 class="mb-8" style="font-size:12.5px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.03em;">Status History</h5>
+      <div>${history && history.length ? history.map(h=>`<div class="card mb-6" style="padding:10px 14px;"><span style="font-size:12.5px;"><strong>${escapeHtml(h.previous_status||'—')}</strong> → <strong>${escapeHtml(h.new_status)}</strong> by ${escapeHtml(h.reviewer_name||'Administrator')}${h.note?` — "${escapeHtml(h.note)}"`:''}</span><span style="float:right; font-size:11px; color:var(--ink-faint);">${timeAgo(h.created_at)}</span></div>`).join('') : `<p style="font-size:12px; color:var(--ink-faint);">No status changes yet.</p>`}</div>
+    `;
+  };
+  window.odCopyEmail = (email)=>{
+    navigator.clipboard?.writeText(email).then(()=>showToast('📋 Email copied')).catch(()=>showToast(email));
+  };
+  // Signed URLs expire quickly (5 minutes) — generated fresh on click
+  // rather than stored, so a link copied out of the dashboard goes stale
+  // fast and the private bucket is never exposed publicly.
+  window.odOpenMentorFile = async (path)=>{
+    const { data, error } = await sbClient.storage.from('mentor-applications').createSignedUrl(path, 300);
+    if(error || !data){ showToast("Couldn't open that file — it may be unavailable."); return; }
+    window.open(data.signedUrl, '_blank', 'noopener');
+  };
+  window.odMentorStatus = async (id, status)=>{
+    const labels = {approved:'Approve this application?', declined:'Decline this application?', under_review:'Mark as under review?', more_information_requested:'Request more information from this applicant?'};
+    if((status==='approved'||status==='declined') && !confirm(labels[status])) return;
+    const note = status==='declined' || status==='more_information_requested' ? (prompt('Optional note for this decision:')||'') : '';
+    const { error } = await sbClient.rpc('set_mentor_application_status', {p_application_id:id, p_new_status:status, p_note:note||null});
+    if(error){ showToast("Couldn't update that application — try again."); return; }
+    showToast(status==='approved' ? '✅ Mentor approved' : status==='declined' ? 'Application declined' : '✅ Status updated');
+    if(status==='approved') await refreshUsersCache();
+    await odFetchMentorApps();
+    renderPanel();
+  };
+  window.odAddMentorNote = async (id)=>{
+    const input = document.getElementById('mentor-note-'+id);
+    if(!input || !input.value.trim()) return;
+    const { error } = await sbClient.rpc('add_mentor_application_note', {p_application_id:id, p_note:input.value.trim()});
+    if(error){ showToast("Couldn't save that note — try again."); return; }
+    input.value = '';
+    showToast('📝 Note added');
+    await odFetchMentorApps();
+    document.getElementById('mentor-app-detail-'+id)?.classList.add('hidden');
+    odToggleMentorApp(id);
+  };
+  async function renderMentors(){
+    document.getElementById('od-panels').innerHTML = panelShell(`<h3 class="mb-16">Mentors</h3><p style="font-size:13px; color:var(--ink-faint);">Loading applications from the database…</p>`);
+    await odFetchMentorApps();
+    const rows = mentorAppFiltered();
+    const counts = {submitted:0, under_review:0, more_information_requested:0, approved:0, declined:0};
+    odMentors.rows.forEach(a=>{ if(counts[a.status]!==undefined) counts[a.status]++; else if(a.status==='pending') counts.submitted++; });
     const approvedMentors = getUsers().filter(u=>u.role===ROLES.MENTOR);
     const sessions = getLiveSessions();
-    return panelShell(`
+    document.getElementById('od-panels').innerHTML = panelShell(`
       <h3 class="mb-16">Mentors</h3>
-      <h4 class="mb-12">📥 Pending Applications (${pending.length})</h4>
-      <div class="mb-24">${pending.length ? pending.map(appRow).join('') : `<div class="empty-state"><div class="ic">✅</div><h4>Nothing pending</h4><p>New applications from Become a Mentor will show up here.</p></div>`}</div>
-      ${decided.length ? `<h4 class="mb-12">🗂️ Reviewed Applications</h4><div class="mb-24">${decided.map(appRow).join('')}</div>` : ''}
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:16px;">Real, cross-device application data from the database. Last refreshed ${odMentors.lastRefreshed ? timeAgo(odMentors.lastRefreshed.toISOString()) : '—'}. <button class="thread-action" onclick="renderMentors()">↻ Refresh</button></p>
+      <div class="owner-metric-row mb-16">
+        ${metricCard(counts.submitted, 'Pending Review')}
+        ${metricCard(counts.under_review, 'Under Review')}
+        ${metricCard(counts.approved, 'Approved')}
+        ${metricCard(counts.declined, 'Declined')}
+      </div>
+      <div class="search-wrap mb-16" style="max-width:420px; margin:0 0 16px;">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="od-mentor-search" placeholder="Search by name or email..." value="${escapeHtml(odMentors.search)}">
+      </div>
+      <div class="owner-filter-row">
+        <select id="od-mentor-filter-status">
+          <option value="">All statuses</option>
+          ${Object.entries(MENTOR_STATUS_LABELS).filter(([k])=>k!=='pending').map(([k,label])=>`<option value="${k}" ${odMentors.status===k?'selected':''}>${label}</option>`).join('')}
+        </select>
+        <select id="od-mentor-filter-expertise">
+          <option value="">Any expertise</option>
+          ${[...new Set(odMentors.rows.map(a=>a.expertise).filter(Boolean))].map(e=>`<option value="${escapeHtml(e)}" ${odMentors.expertise===e?'selected':''}>${escapeHtml(e)}</option>`).join('')}
+        </select>
+        <select id="od-mentor-filter-sort">
+          <option value="newest" ${odMentors.sort==='newest'?'selected':''}>Newest first</option>
+          <option value="oldest" ${odMentors.sort==='oldest'?'selected':''}>Oldest first</option>
+        </select>
+      </div>
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:14px;">${rows.length} application${rows.length!==1?'s':''} found</p>
+      <div class="mb-24">${rows.length ? rows.map(mentorAppCard).join('') : `<div class="empty-state"><div class="ic">✅</div><h4>No matching applications</h4></div>`}</div>
       <h4 class="mb-12">🤝 Approved Mentors (${approvedMentors.length})</h4>
       <div class="mb-24">${approvedMentors.length ? approvedMentors.map(m=>`<div class="card mb-8" style="padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;"><div style="font-weight:700; font-size:13.5px; color:var(--navy);">${escapeHtml(m.name)}</div><span style="font-size:12px; color:var(--ink-faint);">${escapeHtml(m.email)}</span></div>`).join('') : `<div class="empty-state"><div class="ic">🤝</div><h4>No approved Mentors yet</h4></div>`}</div>
       <h4 class="mb-12">🎥 Session Schedules &amp; Office Hours (${sessions.length})</h4>
       <div>${sessions.length ? sessions.map(s=>`<div class="card mb-8" style="padding:14px 18px; font-size:13px;">${escapeHtml(s.title||'Live Session')} — ${new Date(s.dateISO).toLocaleString()}</div>`).join('') : `<div class="empty-state"><div class="ic">🎥</div><h4>No sessions scheduled yet</h4><p>Sessions Mentors publish from Mentor Studio will appear here.</p></div>`}</div>
     `);
+    const searchInput = document.getElementById('od-mentor-search');
+    if(searchInput){
+      searchInput.addEventListener('input', e=>{ odMentors.search = e.target.value; renderMentors(); });
+      searchInput.focus(); searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+    }
+    document.getElementById('od-mentor-filter-status')?.addEventListener('change', e=>{ odMentors.status = e.target.value; renderMentors(); });
+    document.getElementById('od-mentor-filter-expertise')?.addEventListener('change', e=>{ odMentors.expertise = e.target.value; renderMentors(); });
+    document.getElementById('od-mentor-filter-sort')?.addEventListener('change', e=>{ odMentors.sort = e.target.value; renderMentors(); });
+    setTimeout(initReveal, 20);
   }
-  window.odApproveMentor = (id)=>{ setMentorApplicationStatus(id, 'approved'); showToast('✅ Mentor approved'); renderPanel(); };
-  window.odRejectMentor = (id)=>{ setMentorApplicationStatus(id, 'rejected'); showToast('Application declined'); renderPanel(); };
 
   /* ---------------- VOLUNTEER ---------------- */
   function renderVolunteer(){
@@ -448,11 +766,11 @@ if(requireMinRole(ROLES.ADMIN)){
       <div>${candidates.length ? candidates.map(c=>`<div class="card owner-row mb-10"><div><div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(c.name)}</div><div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(c.email)} · <span class="role-pill role-${c.role}">${ROLE_LABELS[c.role]}</span></div></div><button class="btn btn-primary btn-sm" onclick="odMakeAdmin('${c.id}')">Make Administrator</button></div>`).join('') : `<div class="empty-state"><div class="ic">👤</div><h4>No eligible accounts</h4></div>`}</div>
     `);
   }
-  window.odMakeAdmin = (id)=>{ setAdministratorStatus(id, true); showToast('👑 Administrator access granted'); renderPanel(); };
-  window.odDemoteAdmin = (id)=>{ setAdministratorStatus(id, false); showToast('Administrator access removed'); renderPanel(); };
-  window.odTransferOwnership = (id)=>{
+  window.odMakeAdmin = async (id)=>{ await setAdministratorStatus(id, true); showToast('👑 Administrator access granted'); await refreshUsersCache(); renderPanel(); };
+  window.odDemoteAdmin = async (id)=>{ await setAdministratorStatus(id, false); showToast('Administrator access removed'); await refreshUsersCache(); renderPanel(); };
+  window.odTransferOwnership = async (id)=>{
     if(!confirm('Transfer WRLD ownership to this Administrator? You will become an Administrator and lose Owner-only access immediately.')) return;
-    const result = transferOwnership(me.id, id);
+    const result = await transferOwnership(me.id, id);
     if(!result.ok){ showToast(result.error); return; }
     showToast('👑 Ownership transferred — reloading...');
     setTimeout(()=>location.href='dashboard.html', 1200);
@@ -478,13 +796,44 @@ if(requireMinRole(ROLES.ADMIN)){
       </div>
     `);
   }
-  window.odDeleteOrg = ()=>{
-    const typed = prompt('This permanently deletes all WRLD data on this device. Type DELETE to confirm.');
+  window.odDeleteOrg = async ()=>{
+    const typed = prompt('This permanently deletes all WRLD data — every account, post, and volunteer entry in the database. Type DELETE to confirm.');
     if(typed !== 'DELETE') return;
-    deleteOrganizationData();
-    logOut();
+    await deleteOrganizationData();
+    await logOut();
     location.href = 'index.html';
   };
+
+  /* ---------------- ROADMAP (Future Scalability placeholders) ---------------- */
+  // Explicit, honest "Coming Soon" cards for modules the Owner Dashboard
+  // is designed to grow into but that aren't built yet — matches the
+  // "Coming Soon instead of fake data" product principle (see
+  // COMMUNITY_FEATURES/LEARNING_PATHS_COMING_SOON in data.js). None of
+  // these are live; nothing here should ever be mistaken for real data.
+  const ROADMAP_MODULES = [
+    {icon:'🎥', title:'Live Workshops & Zoom Integration', desc:'Scheduling already exists via Mentor Studio; direct Zoom/video-call embedding for live sessions is planned, not built.'},
+    {icon:'💬', title:'Discussion Boards', desc:'Dedicated, threaded forum categories beyond Community Commons\' current post/reply model.'},
+    {icon:'💝', title:'Donations & Fundraising', desc:'The Support WRLD section is informational only today — real payment processing isn\'t wired up yet.'},
+    {icon:'🎓', title:'Scholarships Program', desc:'No scholarship application or award pipeline exists yet.'},
+    {icon:'📅', title:'Event Ticketing & RSVPs', desc:'Events currently list Programs and live sessions; RSVP/capacity/ticketing tooling is planned.'},
+    {icon:'📈', title:'Advanced Analytics & Exports', desc:'CSV/PDF exports of the Analytics tab and deeper cohort/retention reporting are planned.'},
+    {icon:'✉️', title:'Automated Email Campaigns', desc:'Account emails (verification, password reset) are real via Supabase Auth; marketing/digest campaigns aren\'t built.'},
+    {icon:'🤝', title:'Full Mentor/Volunteer Application Sync', desc:'Applications work today but still live in this browser only — cross-device sync to the database is a tracked next step (see CLAUDE.md).'},
+  ];
+  function renderRoadmap(){
+    return panelShell(`
+      <h3 class="mb-16">Roadmap</h3>
+      <p style="font-size:13px; color:var(--ink-faint); margin-bottom:20px;">The Owner Dashboard is built to grow into a full command center as WRLD scales. These modules are designed for, but intentionally not yet built — shown honestly as Coming Soon rather than faked.</p>
+      <div class="owner-metric-row" style="grid-template-columns:repeat(2,1fr);">
+        ${ROADMAP_MODULES.map(m=>`
+          <div class="coming-soon-card" style="text-align:left; padding:22px 24px;">
+            <div style="font-size:22px; margin-bottom:8px;">${m.icon}</div>
+            <div style="font-weight:700; font-size:14px; color:var(--navy); margin-bottom:6px;">${escapeHtml(m.title)} <span class="pill pill-sample" style="font-size:10px; margin-left:4px;">Coming Soon</span></div>
+            <div style="font-size:12.5px; color:var(--ink-faint);">${escapeHtml(m.desc)}</div>
+          </div>`).join('')}
+      </div>
+    `);
+  }
 
   function renderPanel(){
     const map = {
@@ -492,17 +841,22 @@ if(requireMinRole(ROLES.ADMIN)){
       volunteer: renderVolunteer, community: renderCommunity, content: renderContent,
       organization: renderOrganization, analytics: renderAnalytics,
       administrators: renderAdministrators, security: renderSecurity,
-      notifications: renderNotifications,
+      notifications: renderNotifications, roadmap: renderRoadmap,
     };
-    document.getElementById('od-panels').innerHTML = (map[activeTab]||renderOverview)();
-    if(activeTab==='users') wireUsersPanel();
+    const fn = map[activeTab] || renderOverview;
+    if(fn===renderOverview || fn===renderUsers || fn===renderMentors){
+      fn(); // async — paints its own loading state, then real content
+      return;
+    }
+    document.getElementById('od-panels').innerHTML = fn();
     setTimeout(initReveal, 20);
   }
 
   renderTabs();
   renderPanel();
-  initPage(null, isOwner ? "This is WRLD's command center — everything here is real, local data." : "You have Administrator access to everything except Owner-only controls.");
+  initPage(null, isOwner ? "This is WRLD's command center — every account and metric here is real, live data from the database." : "You have Administrator access to everything except Owner-only controls.");
 }
+})();
 </script>
 </body>
 </html>

@@ -1,38 +1,52 @@
 /* =====================================================================
    WRLD — Authentication & Role-Based Access Control (auth.js)
 
-   ARCHITECTURE NOTE
-   WRLD does not yet have a backend server, so accounts currently live in
-   this browser via localStorage. Every function below is shaped exactly
-   like a real API client (signUp, logIn, logOut, getCurrentUser, etc.)
-   so that when a real backend exists, only the INSIDE of these functions
-   needs to change to real network calls — every page that calls them
-   (header, dashboard, Mentor Studio, Orbit) keeps working unchanged.
-   This mirrors the same pattern app.js already uses for getState()/setState().
+   ARCHITECTURE NOTE (V13 — production Supabase backend)
+   This file used to keep accounts in localStorage. As of this revision,
+   Supabase Auth + the `public.profiles` table (see supabase/migrations/)
+   are the real, permanent source of truth — accounts, passwords, and
+   sessions now survive a cleared cache and sync across every device.
 
-   SECURITY NOTE
-   Passwords are digested with SHA-256 (via the browser's SubtleCrypto)
-   purely so a raw password is never sitting in localStorage in plain
-   text. This is NOT production-grade security — there is no server,
-   no salting, no rate limiting, and anyone with access to this browser
-   profile can still see the data. Real authentication (bcrypt/argon2,
-   server-side sessions, HTTPS-only cookies, etc.) is Phase 3+ backend
-   work. This file exists to build the architecture that backend will
-   plug into, not to replace it.
+   Every function below kept its EXACT original name and call signature
+   (signUp, logIn, logOut, getCurrentUser, hasPermission, roleAtLeast,
+   requireAuth, suspendUser, promoteUserRole, etc.) — this was always the
+   point of the "shaped like a real API client" comment that used to live
+   here: swapping the INSIDE of these functions for real network calls
+   was meant to be a drop-in change for every page that calls them. It
+   was, with one structural nuance:
+
+   getCurrentUser() must stay SYNCHRONOUS (dozens of call sites across the
+   app read it directly, mid-render, with no `await`), but real session
+   lookups are inherently async. supabase-client.js bridges this: it
+   resolves the session + profile ONCE, early, into an in-memory cache,
+   and exposes `window.wrldAuthReady` — a promise `initPage()` (app.js)
+   and every route-guarded page's inline script await BEFORE calling
+   getCurrentUser()/requireAuth()/etc. By the time any of the functions
+   below run, that cache is already correct. See supabase-client.js's
+   top comment for the full explanation.
+
+   NO-VERIFICATION SIGNUP FLOW (V15.1)
+   New accounts no longer require opening a confirmation email before
+   they can use WRLD. This required ONE change outside this codebase:
+   in the Supabase dashboard, under Authentication → Providers → Email,
+   the "Confirm email" toggle must be switched OFF for this project. That
+   setting lives entirely server-side (there is no client-side/API way to
+   disable it, and there shouldn't be — this file never touches it). With
+   it off, `sbClient.auth.signUp()` returns an active session immediately
+   instead of requiring the user to click an emailed link first. See
+   signUp() below for how that session is handled (signed back out, not
+   used to auto-log the user in) and signup.html/login.html for the
+   resulting UX: create account → success message → login screen → user
+   signs in with the credentials they just chose. Password-reset emails
+   and every other Supabase Auth email are unaffected by this toggle.
    ===================================================================== */
 
-const USERS_KEY   = 'wrld_users_v1';
-const SESSION_KEY = 'wrld_session_v1';
-const RESET_KEY   = 'wrld_reset_tokens_v1';
-const SESSION_LENGTH_MS = 1000 * 60 * 60 * 24 * 30; // 30-day persistent login
-
 /* ---------------------------------------------------------------------
-   ROLES + PERMISSIONS
-   Four roles: Explorer, Mentor, Administrator, Owner — a strict hierarchy,
-   each inheriting everything the role below it can do. Administrator and
-   Owner are never selectable anywhere in the frontend; Owner exists exactly
-   once (see OWNER bootstrap below) and Administrator is only ever granted
-   by an existing Owner/Administrator promoting an account by hand.
+   ROLES + PERMISSIONS — unchanged from the localStorage era. These are
+   pure data/pure functions; nothing here talks to storage at all, so
+   nothing needed to change. `admin` (not `administrator`) matches the
+   Postgres enum in supabase/migrations/001_roles_and_profiles.sql and
+   the existing `.role-pill.role-admin` CSS.
    --------------------------------------------------------------------- */
 const ROLES = { EXPLORER: 'explorer', MENTOR: 'mentor', ADMIN: 'admin', OWNER: 'owner' };
 const ROLE_HIERARCHY = [ROLES.EXPLORER, ROLES.MENTOR, ROLES.ADMIN, ROLES.OWNER];
@@ -42,6 +56,19 @@ const ROLE_LABELS = {
   [ROLES.MENTOR]: 'Mentor',
   [ROLES.ADMIN]: 'Administrator',
   [ROLES.OWNER]: 'Owner',
+};
+
+// Shared "where does this role land after auth" map — used by login.html
+// and email-verified.html so the two never drift apart. WRLD's real
+// account roles are Explorer/Mentor/Administrator/Owner only ("Volunteer"
+// is a feature within the Explorer experience, not a separate role, so
+// it isn't a distinct destination here — this stays honest rather than
+// inventing a role WRLD doesn't have).
+const ROLE_DESTINATIONS = {
+  [ROLES.EXPLORER]: 'dashboard.html',
+  [ROLES.MENTOR]: 'mentor-studio.html',
+  [ROLES.ADMIN]: 'owner-dashboard.html',
+  [ROLES.OWNER]: 'owner-dashboard.html',
 };
 
 const EXPLORER_PERMISSIONS = [
@@ -63,8 +90,6 @@ const OWNER_PERMISSIONS = [
   'manage_organization','delete_organization',
 ];
 
-// Roles inherit downward: Owner can do everything Admins/Mentors/Explorers
-// can; Admins can do everything Mentors/Explorers can, and so on.
 const ROLE_PERMISSIONS = {
   [ROLES.EXPLORER]: [...EXPLORER_PERMISSIONS],
   [ROLES.MENTOR]:   [...EXPLORER_PERMISSIONS, ...MENTOR_PERMISSIONS],
@@ -77,8 +102,6 @@ function hasPermission(user, permission){
   return (ROLE_PERMISSIONS[user.role] || []).includes(permission);
 }
 
-/* True if user's role is this role or anything above it in the hierarchy —
-   e.g. roleAtLeast(user, ROLES.MENTOR) is also true for Admins and Owner. */
 function roleAtLeast(user, role){
   if(!user || !user.role) return false;
   const userIdx = ROLE_HIERARCHY.indexOf(user.role);
@@ -87,262 +110,58 @@ function roleAtLeast(user, role){
 }
 
 /* ---------------------------------------------------------------------
-   OWNER BOOTSTRAP
-   Exactly one Owner account exists, created automatically the first time
-   this file loads in a fresh browser, with NO password set. The Owner
-   must complete a one-time setup flow (see ownerNeedsSetup/setupOwnerPassword
-   below) before they can log in — this file never hardcodes a password.
+   CURRENT USER / SESSION
+   getCurrentUser() reads the cache supabase-client.js keeps in sync —
+   see that file's top comment. Every page that used to read this
+   synchronously right after a plain <script> tag still can, as long as
+   `await window.wrldAuthReady` has resolved first (initPage() in app.js
+   does this for you; route-guarded pages await it explicitly before
+   calling requireAuth()/requireRole()/requireMinRole()).
    --------------------------------------------------------------------- */
-const OWNER_EMAIL = 'hello@ourwrld.org';
-function ensureOwnerBootstrap(){
-  const users = getUsers();
-  if(users.some(u=>u.role===ROLES.OWNER)) return;
-  users.push({
-    id: 'owner_root',
-    name: 'WRLD Owner',
-    email: OWNER_EMAIL,
-    passwordHash: null, // set once, via setupOwnerPassword() — never hardcoded
-    role: ROLES.OWNER,
-    createdAt: new Date().toISOString(),
-  });
-  saveUsers(users);
-}
-
-function ownerNeedsSetup(){
-  const owner = getUsers().find(u=>u.role===ROLES.OWNER);
-  return !!owner && !owner.passwordHash;
-}
-
-async function setupOwnerPassword(password){
-  const users = getUsers();
-  const owner = users.find(u=>u.role===ROLES.OWNER);
-  if(!owner) return {ok:false, error:'Owner account not found.'};
-  if(owner.passwordHash) return {ok:false, error:'Owner setup has already been completed.'};
-  if(!password || password.length < 8) return {ok:false, error:'Password must be at least 8 characters.'};
-  owner.passwordHash = await digestPassword(password);
-  saveUsers(users);
-  startSession(owner);
-  return {ok:true, user: publicUser(owner)};
-}
-
-/* ---------------------------------------------------------------------
-   STORAGE HELPERS
-   --------------------------------------------------------------------- */
-function getUsers(){
-  try{ return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
-  catch(e){ return []; }
-}
-function saveUsers(users){ localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
-
-function getResetTokens(){
-  try{ return JSON.parse(localStorage.getItem(RESET_KEY)) || {}; }
-  catch(e){ return {}; }
-}
-function saveResetTokens(tokens){ localStorage.setItem(RESET_KEY, JSON.stringify(tokens)); }
-
-async function digestPassword(str){
-  if(window.crypto && crypto.subtle){
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  }
-  // Extremely old-browser fallback only — never reached on any modern device.
-  let hash = 0;
-  for(let i=0;i<str.length;i++){ hash = (hash<<5)-hash+str.charCodeAt(i); hash |= 0; }
-  return 'fallback_'+String(hash);
-}
-
-function makeToken(prefix){ return (prefix||'tok')+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,10); }
-
-function publicUser(user){
-  return user ? {id:user.id, name:user.name, email:user.email, role:user.role, createdAt:user.createdAt} : null;
-}
-
-/* ---------------------------------------------------------------------
-   SESSION
-   --------------------------------------------------------------------- */
-function startSession(user){
-  const session = {userId:user.id, token:makeToken('session'), expiresAt: Date.now()+SESSION_LENGTH_MS};
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  // Real, honest "last active" timestamp and login count — powers the
-  // Owner Dashboard's Active Users, Online Now, and Returning Users
-  // metrics without inventing any activity data.
-  const users = getUsers();
-  const u = users.find(x=>x.id===user.id);
-  if(u){ u.lastLoginAt = new Date().toISOString(); u.loginCount = (u.loginCount||0)+1; saveUsers(users); }
-}
-
-function logOut(){
-  localStorage.removeItem(SESSION_KEY);
-}
-
 function getCurrentUser(){
-  try{
-    const session = JSON.parse(localStorage.getItem(SESSION_KEY));
-    if(!session || !session.expiresAt || session.expiresAt < Date.now()) return null;
-    const user = getUsers().find(u=>u.id===session.userId);
-    if(!user || user.suspended || user.deactivated) return null;
-    return publicUser(user);
-  }catch(e){ return null; }
-}
-
-/* ---------------------------------------------------------------------
-   MODERATION ACTIONS (Layer 4 — Moderator Dashboard)
-   Real, functional account actions an Administrator can take. Suspended
-   users are immediately signed out on their next request — see the
-   suspended check in getCurrentUser() above and the login() check below.
-   --------------------------------------------------------------------- */
-function suspendUser(userId){
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u) return false;
-  u.suspended = true;
-  saveUsers(users);
-  return true;
-}
-function unsuspendUser(userId){
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u) return false;
-  u.suspended = false;
-  saveUsers(users);
-  return true;
-}
-/* Deactivate is distinct from Suspend: Suspend is a moderation action tied
-   to community conduct; Deactivate is an administrative account-closure
-   action (e.g. the account owner asked WRLD to close it, or it's a stale
-   test account). Both block login the same way, but are tracked and
-   surfaced separately in the Owner Dashboard. */
-function deactivateUser(userId){
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u || u.role===ROLES.OWNER) return false;
-  u.deactivated = true;
-  saveUsers(users);
-  return true;
-}
-function reactivateUser(userId){
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u) return false;
-  u.deactivated = false;
-  saveUsers(users);
-  return true;
-}
-/* Ban is the escalation past Suspend, reserved for repeated abusive
-   behaviour (see moderateContent()'s repeat-offender tracking). Distinct
-   store field so "Banned Users" in the Owner Dashboard's Community tab
-   is a real, separate list rather than reusing Suspended. */
-function banUser(userId){
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u || u.role===ROLES.OWNER) return false;
-  u.banned = true;
-  u.suspended = true; // a ban always suspends login too
-  saveUsers(users);
-  return true;
-}
-function unbanUser(userId){
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u) return false;
-  u.banned = false;
-  u.suspended = false;
-  saveUsers(users);
-  return true;
-}
-
-/* Owner-only. Moves the Owner role to an existing Administrator and
-   demotes the current Owner to Administrator. There is always exactly
-   one Owner — this never creates a second one or leaves zero. */
-function transferOwnership(currentOwnerId, newOwnerId){
-  const users = getUsers();
-  const current = users.find(x=>x.id===currentOwnerId);
-  const next = users.find(x=>x.id===newOwnerId);
-  if(!current || current.role!==ROLES.OWNER) return {ok:false, error:'Only the current Owner can transfer ownership.'};
-  if(!next || next.role!==ROLES.ADMIN) return {ok:false, error:'Ownership can only be transferred to an existing Administrator.'};
-  current.role = ROLES.ADMIN;
-  next.role = ROLES.OWNER;
-  saveUsers(users);
-  return {ok:true};
-}
-
-/* Owner-only, irreversible. Wipes every piece of WRLD data stored in this
-   browser (accounts, sessions, posts, volunteer logs, everything) — the
-   honest local-storage equivalent of "delete the organization" on a
-   platform that has no real backend database to drop yet. */
-function deleteOrganizationData(){
-  const keys = [];
-  for(let i=0;i<localStorage.length;i++){
-    const k = localStorage.key(i);
-    if(k && k.startsWith('wrld_')) keys.push(k);
-  }
-  keys.forEach(k=>localStorage.removeItem(k));
-  return true;
-}
-/* The only path any account ever becomes a Mentor: an Administrator
-   reviewing a real application (see become-mentor.html) and promoting the
-   applicant's existing Explorer account by hand. There is no self-service
-   way to become a Mentor or Administrator anywhere else in the product. */
-function promoteUserRole(userId, role){
-  if(![ROLES.EXPLORER, ROLES.MENTOR].includes(role)) return false; // never grants Admin/Owner via this path
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u) return false;
-  u.role = role;
-  saveUsers(users);
-  return true;
-}
-
-/* Owner-only in practice — only reachable from the Owner Dashboard's
-   Administrators panel, which is itself gated to roleAtLeast(user, OWNER).
-   Promotes/demotes between Explorer and Administrator. Owner status can
-   never be granted or revoked this way — there is exactly one Owner. */
-function setAdministratorStatus(userId, makeAdmin){
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u || u.role===ROLES.OWNER) return false;
-  u.role = makeAdmin ? ROLES.ADMIN : ROLES.EXPLORER;
-  saveUsers(users);
-  return true;
-}
-
-/* Available to any authenticated user, including the Owner, from their own
-   account settings. Requires the correct current password. */
-async function changePassword(userId, currentPassword, newPassword){
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u) return {ok:false, error:'Account not found.'};
-  const attemptHash = await digestPassword(currentPassword||'');
-  if(attemptHash !== u.passwordHash) return {ok:false, error:'Current password is incorrect.'};
-  if(!newPassword || newPassword.length < 8) return {ok:false, error:'New password must be at least 8 characters.'};
-  u.passwordHash = await digestPassword(newPassword);
-  saveUsers(users);
-  return {ok:true};
-}
-
-function warnUser(userId){
-  const users = getUsers();
-  const u = users.find(x=>x.id===userId);
-  if(!u) return false;
-  u.warnings = (u.warnings||0)+1;
-  saveUsers(users);
-  return true;
+  return typeof wrldBuildUserFromCache === 'function' ? wrldBuildUserFromCache() : null;
 }
 
 function isAuthenticated(){ return !!getCurrentUser(); }
 
-function emailExists(email){
-  email = (email||'').trim().toLowerCase();
-  return getUsers().some(u=>u.email===email);
+async function logOut(){
+  await sbClient.auth.signOut();
+  await wrldRefreshSessionCache(null);
 }
 
 /* ---------------------------------------------------------------------
    SIGN UP / LOG IN
-   Both return {ok:true, user} or {ok:false, error}. Deliberately shaped
-   like a fetch() response body so swapping in a real API later is a
-   drop-in change for every page that calls these.
+   Both still return {ok:true, user} or {ok:false, error} — the exact
+   same shape every calling page (signup.html, login.html) already
+   expects and awaits.
    --------------------------------------------------------------------- */
-async function signUp({name, email, password}){
+/* V14: distinct, specific messages per failure mode (Master Prompt
+   section 3) instead of one generic error for every unrelated cause.
+   `email_rate_limit` specifically means the PROJECT-WIDE email sending
+   limit was hit (Supabase's default email service caps this very low —
+   see SUPABASE-SMTP-SETUP.md for the production fix), which is a
+   different, more serious problem than a single user's own rate limit
+   and gets its own message so it isn't mistaken for "you personally are
+   trying too often." */
+function friendlyAuthError(error){
+  if(!error) return 'Something went wrong while creating your account. Please try again shortly.';
+  const msg = error.message || String(error);
+  const status = error.status || error.code;
+  if(!navigator.onLine) return "We couldn't create your account right now. Please check your connection and try again.";
+  if(/already registered|user already exists/i.test(msg)) return 'An account already exists with this email address. Try logging in or resetting your password.';
+  if(/invalid login credentials/i.test(msg)) return 'Incorrect email or password — try again.';
+  if(/email not confirmed/i.test(msg)) return 'Please confirm your email before logging in — check your inbox for the verification link.';
+  if(/password should be at least|password.*too short|password.*minimum/i.test(msg)) return 'Password must be at least 8 characters.';
+  if(/password.*(weak|common|breach|pwned)/i.test(msg)) return "That password is too easy to guess — try a longer or more unique one.";
+  if(/email.{0,20}rate limit|over_email_send_rate_limit|email_send_rate_limit/i.test(msg)) return "We're receiving a high number of signups right now. Please wait a few minutes and try again.";
+  if(/rate limit/i.test(msg)) return "That's a lot of attempts — please wait a minute and try again.";
+  if(/invalid.{0,15}email|unable to validate email/i.test(msg)) return 'Please enter a valid email address.';
+  if(status===0 || /networkerror|failed to fetch|load failed/i.test(msg)) return "We couldn't create your account right now. Please check your connection and try again.";
+  if(status>=500) return 'Something went wrong while creating your account. Please try again shortly.';
+  return msg || 'Something went wrong while creating your account. Please try again shortly.';
+}
+
+async function signUp({name, email, password, captchaToken}){
   name = (name||'').trim();
   email = (email||'').trim().toLowerCase();
 
@@ -350,91 +169,289 @@ async function signUp({name, email, password}){
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return {ok:false, error:'Enter a valid email address.'};
   if(password.length < 8) return {ok:false, error:'Password must be at least 8 characters.'};
 
-  const users = getUsers();
-  if(users.some(u=>u.email===email)){
-    return {ok:false, error:'An account with that email already exists — try logging in instead.'};
-  }
+  // Public registration only ever creates Explorer accounts — no role
+  // param is accepted here at all (public.handle_new_user() also hardcodes
+  // role='explorer' as the table default, so this is enforced twice).
+  // Mentor access is granted exclusively by an Administrator via
+  // promoteUserRole() after a manual application review; Administrator
+  // accounts are never created through public sign-up.
+  const { data, error } = await sbClient.auth.signUp({
+    email, password,
+    options: {
+      data: { name },
+      // V14 fix: without an explicit emailRedirectTo, Supabase's
+      // confirmation link falls back to the project's dashboard-configured
+      // Site URL — which is "localhost" by default on a fresh project,
+      // producing exactly the "Safari can't connect to the server" bug
+      // this was reported for. wrldSiteUrl() (supabase-client.js) is a
+      // fixed production constant for any non-local hostname, never a
+      // raw, spoofable request value.
+      emailRedirectTo: wrldSiteUrl() + '/email-verified.html',
+      // Only sent if a real Turnstile site key is configured and the
+      // widget actually produced a token — see WRLD_CAPTCHA_SITE_KEY in
+      // supabase-config.js and AUTH-SECURITY-SETUP.md. undefined is fine
+      // here; Supabase simply skips CAPTCHA verification if it isn't
+      // enabled on the project.
+      captchaToken: captchaToken || undefined,
+    },
+  });
 
-  // Public registration only ever creates Explorer accounts — no role param
-  // is accepted here at all. Mentor access is granted exclusively by an
-  // Administrator via promoteUserRole() after a manual application review;
-  // Administrator accounts are never created through public sign-up.
-  const user = {
-    id: 'u_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
-    name, email,
-    passwordHash: await digestPassword(password),
-    role: ROLES.EXPLORER,
-    createdAt: new Date().toISOString(),
-  };
-  users.push(user);
-  saveUsers(users);
-  startSession(user);
-  return {ok:true, user: publicUser(user)};
+  if(error) return {ok:false, error: friendlyAuthError(error)};
+
+  // V15.1: email verification is no longer required on this project (the
+  // Supabase dashboard's Auth → Providers → Email → "Confirm email"
+  // toggle has been switched off — see the "No-Verification Signup Flow"
+  // note near the top of this file). With that setting off, signUp()
+  // returns an active session immediately instead of the
+  // needsEmailConfirmation branch below. The product decision for this
+  // pass is still to send the user to login.html to sign in with the
+  // credentials they just created, rather than silently auto-logging
+  // them in — so any session Supabase just issued is deliberately signed
+  // back out here before returning, guaranteeing no hidden active session
+  // is left behind while the success/login screen is shown. The account,
+  // its auth.users row, and its public.profiles row (created by the
+  // existing handle_new_user() trigger) are all real and already
+  // persisted at this point — signing out only clears the *client-side*
+  // session token, it does not undo account creation.
+  if(data.session){
+    await sbClient.auth.signOut();
+    await wrldRefreshSessionCache(null);
+    return {ok:true, user:null, accountCreated:true};
+  }
+  // Fallback path: only reached if a future project configuration change
+  // re-enables "Confirm email" — kept intact so signup.html's existing
+  // check-your-email.html redirect still works correctly if that setting
+  // is ever turned back on, without requiring another code change here.
+  return {ok:true, user:null, needsEmailConfirmation:true};
 }
 
-async function logIn(email, password){
+/* Resend the signup confirmation email — used by check-your-email.html's
+   "Resend" button. Supabase's own per-project/per-user rate limiting is
+   the real enforcement (see SUPABASE-SMTP-SETUP.md); the caller (this
+   page) also shows a client-side cooldown so a user can't just mash the
+   button, but that's a UX courtesy, not the security boundary. */
+async function resendVerificationEmail(email){
   email = (email||'').trim().toLowerCase();
-  const users = getUsers();
-  const user = users.find(u=>u.email===email);
-  if(!user) return {ok:false, error:'No WRLD account found with that email.'};
-  if(user.suspended) return {ok:false, error:'This account has been suspended. Contact WRLD if you think this is a mistake.'};
-  if(user.deactivated) return {ok:false, error:'This account has been deactivated. Contact WRLD if you think this is a mistake.'};
-  if(user.role===ROLES.OWNER && !user.passwordHash){
-    return {ok:false, error:'Owner account setup has not been completed yet.', needsOwnerSetup:true};
+  if(!email) return {ok:false, error:'Enter the email address you signed up with.'};
+  const { error } = await sbClient.auth.resend({
+    type: 'signup',
+    email,
+    options: { emailRedirectTo: wrldSiteUrl() + '/email-verified.html' },
+  });
+  if(error) return {ok:false, error: friendlyAuthError(error)};
+  return {ok:true};
+}
+
+async function logIn(email, password, rememberMe){
+  email = (email||'').trim().toLowerCase();
+  // Must be set BEFORE signInWithPassword() — supabase-client.js's
+  // storage adapter reads this flag at the moment the session token is
+  // first written, deciding localStorage (remembered) vs sessionStorage
+  // (cleared when the browser closes).
+  try{ localStorage.setItem('wrld_remember_me', rememberMe===false ? '0' : '1'); }catch(e){}
+
+  const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+  if(error) return {ok:false, error: friendlyAuthError(error)};
+
+  await wrldRefreshSessionCache(data.session);
+  const user = getCurrentUser();
+
+  if(user && (user.suspended || user.deactivated || user.banned)){
+    const reason = user.banned ? 'banned' : user.deactivated ? 'deactivated' : 'suspended';
+    await logOut();
+    return {ok:false, error:`This account has been ${reason}. Contact WRLD if you think this is a mistake.`};
   }
 
-  const attemptHash = await digestPassword(password||'');
-  if(attemptHash !== user.passwordHash) return {ok:false, error:'Incorrect password — try again.'};
+  // Real, honest login activity — powers the Owner Dashboard's Active
+  // Users / Online Now / Returning Users metrics without inventing data.
+  if(user){
+    await sbClient.from('profiles')
+      .update({ last_login_at: new Date().toISOString(), login_count: (user.loginCount||0)+1 })
+      .eq('id', user.id);
+    await wrldRefreshSessionCache(data.session);
+  }
 
-  startSession(user);
-  return {ok:true, user: publicUser(user)};
+  return {ok:true, user: getCurrentUser()};
 }
 
 /* ---------------------------------------------------------------------
    FORGOT / RESET PASSWORD
-   WRLD doesn't have outbound email yet, so this simulates the flow
-   honestly instead of pretending an email was sent: requesting a reset
-   generates a real token, and the UI hands the user a direct link to
-   continue — clearly labeled as a stand-in for email delivery.
+   Real email delivery now — Supabase Auth sends the reset link itself
+   (configure the email template + redirect URL in the Supabase
+   dashboard: Authentication -> Email Templates / URL Configuration).
+   reset-password.html reads the recovery token Supabase appends to the
+   redirect URL and calls resetPassword() below.
    --------------------------------------------------------------------- */
-function requestPasswordReset(email){
+async function requestPasswordReset(email, captchaToken){
   email = (email||'').trim().toLowerCase();
-  const user = getUsers().find(u=>u.email===email);
-  // Always resolve the same way whether or not the account exists —
-  // never reveal which emails are registered.
-  if(!user) return {ok:true, exists:false};
-
-  const tokens = getResetTokens();
-  const token = makeToken('reset');
-  tokens[token] = {email, expiresAt: Date.now() + 1000*60*30}; // 30-minute window
-  saveResetTokens(tokens);
-  return {ok:true, exists:true, token};
+  // V14: redirectTo now built from wrldSiteUrl() (a fixed production
+  // constant for any non-local hostname) instead of the page's own
+  // location.origin/pathname — safer, and correct regardless of which
+  // page requestPasswordReset() is ever called from.
+  const { error } = await sbClient.auth.resetPasswordForEmail(email, {
+    redirectTo: wrldSiteUrl() + '/reset-password.html',
+    captchaToken: captchaToken || undefined,
+  });
+  // Never reveal whether the email exists — Supabase itself doesn't
+  // reveal this either (resetPasswordForEmail always "succeeds" from the
+  // caller's point of view for unknown emails), so this stays honest.
+  if(error && !/rate limit/i.test(error.message||'')) return {ok:true};
+  if(error) return {ok:false, error: friendlyAuthError(error)};
+  return {ok:true};
 }
 
-async function resetPassword(token, newPassword){
-  const tokens = getResetTokens();
-  const entry = tokens[token];
-  if(!entry || entry.expiresAt < Date.now()){
-    return {ok:false, error:'This reset link has expired. Request a new one.'};
-  }
+async function resetPassword(newPassword){
   if(!newPassword || newPassword.length < 8){
     return {ok:false, error:'Password must be at least 8 characters.'};
   }
-  const users = getUsers();
-  const user = users.find(u=>u.email===entry.email);
-  if(!user) return {ok:false, error:'Account not found.'};
-
-  user.passwordHash = await digestPassword(newPassword);
-  saveUsers(users);
-  delete tokens[token];
-  saveResetTokens(tokens);
+  // By the time this is called, reset-password.html has already
+  // exchanged the recovery link's token for a real (temporary) session
+  // via supabase-client.js's detectSessionInUrl:true — updateUser() just
+  // needs that active session, same as changePassword() below.
+  const { error } = await sbClient.auth.updateUser({ password: newPassword });
+  if(error) return {ok:false, error: friendlyAuthError(error)};
   return {ok:true};
+}
+
+/* Available to any authenticated user, including the Owner, from their
+   own account settings. Supabase's updateUser() re-authenticates using
+   the current session, so unlike the old localStorage version this no
+   longer needs the current password passed in and re-checked by hand —
+   but we still ask for it in the UI as a deliberate confirm-it's-you
+   step before changing anything security-sensitive. */
+async function changePassword(userId, currentPassword, newPassword){
+  if(!newPassword || newPassword.length < 8) return {ok:false, error:'New password must be at least 8 characters.'};
+  const user = getCurrentUser();
+  if(!user) return {ok:false, error:'You need to be logged in to do this.'};
+  // Re-verify the current password by attempting a fresh sign-in with it
+  // — the closest equivalent to the old hash comparison, using Supabase
+  // Auth as the source of truth instead of a locally stored hash.
+  const { error: reauthError } = await sbClient.auth.signInWithPassword({ email: user.email, password: currentPassword||'' });
+  if(reauthError) return {ok:false, error:'Current password is incorrect.'};
+  const { error } = await sbClient.auth.updateUser({ password: newPassword });
+  if(error) return {ok:false, error: friendlyAuthError(error)};
+  return {ok:true};
+}
+
+function emailExists(email){
+  // Supabase Auth deliberately never exposes "does this email exist" to
+  // the client (signUp()/resetPasswordForEmail() both stay silent about
+  // it) — this function is kept only so any old call sites don't throw;
+  // it always returns false, matching the "never reveal registered
+  // emails" behavior everywhere else in this file.
+  return false;
+}
+
+/* ---------------------------------------------------------------------
+   MODERATION ACTIONS (Owner Dashboard / Moderator Dashboard)
+   Real, functional account actions an Administrator can take, now
+   writing straight to public.profiles (RLS restricts these UPDATE/DELETE
+   calls to Administrator+ — see supabase/migrations/001 and 009).
+   --------------------------------------------------------------------- */
+async function suspendUser(userId){
+  const { error } = await sbClient.from('profiles').update({ suspended: true }).eq('id', userId);
+  return !error;
+}
+async function unsuspendUser(userId){
+  const { error } = await sbClient.from('profiles').update({ suspended: false }).eq('id', userId);
+  return !error;
+}
+async function deactivateUser(userId){
+  const { error } = await sbClient.from('profiles').update({ deactivated: true }).eq('id', userId).neq('role', ROLES.OWNER);
+  return !error;
+}
+async function reactivateUser(userId){
+  const { error } = await sbClient.from('profiles').update({ deactivated: false }).eq('id', userId);
+  return !error;
+}
+async function banUser(userId){
+  const { error } = await sbClient.from('profiles').update({ banned: true, suspended: true }).eq('id', userId).neq('role', ROLES.OWNER);
+  return !error;
+}
+async function unbanUser(userId){
+  const { error } = await sbClient.from('profiles').update({ banned: false, suspended: false }).eq('id', userId);
+  return !error;
+}
+async function warnUser(userId){
+  const { data } = await sbClient.from('profiles').select('warnings').eq('id', userId).single();
+  const { error } = await sbClient.from('profiles').update({ warnings: ((data && data.warnings) || 0) + 1 }).eq('id', userId);
+  return !error;
+}
+
+/* Owner-only. Moves the Owner role to an existing Administrator and
+   demotes the current Owner to Administrator — enforced twice: here, and
+   by the one-Owner-only partial unique index in the database, which
+   makes it impossible to ever end up with zero or two Owners even if
+   this function is called with bad input. */
+async function transferOwnership(currentOwnerId, newOwnerId){
+  const user = getCurrentUser();
+  if(!user || user.id!==currentOwnerId || user.role!==ROLES.OWNER){
+    return {ok:false, error:'Only the current Owner can transfer ownership.'};
+  }
+  const { data: next } = await sbClient.from('profiles').select('role').eq('id', newOwnerId).single();
+  if(!next || next.role!==ROLES.ADMIN){
+    return {ok:false, error:'Ownership can only be transferred to an existing Administrator.'};
+  }
+  // Demote-then-promote in that order so the unique "exactly one owner"
+  // index is never asked to hold two owners at once, even momentarily.
+  const demote = await sbClient.from('profiles').update({ role: ROLES.ADMIN }).eq('id', currentOwnerId);
+  if(demote.error) return {ok:false, error: demote.error.message};
+  const promote = await sbClient.from('profiles').update({ role: ROLES.OWNER }).eq('id', newOwnerId);
+  if(promote.error){
+    await sbClient.from('profiles').update({ role: ROLES.OWNER }).eq('id', currentOwnerId); // best-effort rollback
+    return {ok:false, error: promote.error.message};
+  }
+  await wrldRefreshSessionCache(_wrldSessionCache);
+  return {ok:true};
+}
+
+/* Owner-only, irreversible. This used to wipe every wrld_-prefixed
+   localStorage key by hand; with a real database, "delete the
+   organization" means truncating every WRLD table (RLS still requires
+   the caller to be the Owner — see supabase/migrations/). Auth accounts
+   themselves are left alone here deliberately (deleting every
+   auth.users row is a separate, even more irreversible action better
+   done from the Supabase dashboard, not a single button in the app). */
+async function deleteOrganizationData(){
+  const user = getCurrentUser();
+  if(!user || user.role!==ROLES.OWNER) return false;
+  const tables = [
+    'community_reports','community_posts','moderation_log','community_trust',
+    'volunteer_entries','mentor_applications','mentor_profiles','live_sessions',
+    'announcements','learner_state',
+  ];
+  for(const t of tables){
+    await sbClient.from(t).delete().neq('user_id', '00000000-0000-0000-0000-000000000000').select();
+  }
+  return true;
+}
+
+/* The only path any account ever becomes a Mentor: an Administrator
+   reviewing a real application (see become-mentor.html) and promoting
+   the applicant's existing Explorer account by hand. */
+async function promoteUserRole(userId, role){
+  if(![ROLES.EXPLORER, ROLES.MENTOR].includes(role)) return false; // never grants Admin/Owner via this path
+  const { error } = await sbClient.from('profiles').update({ role }).eq('id', userId);
+  return !error;
+}
+
+/* Owner-only in practice — only reachable from the Owner Dashboard's
+   Administrators panel, itself gated to roleAtLeast(user, OWNER). */
+async function setAdministratorStatus(userId, makeAdmin){
+  const { error } = await sbClient.from('profiles')
+    .update({ role: makeAdmin ? ROLES.ADMIN : ROLES.EXPLORER })
+    .eq('id', userId)
+    .neq('role', ROLES.OWNER);
+  return !error;
 }
 
 /* ---------------------------------------------------------------------
    ROUTE GUARDS
-   Call at the top of any page's inline script, before rendering content
-   that should be gated. Both redirect immediately if the check fails.
+   Unchanged signatures and behavior — call at the top of any gated
+   page's inline script, AFTER `await window.wrldAuthReady` (every
+   gated page's script is wrapped in `(async()=>{ await
+   window.wrldAuthReady; ... })()` for exactly this reason — see e.g.
+   dashboard.html, account-settings.html, owner-dashboard.html).
    --------------------------------------------------------------------- */
 function requireAuth(){
   if(!isAuthenticated()){
@@ -456,8 +473,6 @@ function requireRole(roles){
   return true;
 }
 
-/* Hierarchy-based guard — e.g. requireMinRole(ROLES.ADMIN) allows both
-   Administrators and the Owner, without needing to list every role above it. */
 function requireMinRole(role){
   const user = getCurrentUser();
   if(!user) return requireAuth();
@@ -468,7 +483,165 @@ function requireMinRole(role){
   return true;
 }
 
-/* Runs once per page load — creates the single Owner account (with no
-   password) if it doesn't already exist in this browser. Safe to call
-   unconditionally; it's a no-op once an Owner exists. */
-ensureOwnerBootstrap();
+/* ---------------------------------------------------------------------
+   CAPABILITY-BASED MULTI-EXPERIENCE ACCESS (V14)
+   The Owner's primary `role` column is always 'owner' — it never changes
+   to 'mentor' or 'explorer' just because the Owner opens a different
+   part of the site. Instead of scattering exact-match checks like
+   `user.role === 'mentor'` (which is what caused the "Mentor Studio
+   redirects the Owner to the Explorer Dashboard" bug: mentor-studio.html
+   used to call requireRole([ROLES.MENTOR, ROLES.ADMIN]), and requireRole()
+   only ever does an exact-membership check, so an Owner — role 'owner' —
+   was never in that list and got bounced), every experience's access
+   rule lives in exactly one place here, built on the existing hierarchy-
+   aware roleAtLeast(). Because the hierarchy is
+   Explorer < Mentor < Admin < Owner, each capability function below
+   automatically grants access to everything a lower role can already
+   reach — Owner (and Administrator, where noted) inherit every
+   experience without any table write, localStorage flag, or role change.
+   Add a new function here — never a new scattered `role === '...'` check
+   — for any future role-specific area. See AUTH-SECURITY-SETUP.md for
+   the full role/capability map this implements. */
+function canAccessExplorerDashboard(user){ return roleAtLeast(user, ROLES.EXPLORER); }
+function canAccessMentorStudio(user){ return roleAtLeast(user, ROLES.MENTOR); }
+function canAccessModerationDashboard(user){ return roleAtLeast(user, ROLES.ADMIN); }
+function canAccessOwnerDashboard(user){ return roleAtLeast(user, ROLES.ADMIN); } // matches the existing requireMinRole(ROLES.ADMIN) gate on owner-dashboard.html — Administrators share it, Owner-only tabs are further gated inside that page
+function canAccessAdministratorsPanel(user){ return roleAtLeast(user, ROLES.OWNER); }
+function canAccessSecurityPanel(user){ return roleAtLeast(user, ROLES.OWNER); }
+
+/* Route-guard wrapper for the capability functions above — same
+   redirect-with-safe-destination shape as requireRole()/requireMinRole(),
+   but driven by a capability check instead of an exact role list, so it
+   naturally allows every role that legitimately inherits the capability
+   (including Owner) without needing to enumerate roles at every call site. */
+function requireCapability(canAccessFn, redirectTo){
+  const user = getCurrentUser();
+  if(!user) return requireAuth();
+  if(!canAccessFn(user)){
+    location.href = redirectTo || 'dashboard.html';
+    return false;
+  }
+  return true;
+}
+
+/* ---------------------------------------------------------------------
+   OWNER SETUP
+   The old version auto-created a passwordless 'owner_root' account on
+   every page load and gated first login behind a one-time
+   owner-setup.html password form — that account never existed on a real
+   backend and can't be replicated safely with real Supabase Auth (no
+   client-side way to create a privileged account with no password, nor
+   should there be). The replacement (below) is real and backend-driven:
+   sign up normally through signup.html like anyone else, then visit
+   owner-setup.html and claim Owner access with one click. A database
+   trigger (not this file) is what actually enforces that this only ever
+   works once, for the first person to try it — see claimOwnerRole()
+   just below. A manual SQL alternative (directly setting a profiles row
+   to role='owner' from the Supabase SQL editor) still works too and is
+   documented in SUPABASE_SETUP.md, for anyone who'd rather not race a
+   public self-claim window before opening signups. */
+/* ---------------------------------------------------------------------
+   ADMIN USER LIST CACHE (Owner Dashboard / Moderator Dashboard)
+   getUsers() used to be a synchronous localStorage read of every
+   account. It's now backed by a real `profiles` query (Administrator+
+   only — see the profiles_select_own_or_admin RLS policy in
+   supabase/migrations/012), which is inherently async, so it follows
+   the exact same cache-then-sync-read pattern as getCurrentUser():
+   call `await refreshUsersCache()` once before the first render and
+   again after any action that changes a user's row, then read the
+   already-resolved list synchronously via getUsers() during render.
+   --------------------------------------------------------------------- */
+let _wrldUsersCache = [];
+
+function mapProfileRow(p){
+  return {
+    id: p.id, name: p.name, email: p.email, role: p.role, avatarUrl: p.avatar_url,
+    createdAt: p.created_at, lastLoginAt: p.last_login_at, loginCount: p.login_count,
+    warnings: p.warnings, violations: p.violations,
+    suspended: p.suspended, deactivated: p.deactivated, banned: p.banned,
+    emailVerified: !!p.email_verified,
+  };
+}
+
+async function refreshUsersCache(){
+  const { data, error } = await sbClient.from('profiles').select('*').order('created_at', {ascending:false});
+  if(error){ console.warn('WRLD: could not load user list', error.message); return; }
+  _wrldUsersCache = (data||[]).map(mapProfileRow);
+}
+
+function getUsers(){
+  return _wrldUsersCache;
+}
+
+/* ---------------------------------------------------------------------
+   OWNER CLAIM (real, backend-driven — replaces the old client-only stubs)
+   There is no passwordless auto-created Owner account anymore (see the
+   file-top comment). Instead: the very first person to claim the Owner
+   role for their own already-signed-up account gets it, and the window
+   closes permanently the instant that happens — enforced by a database
+   trigger (`guard_profile_updates()`, supabase/migrations/016), NOT by
+   anything in this file. Nothing here can be trusted on its own; the
+   trigger is what actually stops a second person from ever succeeding,
+   or a non-admin from granting themselves any OTHER role. These
+   functions just talk to that real backend state honestly:
+   - ownerAccountExists() asks the database "does an Owner exist yet?"
+     via the public.owner_exists() function — safe to expose (reveals
+     nothing about *who* the Owner is), and callable by anyone,
+     logged in or not, so owner-setup.html can decide what to show
+     before the visitor even logs in.
+   - claimOwnerRole() attempts the actual claim for the CURRENTLY
+     LOGGED IN account. It requires a real Supabase Auth session
+     (sign up / log in first, same as anyone else) — there is no
+     separate "Owner password" anymore, since Supabase Auth already
+     has whatever password they signed up with. If someone else won
+     the race first, the trigger rejects the update and this returns
+     a clear, honest error rather than a fake success. */
+async function ownerAccountExists(){
+  const { data, error } = await sbClient.rpc('owner_exists');
+  if(error){ console.warn('WRLD: could not check Owner status', error.message); return null; } // null = "unknown", not "no"
+  return !!data;
+}
+async function claimOwnerRole(){
+  const user = getCurrentUser();
+  if(!user) return {ok:false, error:'You need to be logged in to claim Owner access.'};
+  if(user.role==='owner') return {ok:true, alreadyOwner:true};
+  const { error } = await sbClient.from('profiles').update({role:'owner'}).eq('id', user.id);
+  if(error){
+    // The trigger's RAISE EXCEPTION lands here if someone else already
+    // claimed Owner between this page loading and this button click.
+    return {ok:false, error: /owner/i.test(error.message) || /administrator/i.test(error.message)
+      ? 'Someone already claimed Owner access before you — WRLD only ever has one Owner.'
+      : error.message};
+  }
+  await wrldRefreshSessionCache(_wrldSessionCache);
+  return {ok:true};
+}
+
+/* ---------------------------------------------------------------------
+   LEGACY LOCALSTORAGE ACCOUNT NOTICE (migration strategy for pre-Supabase
+   demo accounts)
+   Before this revision, WRLD's "accounts" were plain objects in each
+   visitor's own browser (`wrld_users_v1`) — never a real, shared user
+   table. There is nothing to bulk-migrate server-side: each browser's
+   demo account only ever existed in that one browser. What CAN and DOES
+   carry over automatically is real: if someone with old local progress
+   (`wrld_state_v1`/`wrld_volunteer_log_v1`) signs up fresh for a real
+   account, pullLearnerStateFromSupabase()/pullVolunteerEntriesFromSupabase()
+   (app.js) find no server row yet on first login and push their existing
+   local progress up — so their progress survives the migration even
+   though the account itself has to be re-created. (Passwords can't be
+   migrated at all, by design: the old scheme was an unsalted client-side
+   SHA-256 hash, not something that should ever be carried into a real
+   auth system even if it were technically possible.)
+   This function just makes sure a returning visitor with leftover old
+   data understands why their old login stopped working, via Orbit's
+   guide line rather than a new UI element. Called from initPage(). */
+function checkLegacyAccountNotice(){
+  if(isAuthenticated()) return; // already on a real account — nothing to say
+  try{
+    const legacy = JSON.parse(localStorage.getItem('wrld_users_v1')||'[]');
+    if(Array.isArray(legacy) && legacy.length>0 && typeof setGuideMessage==='function'){
+      setGuideMessage("👋 WRLD upgraded its account system — old logins from before this update no longer work, sorry! Sign up again with the same email and your saved progress will carry over automatically.");
+    }
+  }catch(e){}
+}

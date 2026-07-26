@@ -50,6 +50,7 @@
           <label class="form-label" for="su-password2">Confirm password</label>
           <input class="form-input" id="su-password2" type="password" placeholder="Re-enter your password" autocomplete="new-password" required>
         </div>
+        <div id="turnstile-widget" class="mb-16"></div>
         <button type="submit" class="btn btn-primary btn-block" id="signup-submit">Create My Account →</button>
       </form>
 
@@ -58,6 +59,9 @@
   </section>
 </main>
 <div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
 <script src="data.js"></script>
 <script src="auth.js"></script>
 <script src="app.js"></script>
@@ -82,32 +86,84 @@ function dismissExistingEmailPanel(){
   document.getElementById('su-email').focus();
 }
 
+// CAPTCHA (V14) — only activates if a real Turnstile site key has been
+// set in supabase-config.js; otherwise this is a silent no-op and signup
+// behaves exactly as before. See AUTH-SECURITY-SETUP.md.
+if(typeof WRLD_CAPTCHA_SITE_KEY !== 'undefined' && WRLD_CAPTCHA_SITE_KEY){
+  const s = document.createElement('script');
+  s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+  s.async = true; s.defer = true;
+  document.head.appendChild(s);
+  document.getElementById('turnstile-widget').innerHTML = `<div class="cf-turnstile" data-sitekey="${WRLD_CAPTCHA_SITE_KEY}" data-callback="wrldOnCaptchaSuccess" data-expired-callback="wrldOnCaptchaExpire"></div>`;
+}
+window.wrldOnCaptchaSuccess = function(token){ window.__wrldCaptchaToken = token; };
+window.wrldOnCaptchaExpire = function(){ window.__wrldCaptchaToken = null; };
+
+// V14: guards against a real double-submit (fast double-click or a queued
+// double Enter-key event) that could otherwise slip through before the
+// button's disabled state takes effect — the flag is set synchronously,
+// before anything async happens.
+let signupInFlight = false;
+
+function isValidEmailFormat(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email||'').trim()); }
+
 document.getElementById('signup-form').addEventListener('submit', async (e)=>{
   e.preventDefault();
+  if(signupInFlight) return;
   showFormError('');
   const name = document.getElementById('su-name').value;
   const email = document.getElementById('su-email').value;
   const password = document.getElementById('su-password').value;
   const password2 = document.getElementById('su-password2').value;
-  if(password !== password2){ showFormError("Those passwords don't match — try again."); return; }
 
-  // Check for an existing account first so we can show a friendly panel
-  // instead of a raw inline error, the way a modern SaaS product would.
-  if(emailExists(email)){ showExistingEmailPanel(); return; }
+  // Distinct, specific messages per failure — never one generic error for
+  // every unrelated cause (Master Prompt section 3).
+  if(!name.trim()){ showFormError('Enter your name to continue.'); return; }
+  if(!isValidEmailFormat(email)){ showFormError('Please enter a valid email address.'); return; }
+  if(password.length < 8){ showFormError('Password must be at least 8 characters.'); return; }
+  if(password !== password2){ showFormError('The passwords do not match. Please re-enter them.'); return; }
 
   const btn = document.getElementById('signup-submit');
+  signupInFlight = true;
   btn.disabled = true; btn.textContent = 'Creating your account...';
+
   // Every public signup becomes an Explorer — signUp() itself enforces this,
   // and this form doesn't even offer another option.
-  const result = await signUp({name, email, password});
+  let result;
+  try{
+    result = await signUp({name, email, password, captchaToken: window.__wrldCaptchaToken});
+  }catch(err){
+    signupInFlight = false;
+    btn.disabled = false; btn.textContent = 'Create My Account →';
+    showFormError("We couldn't create your account right now. Please check your connection and try again.");
+    return;
+  }
+  signupInFlight = false;
   btn.disabled = false; btn.textContent = 'Create My Account →';
 
   if(!result.ok){
-    if(result.error && result.error.toLowerCase().includes('already exists')){ showExistingEmailPanel(); return; }
+    if(result.error && /already exists/i.test(result.error)){ showExistingEmailPanel(); return; }
     showFormError(result.error);
     return;
   }
+
   const params = new URLSearchParams(location.search);
+
+  // V15.1: the normal path now — email verification is off for this
+  // project (see auth.js's "NO-VERIFICATION SIGNUP FLOW" note), so the
+  // account is already fully created and confirmed. Send the user to
+  // login.html with a success flag rather than auto-logging them in;
+  // login.html reads `created=1` and shows the "account created" message.
+  if(result.accountCreated){
+    location.href = 'login.html?created=1' + (params.get('next') ? '&next='+encodeURIComponent(params.get('next')) : '');
+    return;
+  }
+  // Fallback path — only reached if "Confirm email" is ever re-enabled on
+  // the Supabase project. Kept intact rather than removed.
+  if(result.needsEmailConfirmation){
+    location.href = 'check-your-email.html?email=' + encodeURIComponent(email.trim().toLowerCase()) + (params.get('next') ? '&next='+encodeURIComponent(params.get('next')) : '');
+    return;
+  }
   location.href = params.get('next') || 'welcome.html';
 });
 

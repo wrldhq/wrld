@@ -13,23 +13,35 @@
 
 <main id="main">
 
-  <!-- HERO -->
-  <section class="hero">
-    <div class="hero-decorations" style="position:absolute; inset:0; overflow:hidden; z-index:0;">
-      <svg class="float hero-deco hero-deco-cloud-1" style="position:absolute; top:70px; left:5%;" width="90" height="50" viewBox="0 0 90 50"><ellipse cx="45" cy="30" rx="45" ry="20" fill="white"/><ellipse cx="25" cy="20" rx="25" ry="18" fill="white"/><ellipse cx="65" cy="18" rx="22" ry="16" fill="white"/></svg>
-      <svg class="float-rev hero-deco hero-deco-cloud-2" style="position:absolute; top:130px; right:6%;" width="110" height="60" viewBox="0 0 110 60"><ellipse cx="55" cy="35" rx="55" ry="22" fill="white"/><ellipse cx="30" cy="22" rx="28" ry="20" fill="white"/><ellipse cx="80" cy="20" rx="24" ry="18" fill="white"/></svg>
-      <svg class="float hero-deco hero-deco-globe" style="position:absolute; top:300px; left:8%;" width="64" height="64" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#2EA8C7" opacity=".85"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/></svg>
-      <svg class="float-rev hero-deco hero-deco-coin" style="position:absolute; top:260px; right:9%;" width="50" height="50" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#F5CF57" opacity=".9"/><circle cx="50" cy="50" r="20" fill="#2EA8C7" opacity=".4"/></svg>
+  <!-- HERO (V15 — two-column redesign on WRLD-blue, matched to the hero
+       island illustration's own background so the image blends in with
+       no visible rectangle edge; see styles.css for .home-hero-*.
+       V15.1 — swapped in a transparent-background PNG of the same
+       illustration (images/wrld-hero-island-v2.png) and enlarged the
+       art column from ~50% to ~56% of the hero width so the artwork
+       sits directly on the hero background with no panel/rectangle
+       around it; see .home-hero-art in styles.css.) -->
+  <section class="home-hero">
+    <div class="home-hero-decorations" aria-hidden="true">
+      <svg class="float home-hero-cloud-1" width="90" height="50" viewBox="0 0 90 50"><ellipse cx="45" cy="30" rx="45" ry="20" fill="white"/><ellipse cx="25" cy="20" rx="25" ry="18" fill="white"/><ellipse cx="65" cy="18" rx="22" ry="16" fill="white"/></svg>
+      <svg class="float-rev home-hero-cloud-2" width="110" height="60" viewBox="0 0 110 60"><ellipse cx="55" cy="35" rx="55" ry="22" fill="white"/><ellipse cx="30" cy="22" rx="28" ry="20" fill="white"/><ellipse cx="80" cy="20" rx="24" ry="18" fill="white"/></svg>
+      <svg class="float home-hero-spark-1" width="22" height="22" viewBox="0 0 24 24"><path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z" fill="#F5CF57"/></svg>
+      <svg class="float-rev home-hero-spark-2" width="14" height="14" viewBox="0 0 24 24"><path d="M12 0l2.4 9.6L24 12l-9.6 2.4L12 24l-2.4-9.6L0 12l9.6-2.4z" fill="#F5CF57"/></svg>
     </div>
-    <div class="hero-inner">
-      <div class="eyebrow">✨ The curriculum for adulthood</div>
-      <h1>The world doesn't come with a handbook.</h1>
-      <p class="sub">School teaches you how to pass tests. WRLD teaches you how to navigate life — your first job, your first budget, university, and everything in between. Free Playbooks, guided Learning Paths, and live digital programs, built for young people navigating adulthood for the first time.</p>
-      <div class="flex gap-16" style="justify-content:center; flex-wrap:wrap; margin-bottom:20px;">
-        <a href="assessment.html" class="btn btn-primary btn-lg">🌍 Take the Adulting Readiness Assessment</a>
-        <a href="playbooks.html" class="btn btn-outline btn-lg">📚 Browse Playbooks Instead</a>
+    <div class="home-hero-grid">
+      <div class="home-hero-copy">
+        <div class="eyebrow on-dark reveal">✨ The curriculum for adulthood</div>
+        <h1 class="reveal">The world doesn't come with a handbook.</h1>
+        <p class="sub reveal reveal-d1">School teaches you how to pass tests. WRLD teaches you how to navigate life — your first job, your first budget, university, and everything in between. Free Playbooks, guided Learning Paths, and live digital programs, built for young people navigating adulthood for the first time.</p>
+        <div class="home-hero-cta-row reveal reveal-d2">
+          <a href="assessment.html" class="btn btn-yellow btn-lg">Take the Adulting Readiness Assessment</a>
+          <a href="playbooks.html" class="btn btn-yellow-soft btn-lg">Browse Playbooks Instead</a>
+        </div>
+        <p class="home-hero-meta reveal reveal-d3">10–15 minutes · Builds your personal WRLD Passport · No sign-up required</p>
       </div>
-      <p class="reveal" style="font-size:13px; color:var(--ink-faint); margin-bottom:36px;">10–15 minutes · Builds your personal WRLD Passport · No sign-up required</p>
+      <div class="home-hero-art reveal reveal-d2">
+        <img src="images/wrld-hero-island-v2.png" width="1300" height="866" loading="eager" fetchpriority="high" alt="A miniature illustrated WRLD island landscape: winding paths connect scenes for university study, work and resumes, money and budgeting, mental wellness and healthcare, housing, and a group of friends talking together, all surrounding a small globe monument at the center.">
+      </div>
     </div>
     <svg class="divider-curve" viewBox="0 0 1440 100" preserveAspectRatio="none" style="position:relative; z-index:1;"><path d="M0,40 C360,110 1080,-20 1440,50 L1440,100 L0,100 Z" fill="#FFF9EF"/></svg>
   </section>
@@ -143,6 +155,9 @@
 
 <div id="site-footer"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
 <script src="data.js"></script>
 <script src="illustrations.js"></script>
 <script src="auth.js"></script>

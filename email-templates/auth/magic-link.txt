@@ -1,0 +1,9 @@
+Your sign-in link — WRLD
+
+Click below to sign in to WRLD as {{ .Email }}. No password needed.
+{{ .ConfirmationURL }}
+
+This link expires soon and can only be used once. If you didn't request this, you can safely ignore this email.
+
+— WRLD
+hello@ourwrld.org

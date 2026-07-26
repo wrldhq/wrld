@@ -17,12 +17,18 @@ function userInitials(name){
 function loggedOutNavCTA(){
   return `
     <a href="login.html" class="btn btn-outline btn-sm">Log In</a>
-    <a href="signup.html" class="btn btn-primary btn-sm">Sign Up Free</a>`;
+    <a href="signup.html" class="btn btn-primary btn-sm">Sign Up<span class="nav-cta-optional"> Free</span></a>`;
 }
 
 function loggedInNavCTA(user){
   const canMentor = typeof hasPermission==='function' && hasPermission(user, 'manage_own_sessions');
   const canModerate = typeof hasPermission==='function' && hasPermission(user, 'moderate_platform');
+  // The Owner's profile menu doubles as the multi-experience dashboard
+  // switcher (V14) — same three links every Mentor/Admin already saw,
+  // just relabeled so the Owner can tell at a glance which "hat" each
+  // link puts them in. The Owner's `role` column never changes when they
+  // click any of these — see canAccess*() in auth.js.
+  const isOwner = user.role === ROLES.OWNER;
   return `
     <div class="user-menu">
       <button class="user-menu-trigger" onclick="toggleUserMenu(event)" aria-haspopup="true" aria-expanded="false" aria-label="Account menu for ${user.name}">
@@ -33,9 +39,9 @@ function loggedInNavCTA(user){
           <div style="font-weight:800; font-size:13.5px; color:var(--navy);">${user.name}</div>
           <span class="role-pill role-${user.role}">${ROLE_LABELS[user.role]||user.role}</span>
         </div>
-        <a href="dashboard.html">📊 My Dashboard</a>
+        <a href="dashboard.html">📊 ${isOwner ? 'My Explorer Dashboard' : 'My Dashboard'}</a>
         ${canMentor ? '<a href="mentor-studio.html">🎙️ Mentor Studio</a>' : ''}
-        ${canModerate ? '<a href="owner-dashboard.html">🛡️ Owner Dashboard</a>' : ''}
+        ${canModerate ? `<a href="owner-dashboard.html">${isOwner ? '👑 Owner Command Centre' : '🛡️ Owner Dashboard'}</a>` : ''}
         <a href="account-settings.html">⚙️ Account Settings</a>
         <button onclick="handleLogOut()">🚪 Log Out</button>
       </div>
@@ -64,16 +70,18 @@ function renderHeader(activeKey){
   <header>
     <div class="nav container">
       <a href="index.html" class="logo">
-        <svg width="30" height="30" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><path d="M60 15c8 5 5 15-3 12-6-2-2-15 3-12z" fill="#F5CF57"/><path d="M65 55c12-4 25 3 20 15-4 10-22 8-25-2-2-6 1-11 5-13z" fill="#F5CF57"/></svg>
+        <svg width="30" height="30" viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="#2EA8C7" stroke="#ffffff" stroke-width="2.5"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><path d="M60 15c8 5 5 15-3 12-6-2-2-15 3-12z" fill="#F5CF57"/><path d="M65 55c12-4 25 3 20 15-4 10-22 8-25-2-2-6 1-11 5-13z" fill="#F5CF57"/></svg>
         <span>wrld<span class="dot">.</span></span>
       </a>
       <nav class="nav-links" aria-label="Primary">
         ${NAV_GROUPS.map((g,gi)=>renderNavDropdown(g, gi, activeKey)).join('')}
       </nav>
-      <div class="nav-cta ${user ? 'nav-cta-user' : ''}">
-        ${user ? loggedInNavCTA(user) : loggedOutNavCTA()}
+      <div class="nav-right">
+        <div class="nav-cta ${user ? 'nav-cta-user' : ''}">
+          ${user ? loggedInNavCTA(user) : loggedOutNavCTA()}
+        </div>
+        <button class="burger" onclick="toggleMobileMenu()" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">☰</button>
       </div>
-      <button class="burger" onclick="toggleMobileMenu()" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">☰</button>
     </div>
   </header>
   <div class="mobile-menu" id="mobile-menu">
@@ -87,9 +95,9 @@ function renderHeader(activeKey){
         ${g.items.map(it=>`<a href="${it.href}" class="${it.key===activeKey?'active':''}">${it.label}</a>`).join('')}
       </div>`).join('')}
     ${user ? `
-      <a href="dashboard.html" class="btn btn-primary btn-block mt-24">📊 My Dashboard</a>
+      <a href="dashboard.html" class="btn btn-primary btn-block mt-24">📊 ${user.role===ROLES.OWNER ? 'My Explorer Dashboard' : 'My Dashboard'}</a>
       ${(typeof hasPermission==='function' && hasPermission(user,'manage_own_sessions')) ? '<a href="mentor-studio.html" class="btn btn-outline btn-block mt-12">🎙️ Mentor Studio</a>' : ''}
-      ${(typeof hasPermission==='function' && hasPermission(user,'moderate_platform')) ? '<a href="owner-dashboard.html" class="btn btn-outline btn-block mt-12">🛡️ Owner Dashboard</a>' : ''}
+      ${(typeof hasPermission==='function' && hasPermission(user,'moderate_platform')) ? `<a href="owner-dashboard.html" class="btn btn-outline btn-block mt-12">${user.role===ROLES.OWNER ? '👑 Owner Command Centre' : '🛡️ Owner Dashboard'}</a>` : ''}
       <a href="account-settings.html" class="btn btn-outline btn-block mt-12">⚙️ Account Settings</a>
       <button class="btn btn-outline btn-block mt-12" onclick="handleLogOut()">🚪 Log Out (${user.name.split(' ')[0]})</button>
     ` : `
@@ -200,7 +208,7 @@ function renderFooter(){
         <div class="name">Orbit</div>
         <div class="status">Your WRLD learning companion</div>
       </div>
-      <button class="orbit-panel-close" onclick="closeOrbitPanel()" aria-label="Close Orbit">✕</button>
+      <button class="orbit-panel-close" onclick="dismissOrbitPanel()" aria-label="Close Orbit">✕</button>
     </div>
     <div class="orbit-messages" id="orbit-messages"></div>
     <div class="orbit-suggestions" id="orbit-suggestions"></div>
@@ -272,7 +280,71 @@ function getState(){
   }catch(e){}
   return {bookmarks:[], completed:[], checklists:{}, quizScores:{}, streak:0, lastVisit:null, recentlyViewed:[], guidelinesAcceptedAt:null};
 }
-function setState(state){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+/* setState() stays SYNCHRONOUS on purpose — dozens of existing call sites
+   (markComplete, toggleBookmark, renderQuiz, renderChecklist, the
+   Assessment, etc.) call it inline from click handlers with no `await`,
+   and rewriting all of them to be async was out of scope for this pass.
+   Instead this uses the same write-through-cache pattern as auth: the
+   localStorage write happens immediately (instant, unchanged behavior),
+   and a background upsert to Supabase's `learner_state` table fires
+   right after it, un-awaited, for any logged-in user — never blocking
+   the UI and never throwing into a caller that isn't expecting a
+   promise. See pullLearnerStateFromSupabase() below for the other half
+   (pulling this back down on a new device/session). */
+function setState(state){
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  syncLearnerStateToSupabase(state);
+}
+async function syncLearnerStateToSupabase(state){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  if(!user || typeof sbClient==='undefined') return;
+  const { error } = await sbClient.from('learner_state').upsert({
+    user_id: user.id,
+    bookmarks: state.bookmarks||[],
+    completed: state.completed||[],
+    checklists: state.checklists||{},
+    quiz_scores: state.quizScores||{},
+    streak: state.streak||0,
+    last_visit: state.lastVisit||null,
+    recently_viewed: state.recentlyViewed||[],
+    guidelines_accepted_at: state.guidelinesAcceptedAt||null,
+    assessment: state.assessment||null,
+    updated_at: new Date().toISOString(),
+  });
+  if(error) console.warn('WRLD: could not sync progress to the database', error.message);
+}
+/* The other half of progress sync — called once per session, right after
+   the Supabase session/profile cache resolves (see supabase-client.js's
+   wrldRefreshSessionCache(), which calls this automatically so every page
+   gets it for free via `await window.wrldAuthReady` with no extra
+   per-page wiring). If this account already has a row in `learner_state`
+   (e.g. progress made on another device), it overwrites the local cache
+   with the server's copy so this device picks up right where the other
+   one left off. If this is the first time this account has synced,
+   there's nothing to pull yet, so instead it pushes whatever progress
+   already exists locally (e.g. from browsing before creating an
+   account) up to the server. */
+async function pullLearnerStateFromSupabase(){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  if(!user || typeof sbClient==='undefined') return;
+  const { data, error } = await sbClient.from('learner_state').select('*').eq('user_id', user.id).maybeSingle();
+  if(error){ console.warn('WRLD: could not load progress from the database', error.message); return; }
+  if(data){
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      bookmarks: data.bookmarks||[],
+      completed: data.completed||[],
+      checklists: data.checklists||{},
+      quizScores: data.quiz_scores||{},
+      streak: data.streak||0,
+      lastVisit: data.last_visit||null,
+      recentlyViewed: data.recently_viewed||[],
+      guidelinesAcceptedAt: data.guidelines_accepted_at||null,
+      assessment: data.assessment||null,
+    }));
+  } else {
+    await syncLearnerStateToSupabase(getState());
+  }
+}
 
 /* ---------------------------------------------------------------------
    LIVE SESSIONS (Live Learning + Mentor Studio)
@@ -727,6 +799,132 @@ function addCommunityReply(postId, body){
   return {ok:true, reply};
 }
 
+/* =======================================================================
+   PLAYBOOK QUESTIONS (V14 — real, Supabase-backed per-Playbook Q&A)
+   Unlike the Community Commons store just above (still localStorage-only
+   — see CLAUDE.md's "Current Architecture"), "Continue the Conversation"
+   on a Playbook page reads and writes real database tables
+   (public.playbook_questions / public.playbook_question_replies, see
+   supabase/migrations/028-029) so a question survives a cleared cache
+   and shows up the same way on another device. Every function here is
+   async — callers (playbook.html) await and re-render, the same pattern
+   the Owner Dashboard already uses for admin_user_list() etc. Client-side
+   moderateContent() still runs before every insert (same convention as
+   createCommunityPost()/addCommunityReply() above); RLS + the guard
+   trigger in migration 028 are what actually stop a user from
+   self-approving held content or impersonating another author on an
+   edit — the client-side check is a courtesy, not the security boundary.
+   ======================================================================= */
+async function getPlaybookQuestions(slug){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  const { data, error } = await sbClient
+    .from('playbook_questions')
+    .select('*')
+    .eq('playbook_slug', slug)
+    .eq('deleted', false)
+    .order('created_at', {ascending:false});
+  if(error){ console.warn('WRLD: could not load Playbook questions', error.message); return []; }
+  // RLS already restricts rows to "approved", "mine", or "I'm admin+" —
+  // this filter is a defensive no-op against that, not the real gate.
+  return (data||[]).filter(q => q.status==='approved' || (user && q.author_id===user.id) || (user && typeof roleAtLeast==='function' && roleAtLeast(user, ROLES.ADMIN)));
+}
+
+async function getPlaybookQuestionReplies(questionId){
+  const { data, error } = await sbClient
+    .from('playbook_question_replies')
+    .select('*')
+    .eq('question_id', questionId)
+    .eq('deleted', false)
+    .order('created_at', {ascending:true});
+  if(error){ console.warn('WRLD: could not load replies', error.message); return []; }
+  return data||[];
+}
+
+async function postPlaybookQuestionToSupabase(slug, body){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  const gate = communityGateReason(user);
+  if(!gate.ok) return {ok:false, error:gate.message};
+  if(!canPostToday('post')) return {ok:false, error:"You've reached today's posting limit — it grows automatically the more you participate. Try again tomorrow."};
+  const text = (body||'').trim();
+  if(!text) return {ok:false, error:'Write a question before posting.'};
+  if(text.length>2000) return {ok:false, error:'That question is a bit long — try trimming it to under 2000 characters.'};
+
+  const mod = moderateContent(text);
+  if(mod.status==='blocked'){
+    recordViolationAndMaybeEscalate(user.id, mod.flags);
+    return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
+  }
+
+  const { data, error } = await sbClient.from('playbook_questions').insert({
+    playbook_slug: slug, author_id: user.id, author_name: user.name,
+    body: text, status: mod.status, flags: mod.flags||[],
+  }).select().single();
+  if(error){ console.warn('WRLD: could not post Playbook question', error.message); return {ok:false, error:"Something went wrong posting your question — try again."}; }
+
+  recordCommunityAction('post', data.status==='approved');
+  if(data.status==='held'){
+    logModerationEvent('auto-held-playbook-question', data.id, mod.flags);
+    recordViolationAndMaybeEscalate(user.id, mod.flags);
+  }
+  return {ok:true, question:data};
+}
+
+async function postPlaybookReplyToSupabase(questionId, body){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  const gate = communityGateReason(user);
+  if(!gate.ok) return {ok:false, error:gate.message};
+  if(!canPostToday('reply')) return {ok:false, error:"You've reached today's reply limit — it grows automatically the more you participate."};
+  const text = (body||'').trim();
+  if(!text) return {ok:false, error:'Write a reply before posting.'};
+
+  const mod = moderateContent(text);
+  if(mod.status==='blocked'){
+    recordViolationAndMaybeEscalate(user.id, mod.flags);
+    return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
+  }
+
+  const { data, error } = await sbClient.from('playbook_question_replies').insert({
+    question_id: questionId, author_id: user.id, author_name: user.name,
+    body: text, status: mod.status, flags: mod.flags||[],
+  }).select().single();
+  if(error){ console.warn('WRLD: could not post reply', error.message); return {ok:false, error:"Something went wrong posting your reply — try again."}; }
+
+  recordCommunityAction('reply', data.status==='approved');
+  if(data.status==='held'){
+    logModerationEvent('auto-held-playbook-reply', data.id, mod.flags);
+    recordViolationAndMaybeEscalate(user.id, mod.flags);
+  }
+  return {ok:true, reply:data};
+}
+
+// Soft-delete/edit — RLS only allows a caller to touch their own row
+// (see migration 028), so no ownership check is needed here beyond that.
+async function deleteOwnPlaybookQuestion(id){
+  const { error } = await sbClient.from('playbook_questions').update({deleted:true}).eq('id', id);
+  return !error;
+}
+async function editOwnPlaybookQuestion(id, newBody){
+  const text = (newBody||'').trim();
+  if(!text) return {ok:false, error:"A question can't be empty."};
+  const { error } = await sbClient.from('playbook_questions').update({body:text}).eq('id', id);
+  if(error) return {ok:false, error:'Could not save your edit — try again.'};
+  return {ok:true};
+}
+async function deleteOwnPlaybookReply(id){
+  const { error } = await sbClient.from('playbook_question_replies').update({deleted:true}).eq('id', id);
+  return !error;
+}
+
+// Reporting goes through a security-definer RPC (see migration 029) since
+// a reporter never has UPDATE rights on someone else's row under RLS —
+// the function records the report and auto-holds past a small threshold.
+async function reportPlaybookContent(questionId, replyId, reason){
+  const { error } = await sbClient.rpc('report_playbook_content', {
+    p_question_id: questionId, p_reply_id: replyId||null, p_reason: reason||'unspecified',
+  });
+  return !error;
+}
+
 /* ---------------------------------------------------------------------
    LAYER 3 — COMMUNITY REPORTING
    Reporting is real: crossing a small threshold automatically hides
@@ -848,12 +1046,96 @@ function getVolunteerEntries(){
   try{ return JSON.parse(localStorage.getItem(VOLUNTEER_LOG_KEY)) || []; }
   catch(e){ return []; }
 }
-function saveVolunteerEntries(entries){ localStorage.setItem(VOLUNTEER_LOG_KEY, JSON.stringify(entries)); }
+/* Same write-through-cache pattern as setState() above: the localStorage
+   write is instant and unchanged, and a background full-resync to
+   Supabase's `volunteer_entries` table fires right after, un-awaited.
+   "Full resync" (upsert every current entry, delete any DB row for this
+   user that's no longer in the local list) rather than incremental diffs
+   — simple and correct given a person typically has a handful of
+   volunteer entries, not thousands. */
+function saveVolunteerEntries(entries){
+  localStorage.setItem(VOLUNTEER_LOG_KEY, JSON.stringify(entries));
+  syncVolunteerEntriesToSupabase(entries);
+}
+function volunteerEntryToRow(entry, userId){
+  return {
+    id: entry.id, user_id: userId,
+    organization: (entry.organization||'').trim(),
+    role: (entry.role||'').trim(),
+    hours: Number(entry.hours)||0,
+    date_start: entry.startDate || null,
+    date_end: entry.endDate || null,
+    reflection: (entry.reflection||'').trim(),
+    skill_badges: entry.skills||[],
+    proof_file_path: entry.proofFileName||null, // metadata only — see "Current Limitations" in CLAUDE.md
+    confidence: (entry.verification && entry.verification.confidence) || null,
+    status: (entry.verification && entry.verification.status) || null,
+    verification: entry.verification || null,
+    verified_badge: !!entry.verifiedBadge,
+    created_at: entry.loggedAt || new Date().toISOString(),
+    updated_at: entry.editedAt || entry.loggedAt || new Date().toISOString(),
+  };
+}
+function volunteerRowToEntry(row){
+  return {
+    id: row.id,
+    organization: row.organization||'',
+    role: row.role||'',
+    startDate: row.date_start||'',
+    endDate: row.date_end||'',
+    hours: Number(row.hours)||0,
+    skills: row.skill_badges||[],
+    reflection: row.reflection||'',
+    proofFileName: row.proof_file_path||null,
+    loggedAt: row.created_at,
+    editedAt: row.updated_at!==row.created_at ? row.updated_at : undefined,
+    verification: row.verification || {confidence: row.confidence, status: row.status},
+    verifiedBadge: !!row.verified_badge,
+    verifiedOrg: null,
+  };
+}
+async function syncVolunteerEntriesToSupabase(entries){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  if(!user || typeof sbClient==='undefined') return;
+  const rows = entries.map(e=>volunteerEntryToRow(e, user.id));
+  if(rows.length){
+    const { error } = await sbClient.from('volunteer_entries').upsert(rows);
+    if(error){ console.warn('WRLD: could not sync volunteer entries to the database', error.message); return; }
+  }
+  // Clean up any DB rows for entries that were deleted locally. Diffed
+  // against a real fetched id list and passed to .in() as an actual
+  // array (not a hand-built filter string) so this can never be an
+  // injection vector, even in principle — RLS also independently scopes
+  // every delete to the caller's own user_id regardless.
+  const { data: existing, error: fetchError } = await sbClient.from('volunteer_entries').select('id').eq('user_id', user.id);
+  if(fetchError){ console.warn('WRLD: could not check volunteer entries for cleanup', fetchError.message); return; }
+  const keepIds = new Set(entries.map(e=>e.id));
+  const staleIds = (existing||[]).map(r=>r.id).filter(id=>!keepIds.has(id));
+  if(staleIds.length){
+    const { error: delError } = await sbClient.from('volunteer_entries').delete().eq('user_id', user.id).in('id', staleIds);
+    if(delError) console.warn('WRLD: could not clean up removed volunteer entries', delError.message);
+  }
+}
+/* Pulled alongside learner_state right after the session/profile cache
+   resolves — see supabase-client.js's wrldRefreshSessionCache(). Same
+   pull-or-push-on-first-sync logic as pullLearnerStateFromSupabase(). */
+async function pullVolunteerEntriesFromSupabase(){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  if(!user || typeof sbClient==='undefined') return;
+  const { data, error } = await sbClient.from('volunteer_entries').select('*').eq('user_id', user.id).order('created_at', {ascending:false});
+  if(error){ console.warn('WRLD: could not load volunteer entries from the database', error.message); return; }
+  if(data && data.length){
+    localStorage.setItem(VOLUNTEER_LOG_KEY, JSON.stringify(data.map(volunteerRowToEntry)));
+  } else {
+    const local = getVolunteerEntries();
+    if(local.length) await syncVolunteerEntriesToSupabase(local);
+  }
+}
 
 function addVolunteerEntry(entry){
   const entries = getVolunteerEntries();
   const record = {
-    id:'vol_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+    id: (typeof crypto!=='undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'vol_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
     organization:(entry.organization||'').trim(),
     role:(entry.role||'').trim(),
     startDate:entry.startDate||'', endDate:entry.endDate||'',
@@ -1549,12 +1831,21 @@ function printPage(){ window.print(); }
 /* ---------------------------------------------------------------------
    INIT (called by every page)
    --------------------------------------------------------------------- */
-function initPage(activeKey, customGuideMsg){
+async function initPage(activeKey, customGuideMsg){
+  // Wait for the Supabase session + profile cache to resolve before
+  // rendering anything that reads getCurrentUser() (the header's
+  // avatar/Login-Sign Up state, Orbit's greeting, etc.) — see
+  // supabase-client.js's top comment. Every page still calls this the
+  // same fire-and-forget way it always did (`initPage('dashboard')`),
+  // so making this async required no changes to any of the 28 callers.
+  if(typeof window.wrldAuthReady !== 'undefined') await window.wrldAuthReady;
   renderHeader(activeKey);
   renderFooter();
   updateStreak();
   syncBookmarkButtons();
   setGuideMessage(customGuideMsg || contextualGuideMessage(activeKey));
+  if(typeof checkLegacyAccountNotice==='function') checkLegacyAccountNotice();
+  if(typeof initOrbitAutoBehavior==='function') initOrbitAutoBehavior();
   setTimeout(()=>{ initReveal(); initCounters(); }, 30);
   document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') document.getElementById('mobile-menu')?.classList.remove('open'); });
 }

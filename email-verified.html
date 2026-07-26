@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Verified — WRLD.</title>
+<meta name="description" content="Confirming your WRLD account email address.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="auth-shell">
+    <div class="card auth-card reveal text-center">
+
+      <div id="ev-verifying">
+        <div class="eyebrow">🔎 One moment</div>
+        <h2 style="font-size:1.5rem; margin-top:8px;">Verifying your email…</h2>
+        <p style="font-size:13.5px; margin-top:10px; color:var(--ink-faint);">This only takes a second.</p>
+      </div>
+
+      <div id="ev-success" class="hidden">
+        <div class="eyebrow">🎉 Success</div>
+        <h2 style="font-size:1.6rem; margin-top:8px;">Your email is verified 🎉</h2>
+        <p style="font-size:13.5px; margin-top:10px;">Your WRLD account is ready. You can now continue to your dashboard.</p>
+        <button class="btn btn-primary btn-block mt-24" id="ev-continue-btn">Continue to My Dashboard →</button>
+      </div>
+
+      <div id="ev-already" class="hidden">
+        <div class="eyebrow">✅ Already done</div>
+        <h2 style="font-size:1.5rem; margin-top:8px;">Your email has already been verified.</h2>
+        <button class="btn btn-primary btn-block mt-24" id="ev-already-continue-btn">Continue to My Dashboard →</button>
+      </div>
+
+      <div id="ev-expired" class="hidden">
+        <div class="eyebrow">⏳ Link expired</div>
+        <h2 style="font-size:1.5rem; margin-top:8px;">This verification link has expired.</h2>
+        <p style="font-size:13.5px; margin-top:10px;">Verification links only stay valid for a little while. Request a new one below.</p>
+        <div class="form-group mt-24" style="text-align:left;">
+          <label class="form-label" for="ev-resend-email">Your email address</label>
+          <input class="form-input" id="ev-resend-email" type="email" placeholder="you@email.com">
+        </div>
+        <div class="form-error" id="ev-error"></div>
+        <div class="form-success hidden" id="ev-success-msg" style="display:block;"></div>
+        <button class="btn btn-primary btn-block" id="ev-resend-btn" onclick="handleExpiredResend()">Resend Verification Email</button>
+        <p class="mt-16" style="font-size:13.5px;">Or <a href="login.html" style="font-weight:700; color:var(--blue-dark);">return to Log In</a>.</p>
+      </div>
+
+      <div id="ev-invalid" class="hidden">
+        <div class="eyebrow">⚠️ Link issue</div>
+        <h2 style="font-size:1.5rem; margin-top:8px;">This verification link is invalid or has already been used.</h2>
+        <p style="font-size:13.5px; margin-top:10px;">If you've already verified your account, just log in. Otherwise, request a fresh link.</p>
+        <div class="flex gap-10 justify-center mt-24" style="flex-wrap:wrap;">
+          <a href="login.html" class="btn btn-primary btn-sm">Log In</a>
+          <a href="check-your-email.html" class="btn btn-outline btn-sm">Resend Verification</a>
+        </div>
+        <p class="mt-16" style="font-size:12.5px; color:var(--ink-faint);">Still stuck? Reach out to <a href="mailto:hello@ourwrld.org" style="color:var(--blue-dark); font-weight:700;">hello@ourwrld.org</a>.</p>
+      </div>
+
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
+<script src="data.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js"></script>
+<script>
+function showPanel(id){
+  ['ev-verifying','ev-success','ev-already','ev-expired','ev-invalid'].forEach(p=>{
+    document.getElementById(p).classList.toggle('hidden', p!==id);
+  });
+}
+
+// Role destinations come from the shared ROLE_DESTINATIONS map in auth.js
+// (also used by login.html) — never decided by localStorage, a query
+// parameter, or any other editable frontend value. getCurrentUser() below
+// reflects the real public.profiles row for the account that owns the
+// session Supabase just established from the verification link.
+function goToDashboard(){
+  const user = getCurrentUser();
+  location.href = (user && ROLE_DESTINATIONS[user.role]) || 'dashboard.html';
+}
+
+async function handleExpiredResend(){
+  const email = document.getElementById('ev-resend-email').value;
+  const errEl = document.getElementById('ev-error');
+  const okEl = document.getElementById('ev-success-msg');
+  errEl.textContent = ''; errEl.classList.remove('show'); okEl.style.display='none';
+  if(!email){ errEl.textContent = 'Please enter a valid email address.'; errEl.classList.add('show'); return; }
+  const btn = document.getElementById('ev-resend-btn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const result = await resendVerificationEmail(email);
+  btn.disabled = false; btn.textContent = 'Resend Verification Email';
+  if(!result.ok){ errEl.textContent = result.error; errEl.classList.add('show'); return; }
+  okEl.style.display = 'block';
+  okEl.textContent = '✅ Sent — check your inbox (and spam folder).';
+}
+
+(async () => {
+  initPage(null);
+
+  // Supabase's own error redirect for a bad/expired link looks like
+  // ?error=access_denied&error_code=otp_expired&error_description=... —
+  // check this FIRST, before trusting anything else on the page, since a
+  // failed exchange means no session was ever established.
+  const params = new URLSearchParams(location.search);
+  const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const errorCode = params.get('error_code') || hashParams.get('error_code');
+  const hadError = params.get('error') || hashParams.get('error');
+  const hadTokens = hashParams.has('access_token') || params.has('code') || hashParams.get('type')==='signup' || params.get('type')==='signup';
+
+  if(hadError){
+    showPanel(errorCode==='otp_expired' ? 'ev-expired' : 'ev-invalid');
+    return;
+  }
+
+  // No error param — wait for supabase-client.js to finish resolving/
+  // exchanging whatever was in the URL (detectSessionInUrl:true) into a
+  // real session, then read the real, database-backed role from it.
+  await window.wrldAuthReady;
+  const user = getCurrentUser();
+
+  if(user){
+    document.getElementById('ev-continue-btn').addEventListener('click', goToDashboard);
+    document.getElementById('ev-already-continue-btn').addEventListener('click', goToDashboard);
+    // If this page load actually carried fresh verification tokens/code,
+    // this is a real "just verified" moment; otherwise the visitor simply
+    // opened this URL directly (or reused an old link) while already
+    // signed in and verified.
+    showPanel(hadTokens ? 'ev-success' : 'ev-already');
+    return;
+  }
+
+  // No error, no tokens, and no session — most likely a stale/reused
+  // link with nothing left to exchange, or the visitor opened this page
+  // with no context at all. Treat as invalid/used rather than silently
+  // spinning forever.
+  showPanel('ev-invalid');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+-- ============================================================
+-- 017: CRITICAL FIX. Migration 007 revoked EXECUTE on role_at_least()
+-- from public/anon/authenticated, intending only to stop it being
+-- called as a public RPC endpoint. That reasoning was wrong: nearly
+-- every RLS policy in this schema (profiles, learner_state,
+-- volunteer_entries, community_*, mentor_*, live_sessions, etc.) calls
+-- role_at_least('admin') to decide "is the querying user an
+-- Administrator?" — and Postgres checks EXECUTE privilege on a
+-- SECURITY DEFINER function against the ACTUAL INVOKING ROLE at the
+-- point of the call, even when that call happens from inside an RLS
+-- policy expression or a trigger. Revoking EXECUTE from `authenticated`
+-- therefore didn't just block direct RPC calls — it silently broke
+-- every admin-branch RLS check AND the guard_profile_updates() trigger
+-- (migration 016) for every real logged-in user, confirmed via a direct
+-- simulated-session test (`permission denied for function
+-- role_at_least`) while debugging the owner-setup.html report.
+--
+-- Nested calls made FROM WITHIN a security definer function's own body
+-- (e.g. role_at_least() calling current_role() internally) do NOT need
+-- a separate grant — only the outermost call, from the real querying
+-- role, does. So this one grant fixes every dependent policy and
+-- trigger at once; current_role() itself is never called directly from
+-- any policy (confirmed: no policy references it except through
+-- role_at_least), so it stays correctly locked down as a public RPC
+-- endpoint.
+-- ============================================================
+grant execute on function public.role_at_least(public.wrld_role) to authenticated;

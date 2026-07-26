@@ -60,11 +60,16 @@
   </section>
 </main>
 <div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
 <script src="data.js"></script>
 <script src="auth.js"></script>
 <script src="app.js"></script>
 <script src="orbit.js"></script>
 <script>
+(async () => {
+await window.wrldAuthReady;
 if(requireAuth()){
   const summary = getProgressSummary();
   const stage = summary.assessment ? getStage(summary.assessment.overall) : STAGES[0];
@@ -129,6 +134,7 @@ if(requireAuth()){
 
   initPage('passport');
 }
+})();
 </script>
 </body>
 </html>

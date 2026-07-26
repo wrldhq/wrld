@@ -1,0 +1,11 @@
+Confirm your new email — WRLD
+
+We received a request to change the email on your WRLD account from {{ .Email }} to {{ .NewEmail }}.
+
+Confirm this change:
+{{ .ConfirmationURL }}
+
+This link expires soon for your security. If you didn't request this change, please contact us right away at hello@ourwrld.org.
+
+— WRLD
+hello@ourwrld.org

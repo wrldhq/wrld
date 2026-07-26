@@ -22,7 +22,7 @@
 
 let orbitHistory = [];
 
-function openOrbitPanel(){
+function openOrbitPanel(auto){
   const panel = document.getElementById('orbit-panel');
   if(!panel) return;
   panel.classList.add('open');
@@ -30,11 +30,106 @@ function openOrbitPanel(){
     addOrbitMessage(orbitGreeting(), 'orbit');
     renderOrbitSuggestions(defaultOrbitSuggestions());
   }
-  setTimeout(()=>document.getElementById('orbit-input')?.focus(), 150);
+  // Skip the auto-focus when Orbit opens itself (mobile auto-show) — a
+  // chat that grabs keyboard focus (and pops the mobile keyboard) without
+  // the person asking for it would be exactly the kind of interruption
+  // Priority 1 is meant to remove. Manual opens (tapping the icon) still
+  // focus the input immediately, same as always.
+  if(!auto){
+    setTimeout(()=>document.getElementById('orbit-input')?.focus(), 150);
+  }
 }
 
 function closeOrbitPanel(){
   document.getElementById('orbit-panel')?.classList.remove('open');
+}
+
+/* ---------------------------------------------------------------------
+   MOBILE AUTO-OPEN / AUTO-COLLAPSE
+   On small screens Orbit's chat panel is large enough to sit over page
+   content (forms, CTAs, onboarding), so it briefly shows itself on load
+   — same greeting as a manual open — then tucks back down to just the
+   round icon on its own. Nothing here changes what Orbit says or how the
+   panel looks; it only automates open/close via the exact same
+   openOrbitPanel()/closeOrbitPanel() class-toggle the click handlers
+   already use, so re-opening (by tap) behaves exactly as before.
+   Desktop is untouched — this only runs at the same <=720px breakpoint
+   where styles.css already gives the panel its compact mobile sizing.
+   --------------------------------------------------------------------- */
+const ORBIT_MOBILE_BREAKPOINT = 720;
+const ORBIT_SESSION_DISMISS_KEY = 'wrld_orbit_dismissed_v1';
+const ORBIT_AUTO_COLLAPSE_MS = 6500; // "approximately 5 to 8 seconds"
+
+let orbitAutoCollapseTimer = null;
+let orbitAutoCollapseScrollHandler = null;
+
+function orbitWasDismissedThisSession(){
+  try{ return sessionStorage.getItem(ORBIT_SESSION_DISMISS_KEY) === '1'; }
+  catch(e){ return false; }
+}
+
+function markOrbitDismissedThisSession(){
+  try{ sessionStorage.setItem(ORBIT_SESSION_DISMISS_KEY, '1'); }
+  catch(e){ /* private-browsing / storage disabled — fail silently, just skip remembering */ }
+}
+
+function clearOrbitAutoCollapseWatchers(){
+  if(orbitAutoCollapseTimer){ clearTimeout(orbitAutoCollapseTimer); orbitAutoCollapseTimer = null; }
+  if(orbitAutoCollapseScrollHandler){
+    window.removeEventListener('scroll', orbitAutoCollapseScrollHandler);
+    orbitAutoCollapseScrollHandler = null;
+  }
+}
+
+// Manual close (the ✕ button) — remembers the dismissal for the rest of
+// this browsing session so Orbit stops auto-opening on later pages.
+// Tapping the icon still reopens it any time; this only silences the
+// automatic on-load popup.
+function dismissOrbitPanel(){
+  closeOrbitPanel();
+  markOrbitDismissedThisSession();
+  clearOrbitAutoCollapseWatchers();
+}
+
+// Pages that are primarily a form or a guided onboarding flow — Orbit
+// never auto-opens over these on mobile (it stays available as a tap-to-
+// open icon), since the auto-panel would otherwise sit on top of a
+// short-viewport form field or an onboarding step. Matched against the
+// current page's filename, not activeKey, so it works even on pages
+// that aren't in top nav (login/signup/forgot-password/reset-password/
+// owner-setup aren't NAV_GROUPS items).
+const ORBIT_AUTO_SHOW_EXCLUDED_PAGES = [
+  'signup.html','login.html','forgot-password.html','reset-password.html',
+  'welcome.html','owner-setup.html',
+];
+function orbitCurrentPageExcludedFromAutoShow(){
+  const page = location.pathname.split('/').pop() || 'index.html';
+  return ORBIT_AUTO_SHOW_EXCLUDED_PAGES.includes(page);
+}
+
+function initOrbitAutoBehavior(){
+  if(window.innerWidth > ORBIT_MOBILE_BREAKPOINT) return;
+  if(orbitWasDismissedThisSession()) return;
+  if(orbitCurrentPageExcludedFromAutoShow()) return;
+  const panel = document.getElementById('orbit-panel');
+  if(!panel) return;
+
+  openOrbitPanel(true);
+
+  orbitAutoCollapseTimer = setTimeout(()=>{
+    closeOrbitPanel();
+    clearOrbitAutoCollapseWatchers();
+  }, ORBIT_AUTO_COLLAPSE_MS);
+
+  orbitAutoCollapseScrollHandler = ()=>{
+    closeOrbitPanel();
+    clearOrbitAutoCollapseWatchers();
+  };
+  window.addEventListener('scroll', orbitAutoCollapseScrollHandler, {passive:true, once:true});
+
+  // If the person actually starts using the auto-opened panel, stop the
+  // countdown — don't snap it shut on someone mid-message.
+  panel.addEventListener('focusin', clearOrbitAutoCollapseWatchers, {once:true});
 }
 
 function addOrbitMessage(html, from){

@@ -15,35 +15,44 @@
     <div class="card auth-card reveal">
       <div class="text-center mb-24">
         <div class="eyebrow">🛡️ One-Time Setup</div>
-        <h2 style="font-size:1.6rem; margin-top:8px;">Set your Owner password</h2>
-        <p style="font-size:13.5px; margin-top:6px;">This runs exactly once. No password is ever hardcoded — you're creating it right now.</p>
+        <h2 style="font-size:1.6rem; margin-top:8px;" id="os-heading">Claim Owner access</h2>
+        <p style="font-size:13.5px; margin-top:6px;" id="os-subhead">Checking whether WRLD already has an Owner…</p>
       </div>
 
       <div class="form-error" id="form-error"></div>
-      <div id="already-done" class="hidden text-center">
-        <p style="font-size:14px; margin-bottom:16px;">Owner setup has already been completed on this device.</p>
+
+      <div id="os-loading" class="text-center" style="padding:12px 0;">
+        <p style="font-size:13px; color:var(--ink-faint);">One moment…</p>
+      </div>
+
+      <div id="os-already-done" class="hidden text-center">
+        <p style="font-size:14px; margin-bottom:16px;">WRLD already has an Owner — this only ever happens once, for real, and it's already happened.</p>
         <a href="login.html" class="btn btn-primary btn-block">Go to Log In →</a>
       </div>
 
-      <form id="owner-setup-form">
-        <div class="form-group">
-          <label class="form-label">Owner Email</label>
-          <input class="form-input" id="os-email" disabled>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="os-password">New Password</label>
-          <input class="form-input" id="os-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="os-password2">Confirm Password</label>
-          <input class="form-input" id="os-password2" type="password" placeholder="Re-enter your password" autocomplete="new-password" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block" id="setup-submit">Create Owner Password →</button>
-      </form>
+      <div id="os-need-login" class="hidden text-center">
+        <p style="font-size:14px; margin-bottom:16px;">No Owner has claimed WRLD yet. Sign up or log in with the account you want to become Owner, then come back to this page.</p>
+        <a href="signup.html?next=owner-setup.html" class="btn btn-primary btn-block mb-10">Sign Up →</a>
+        <a href="login.html?next=owner-setup.html" class="btn btn-outline btn-block">Log In →</a>
+      </div>
+
+      <div id="os-claim" class="hidden text-center">
+        <p style="font-size:14px; margin-bottom:6px;">You're logged in as <strong id="os-current-email"></strong>.</p>
+        <p style="font-size:13px; color:var(--ink-faint); margin-bottom:20px;">No Owner exists yet — claiming this now makes this account WRLD's one and only Owner, permanently. This can't be undone from here (only a future Owner-to-Administrator transfer can change it).</p>
+        <button type="button" class="btn btn-primary btn-block" id="os-claim-btn">Claim Owner Access →</button>
+      </div>
+
+      <div id="os-already-owner" class="hidden text-center">
+        <p style="font-size:14px; margin-bottom:16px;">✅ This account is already the Owner.</p>
+        <a href="owner-dashboard.html" class="btn btn-primary btn-block">Go to Owner Dashboard →</a>
+      </div>
     </div>
   </section>
 </main>
 <div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
 <script src="data.js"></script>
 <script src="auth.js"></script>
 <script src="app.js"></script>
@@ -54,32 +63,52 @@ function showFormError(msg){
   el.textContent = msg;
   el.classList.toggle('show', !!msg);
 }
-
-if(!ownerNeedsSetup()){
-  document.getElementById('owner-setup-form').classList.add('hidden');
-  document.getElementById('already-done').classList.remove('hidden');
-} else {
-  document.getElementById('os-email').value = OWNER_EMAIL;
+function showPanel(id){
+  ['os-loading','os-already-done','os-need-login','os-claim','os-already-owner'].forEach(p=>{
+    document.getElementById(p).classList.toggle('hidden', p!==id);
+  });
 }
 
-document.getElementById('owner-setup-form').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  showFormError('');
-  const p1 = document.getElementById('os-password').value;
-  const p2 = document.getElementById('os-password2').value;
-  if(p1 !== p2){ showFormError("Those passwords don't match — try again."); return; }
+(async () => {
+  await window.wrldAuthReady;
 
-  const btn = document.getElementById('setup-submit');
-  btn.disabled = true; btn.textContent = 'Setting up...';
-  const result = await setupOwnerPassword(p1);
-  btn.disabled = false; btn.textContent = 'Create Owner Password →';
+  // Real backend state, not a client-side flag — see ownerAccountExists()
+  // in auth.js and public.owner_exists() in supabase/migrations/016.
+  const ownerExists = await ownerAccountExists();
+  const user = getCurrentUser();
 
-  if(!result.ok){ showFormError(result.error); return; }
-  showToast('✅ Owner account ready');
-  location.href = 'owner-dashboard.html';
-});
+  if(ownerExists === null){
+    document.getElementById('os-subhead').textContent = "Couldn't reach WRLD's database to check Owner status — try refreshing.";
+    showPanel('os-loading');
+  } else if(user && user.role==='owner'){
+    document.getElementById('os-subhead').textContent = "You're all set.";
+    showPanel('os-already-owner');
+  } else if(ownerExists){
+    document.getElementById('os-subhead').textContent = 'This has already been completed.';
+    showPanel('os-already-done');
+  } else if(!user){
+    document.getElementById('os-subhead').textContent = 'One real account needs to claim this — log in first.';
+    showPanel('os-need-login');
+  } else {
+    document.getElementById('os-subhead').textContent = 'This account can claim it right now.';
+    document.getElementById('os-current-email').textContent = user.email;
+    showPanel('os-claim');
+  }
 
-initPage(null, "This is the one and only time this setup screen will run.");
+  document.getElementById('os-claim-btn').addEventListener('click', async ()=>{
+    showFormError('');
+    const btn = document.getElementById('os-claim-btn');
+    btn.disabled = true; btn.textContent = 'Claiming...';
+    const result = await claimOwnerRole();
+    btn.disabled = false; btn.textContent = 'Claim Owner Access →';
+
+    if(!result.ok){ showFormError(result.error); return; }
+    showToast('✅ Owner access granted');
+    location.href = 'owner-dashboard.html';
+  });
+
+  initPage(null, "This is the one and only time this setup screen matters.");
+})();
 </script>
 </body>
 </html>

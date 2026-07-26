@@ -53,10 +53,20 @@
       <div class="card reveal" style="max-width:680px; margin:0 auto; padding:32px;">
         <div class="form-error" id="form-error"></div>
 
+        <div id="mentor-app-gate" class="hidden text-center" style="padding:12px 4px;">
+          <div style="font-size:2.4rem; margin-bottom:8px;">🔒</div>
+          <h3 class="mb-8">Create a free account to apply</h3>
+          <p style="font-size:14px; max-width:440px; margin:0 auto 20px;">Mentor applications are tied to a real WRLD account so we know who to follow up with — it takes under a minute, and you'll come right back here afterward.</p>
+          <div class="flex gap-10 justify-center" style="flex-wrap:wrap;">
+            <a id="mentor-app-signup-link" href="signup.html" class="btn btn-primary btn-sm">Create Free Account</a>
+            <a id="mentor-app-login-link" href="login.html" class="btn btn-outline btn-sm">Log In</a>
+          </div>
+        </div>
+
         <div id="mentor-app-success" class="hidden text-center" style="padding:12px 4px;">
           <div style="font-size:2.4rem; margin-bottom:8px;">✅</div>
           <h3 class="mb-8">Thank you.</h3>
-          <p style="font-size:14px; max-width:420px; margin:0 auto;">Your mentor application has been received. Our team will review your application and contact you if we believe you're a good fit.</p>
+          <p style="font-size:14px; max-width:420px; margin:0 auto;">Your mentor application has been received. Our team will review your application and contact you if we believe you're a good fit. You'll hear back by email either way.</p>
         </div>
 
         <form id="mentor-app-form">
@@ -128,6 +138,9 @@
   </section>
 </main>
 <div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
 <script src="data.js"></script>
 <script src="auth.js"></script>
 <script src="app.js"></script>
@@ -139,9 +152,31 @@ function showFormError(msg){
   el.classList.toggle('show', !!msg);
 }
 
-document.getElementById('mentor-app-form').addEventListener('submit', e=>{
+// Uploads to the private `mentor-applications` storage bucket, scoped to
+// <user_id>/<file> per the bucket's RLS (see supabase/migrations/006 and
+// 030's role-label fix) — real bytes, not just a filename, and never
+// publicly reachable. Returns {path, filename} or null if no file was
+// chosen. A failed upload doesn't block the whole application — it's
+// logged and the applicant is told plainly what happened rather than
+// silently losing their attachment.
+async function uploadMentorFile(fileInput, userId){
+  if(!fileInput || !fileInput.files || !fileInput.files.length) return {path:null, filename:null, error:null};
+  const file = fileInput.files[0];
+  const path = `${userId}/${Date.now()}-${file.name}`.replace(/\s+/g,'_');
+  const { error } = await sbClient.storage.from('mentor-applications').upload(path, file, { upsert:false });
+  if(error){ console.warn('WRLD: mentor file upload failed', error.message); return {path:null, filename:file.name, error:error.message}; }
+  return {path, filename:file.name, error:null};
+}
+
+let mentorAppInFlight = false;
+
+document.getElementById('mentor-app-form').addEventListener('submit', async e=>{
   e.preventDefault();
+  if(mentorAppInFlight) return;
   showFormError('');
+
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  if(!user){ showFormError('Create a free account first — see above.'); return; }
 
   const fields = {
     name: document.getElementById('ma-name').value.trim(),
@@ -164,24 +199,54 @@ document.getElementById('mentor-app-form').addEventListener('submit', e=>{
     showFormError('Please fill in every required field and attach your resume/CV.');
     return;
   }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)){ showFormError('Please enter a valid email address.'); return; }
 
   const btn = document.getElementById('mentor-app-submit');
+  mentorAppInFlight = true;
   btn.disabled = true; btn.textContent = 'Submitting...';
 
-  fields.resumeMeta = fileMeta(document.getElementById('ma-resume'));
-  fields.certsMeta = fileMeta(document.getElementById('ma-certs'));
+  const [resume, certs] = await Promise.all([
+    uploadMentorFile(document.getElementById('ma-resume'), user.id),
+    uploadMentorFile(document.getElementById('ma-certs'), user.id),
+  ]);
 
-  // Saved directly in WRLD — no email client, nothing the applicant has to
-  // send themselves. This becomes a real, actionable row in the Owner
-  // Dashboard's Mentors > Applications queue for human review.
-  addMentorApplication(fields);
+  const { error } = await sbClient.rpc('submit_mentor_application', {
+    p_name: fields.name, p_email: fields.email, p_occupation: fields.occupation, p_education: fields.education,
+    p_expertise: fields.expertise, p_languages: fields.languages, p_bio: fields.bio, p_why: fields.why,
+    p_experience: fields.experience, p_availability: fields.availability, p_linkedin: fields.linkedin, p_portfolio: fields.portfolio,
+    p_resume_path: resume.path, p_resume_filename: resume.filename,
+    p_certs_path: certs.path, p_certs_filename: certs.filename,
+  });
+
+  mentorAppInFlight = false;
+  btn.disabled = false; btn.textContent = 'Submit My Application →';
+
+  if(error){
+    showFormError(/logged in/i.test(error.message) ? 'Create a free account first — see above.' : "Something went wrong submitting your application. Please try again shortly.");
+    return;
+  }
 
   document.getElementById('mentor-app-form').classList.add('hidden');
   document.getElementById('mentor-app-success').classList.remove('hidden');
   showToast('✅ Application submitted');
+  if(resume.error){ showToast('⚠️ Your application was submitted, but the résumé upload failed — you can add it later from your application status.'); }
 });
 
-initPage('become-mentor', "Mentors keep WRLD's live sessions and Office Hours running — every application gets a real, human review.");
+(async () => {
+  await window.wrldAuthReady;
+  const user = getCurrentUser();
+  const here = encodeURIComponent(location.pathname + location.search);
+  if(!user){
+    document.getElementById('mentor-app-form').classList.add('hidden');
+    document.getElementById('mentor-app-gate').classList.remove('hidden');
+    document.getElementById('mentor-app-signup-link').href = 'signup.html?next=' + here;
+    document.getElementById('mentor-app-login-link').href = 'login.html?next=' + here;
+  } else {
+    document.getElementById('ma-name').value = user.name || '';
+    document.getElementById('ma-email').value = user.email || '';
+  }
+  initPage('become-mentor', "Mentors keep WRLD's live sessions and Office Hours running — every application gets a real, human review.");
+})();
 </script>
 </body>
 </html>

@@ -1,0 +1,11 @@
+You've been invited to WRLD
+
+Someone on the WRLD team has invited {{ .Email }} to join — the curriculum for adulthood.
+
+Accept your invitation:
+{{ .ConfirmationURL }}
+
+This link expires soon for your security. If you weren't expecting this invitation, you can safely ignore this email.
+
+— WRLD
+hello@ourwrld.org
