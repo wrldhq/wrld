@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WRLD. — The Curriculum for Adulthood</title>
 <meta name="description" content="School teaches you how to pass tests. WRLD teaches you how to navigate life — free Playbooks, Learning Paths, and live digital programs for young people.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -174,10 +175,9 @@ document.getElementById('pillars-grid').innerHTML = Object.entries(PILLARS).map(
 }).join('');
 
 document.getElementById('pb-grid-preview').innerHTML = PLAYBOOKS.filter(p=>p.flagship).slice(0,6).map((p,i)=>{
-  const hasIll = p.heroIllustration && renderIllustration(p.heroIllustration);
   return `
   <a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable reveal reveal-d${(i%3)+1}">
-    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; position:relative; overflow:hidden;">${hasIll?`<div style="width:100%; height:220%; position:absolute; top:-40%;">${hasIll}</div>`:p.emoji}</div>
+    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}<img class="pb-thumb-img" src="images/playbooks/${p.slug}-card.jpg" alt="" loading="lazy" onerror="this.style.display='none'"></div>
     <div class="pb-body">
       <div class="pb-meta"><span class="pill pill-${p.difficulty==='Beginner'?'success':p.difficulty==='Advanced'?'sample':'yellow'}">${p.difficulty}</span></div>
       <h4>${p.title}</h4>

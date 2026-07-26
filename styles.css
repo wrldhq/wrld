@@ -268,9 +268,12 @@ header{position:sticky; top:0; z-index:200; background:rgba(255,255,255,.88); ba
 .mini-check .mc-feedback{font-size:13px; color:var(--ink-soft); margin-top:8px; display:none;}
 .mini-check .mc-feedback.show{display:block;}
 
-/* ===== Playbook hero illustration ===== */
-.pb-hero-illustration{width:100%; max-width:440px; margin:0 auto;}
-.pb-hero-illustration svg{width:100%; height:auto;}
+/* ===== Playbook hero illustration =====
+   Full-width of the article body column, native aspect ratio preserved
+   per image (no forced crop/letterbox — see illustrations.js comment for
+   why this replaced the fixed-440px SVG box). */
+.pb-hero-illustration{width:100%; margin:0 0 8px; border-radius:var(--r-lg); overflow:hidden; box-shadow:var(--shadow-md); background:var(--sky);}
+.pb-hero-illustration img, .pb-hero-illustration svg{width:100%; height:auto; display:block;}
 
 /* ===== Radar chart / progress rings (Assessment) ===== */
 .progress-ring-wrap{display:flex; flex-direction:column; align-items:center; gap:8px;}
@@ -439,7 +442,10 @@ header{position:sticky; top:0; z-index:200; background:rgba(255,255,255,.88); ba
 
 .pb-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:24px;}
 .pb-card{overflow:hidden; display:flex; flex-direction:column;}
-.pb-thumb{height:132px; display:flex; align-items:center; justify-content:center; font-size:42px; position:relative;}
+/* 16:9, native aspect ratio — scales with card width at every breakpoint
+   instead of a fixed height, so card art is never cropped or zoomed. */
+.pb-thumb{aspect-ratio:16/9; height:auto; display:flex; align-items:center; justify-content:center; font-size:42px; position:relative; overflow:hidden;}
+.pb-thumb-img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;}
 .pb-body{padding:22px 22px 24px; display:flex; flex-direction:column; flex:1;}
 .pb-meta{display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
 .pb-body h4{font-size:var(--fs-base); margin-bottom:8px;}

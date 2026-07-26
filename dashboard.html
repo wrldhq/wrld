@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — WRLD.</title>
 <meta name="description" content="Your WRLD learning dashboard — streak, saved Playbooks, progress, and recommendations.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -123,7 +124,7 @@
 <script>
 function pbMiniCard(p){
   return `<a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
-    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}</div>
+    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}<img class="pb-thumb-img" src="images/playbooks/${p.slug}-card.jpg" alt="" loading="lazy" onerror="this.style.display='none'"></div>
     <div class="pb-body">
       <div class="pb-meta"><span class="pill pill-${p.difficulty==='Beginner'?'success':p.difficulty==='Advanced'?'sample':'yellow'}">${p.difficulty}</span></div>
       <h4>${p.title}</h4>

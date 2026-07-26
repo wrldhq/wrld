@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title id="page-title">Playbook — WRLD.</title>
 <meta name="description" id="page-desc" content="A free WRLD Playbook.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -178,7 +179,7 @@ function renderLessonTimeline(steps){
 
 function pbCard(p){
   return `<a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
-    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}</div>
+    <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}<img class="pb-thumb-img" src="images/playbooks/${p.slug}-card.jpg" alt="" loading="lazy" onerror="this.style.display='none'"></div>
     <div class="pb-body">
       <div class="pb-meta"><span class="pill pill-blue">⏱ ${p.readTime}</span><span class="pill pill-yellow">${p.difficulty}</span></div>
       <h4>${p.title}</h4><p>${p.dek}</p>
@@ -231,7 +232,7 @@ function renderKeepGoing(p){
     document.getElementById('next-title').textContent = `Up next: ${next.title}`;
     document.getElementById('next-card-wrap').innerHTML = `
       <a href="playbook.html?slug=${next.slug}" class="pb-card card hoverable">
-        <div class="pb-thumb" style="background:${next.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${next.emoji}</div>
+        <div class="pb-thumb" style="background:${next.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${next.emoji}<img class="pb-thumb-img" src="images/playbooks/${next.slug}-card.jpg" alt="" loading="lazy" onerror="this.style.display='none'"></div>
         <div class="pb-body">
           <div class="pb-meta"><span class="pill pill-${next.difficulty==='Beginner'?'success':next.difficulty==='Advanced'?'sample':'yellow'}">${next.difficulty}</span></div>
           <h4>${next.title}</h4>
@@ -363,9 +364,23 @@ function loadPlaybook(){
 
   document.getElementById('objectives-list').innerHTML = p.objectives.map(o=>`<li>${o}</li>`).join('');
 
+  // Custom-illustrated hero photo (images/playbooks/<slug>-hero.jpg). Falls
+  // back to the hand-built SVG scene in illustrations.js if the file is
+  // ever missing for a given slug, and hides the block entirely only if
+  // neither exists — never a broken image icon.
   const heroIllEl = document.getElementById('pb-hero-illustration');
-  const heroSVG = p.heroIllustration ? renderIllustration(p.heroIllustration) : '';
-  if(heroSVG){ heroIllEl.innerHTML = heroSVG; } else { heroIllEl.style.display='none'; }
+  const heroFallbackSVG = p.heroIllustration ? renderIllustration(p.heroIllustration) : '';
+  heroIllEl.style.display = '';
+  heroIllEl.innerHTML = '';
+  const heroImg = document.createElement('img');
+  heroImg.src = `images/playbooks/${p.slug}-hero.jpg`;
+  heroImg.alt = p.title;
+  heroImg.loading = 'eager';
+  heroImg.addEventListener('error', ()=>{
+    if(heroFallbackSVG){ heroIllEl.innerHTML = heroFallbackSVG; }
+    else { heroIllEl.style.display = 'none'; }
+  });
+  heroIllEl.appendChild(heroImg);
 
   document.getElementById('sections-container').innerHTML = p.sections.map(s=>{
     if(s.mini) return renderMiniCheck(s);

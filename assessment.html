@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Adulting Readiness Assessment — WRLD.</title>
 <meta name="description" content="A 10-15 minute guided assessment that builds your personal WRLD Passport — a roadmap for what to learn next.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -517,7 +518,7 @@ function renderPersonalizedRoadmap(growth){
   }
   document.getElementById('recommended-next-grid').innerHTML = recommendedNext.map(p=>`
     <a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
-      <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}</div>
+      <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}<img class="pb-thumb-img" src="images/playbooks/${p.slug}-card.jpg" alt="" loading="lazy" onerror="this.style.display='none'"></div>
       <div class="pb-body">
         <div class="pb-meta"><span class="pill pill-${p.difficulty==='Beginner'?'success':p.difficulty==='Advanced'?'sample':'yellow'}">${p.difficulty}</span></div>
         <h4>${p.title}</h4>
