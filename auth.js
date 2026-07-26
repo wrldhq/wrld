@@ -635,13 +635,28 @@ async function claimOwnerRole(){
    auth system even if it were technically possible.)
    This function just makes sure a returning visitor with leftover old
    data understands why their old login stopped working, via Orbit's
-   guide line rather than a new UI element. Called from initPage(). */
+   guide line rather than a new UI element. Called from initPage().
+
+   BUGFIX (post-V15.1): this used to run on every single page load with
+   no session gating at all, so on any browser that still had a leftover
+   `wrld_users_v1` entry, it permanently overwrote initPage()'s normal
+   setGuideMessage(customGuideMsg || contextualGuideMessage(activeKey))
+   call on every page — Orbit's bubble showed this one static notice
+   everywhere and never showed page-specific messages again for the rest
+   of that browser's life (not just one session). Gated below to fire
+   at most ONCE per browser session (sessionStorage, same pattern as
+   orbit.js's ORBIT_SESSION_DISMISS_KEY) — after that, initPage()'s
+   normal per-page message takes over again immediately on the next
+   page, same as any visitor without legacy data. */
+const ORBIT_LEGACY_NOTICE_SESSION_KEY = 'wrld_orbit_legacy_notice_shown_v1';
 function checkLegacyAccountNotice(){
   if(isAuthenticated()) return; // already on a real account — nothing to say
   try{
+    if(sessionStorage.getItem(ORBIT_LEGACY_NOTICE_SESSION_KEY) === '1') return; // already shown once this session
     const legacy = JSON.parse(localStorage.getItem('wrld_users_v1')||'[]');
     if(Array.isArray(legacy) && legacy.length>0 && typeof setGuideMessage==='function'){
       setGuideMessage("👋 WRLD upgraded its account system — old logins from before this update no longer work, sorry! Sign up again with the same email and your saved progress will carry over automatically.");
+      sessionStorage.setItem(ORBIT_LEGACY_NOTICE_SESSION_KEY, '1');
     }
   }catch(e){}
 }
