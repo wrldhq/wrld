@@ -2,7 +2,11 @@
 
 WRLD is a free educational platform teaching practical life skills school doesn't cover — resumes, budgeting, credit, taxes, apartment hunting, mental wellness, and more — through long-form guided Playbooks, sequenced Learning Paths, live Programs, an AI-personalized Assessment, a moderated Community, a Volunteer Hours Tracker, and a full account/role system (Explorer → Mentor → Administrator → Owner).
 
-This is **WRLD Website Version 15.1** — a static HTML/CSS/vanilla-JS frontend (no build step, no framework) backed by a real Supabase project (Postgres + Auth + Storage). See `CLAUDE.md` for the complete, continuously-maintained technical reference (file map, data model, conventions, architecture decisions) — that file is the source of truth for how the codebase actually works; this README is an entry point and a naming/versioning note.
+This is **WRLD Website Version 15.2** — a static HTML/CSS/vanilla-JS frontend (no build step, no framework) backed by a real Supabase project (Postgres + Auth + Storage). See `CLAUDE.md` for the complete, continuously-maintained technical reference (file map, data model, conventions, architecture decisions) — that file is the source of truth for how the codebase actually works; this README is an entry point and a naming/versioning note.
+
+## What changed in Version 15.2
+
+A targeted Orbit bugfix, not a redesign. Two real logic bugs were found and fixed: `auth.js`'s legacy-account notice had no session gating and was permanently overwriting Orbit's page-specific messages on every page for any browser with old localStorage data; and `orbit.js`'s mobile auto-collapse never marked the session as dismissed, so the full chat panel kept reopening on every page navigation instead of once per session. Both are now fixed with proper session-storage gating. Orbit's mascot, position, colors, dimensions, speech-bubble styling, and response engine were not touched. Every page's `orbit.js` script tag was also updated to `orbit.js?v=16` to bust any cached copies of the old buggy file. See `CLAUDE.md`'s "Revision Pass 15.2" entry for the full root-cause writeup.
 
 ## What changed in Version 15.1
 
