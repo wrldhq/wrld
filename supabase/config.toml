@@ -1,0 +1,24 @@
+# supabase/config.toml
+#
+# This file was referenced by EMAIL-AUTOMATION-SETUP.md ("Both keep
+# verify_jwt = true (see supabase/config.toml)") but did not previously
+# exist anywhere in the project — part of why the two mentor-application
+# Edge Functions could never actually be deployed or invoked correctly.
+#
+# verify_jwt = true (the default) means Supabase requires a valid
+# Authorization: Bearer <token> header on every call to these functions.
+# The Database Webhooks configured per EMAIL-AUTOMATION-SETUP.md §3 are
+# set up to send the service_role key as that Bearer token, so this
+# stays true rather than being disabled.
+
+[functions.mentor-application-submitted]
+verify_jwt = true
+
+[functions.mentor-application-status-changed]
+verify_jwt = true
+
+[functions.orbit-ai]
+verify_jwt = true
+
+[functions.delete-user]
+verify_jwt = true
