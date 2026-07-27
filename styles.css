@@ -648,7 +648,9 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
 
 /* ===== Floating guide ===== */
 .guide{position:fixed; bottom:24px; right:24px; z-index:250; display:flex; align-items:flex-end; gap:12px;}
-.guide-bubble{background:white; border-radius:16px 16px 4px 16px; padding:13px 17px; box-shadow:var(--shadow-lg); font-size:13px; max-width:210px; color:var(--navy); font-weight:500; cursor:pointer;}
+.guide-bubble{background:white; border-radius:16px 16px 4px 16px; padding:13px 17px; box-shadow:var(--shadow-lg); font-size:13px; max-width:210px; color:var(--navy); font-weight:500; cursor:pointer; position:relative;}
+.guide-bubble span{padding-right:14px;}
+.guide-bubble-dismiss{position:absolute; top:4px; right:6px; background:none; border:none; color:var(--ink-faint); font-size:11px; cursor:pointer; width:20px; height:20px; display:flex; align-items:center; justify-content:center; line-height:1;}
 .guide-avatar{width:54px; height:54px; cursor:pointer;}
 
 /* ===== Orbit chat panel (Orbit v2) ===== */
@@ -885,7 +887,7 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
 
   /* Orbit floating guide: smaller, closer to the corner, bubble capped
      so it never forces horizontal scroll on narrow phones */
-  .guide{bottom:16px; right:16px; gap:8px;}
+  .guide{bottom:calc(16px + env(safe-area-inset-bottom, 0px)); right:16px; gap:8px;}
   .guide-avatar{width:44px; height:44px;}
   .guide-bubble{max-width:min(200px, calc(100vw - 90px)); font-size:12.5px; padding:11px 14px;}
 
@@ -909,6 +911,45 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   /* Auth cards: less side padding so the form isn't cramped */
   .auth-card{padding:30px 22px;}
   .auth-shell{padding:32px 16px;}
+}
+
+/* ---- About page: "Meet the Founder" section ----
+   Bug: .founder-layout (a .flex row with flex-wrap:wrap) never actually
+   wrapped onto two rows on phones, because both flex children default to
+   flex-shrink:1 with no forced minimum — so instead of stacking, the
+   browser just kept shrinking both columns side by side, compressing
+   .founder-body's paragraph text into a near-zero-width column (one word
+   per line) while .founder-media (image + name) also got squeezed. This
+   block forces a true single-column stack below 768px, per spec, rather
+   than relying on wrap behavior. Scoped entirely to .founder-* classes —
+   no other .flex/.items-start usage elsewhere on the site is affected. */
+@media(max-width:768px){
+  .founder-layout{
+    display:flex;
+    flex-direction:column;
+    flex-wrap:nowrap;
+    gap:24px;
+    width:100%;
+    max-width:100%;
+  }
+  .founder-media{
+    flex:none;
+    width:100%;
+    max-width:220px;
+    min-width:0;
+    margin:0 auto;
+  }
+  .founder-body{
+    flex:none;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+  }
+  .founder-body p{
+    max-width:100%;
+    width:100%;
+  }
+  .founder-name-tag{text-align:center;}
 }
 
 @media(max-width:560px){

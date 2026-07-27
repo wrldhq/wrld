@@ -198,7 +198,10 @@ function renderFooter(){
     </div>
   </footer>
   <div class="guide" id="guide">
-    <div class="guide-bubble" id="guide-bubble" onclick="openOrbitPanel()" role="button" tabindex="0" aria-label="Open Orbit">Hi! I'm Orbit 🌎</div>
+    <div class="guide-bubble" id="guide-bubble" role="button" tabindex="0" aria-label="Open Orbit">
+      <span onclick="openOrbitPanel()" style="display:block;">Hi! I'm Orbit 🌎</span>
+      <button type="button" class="guide-bubble-dismiss" onclick="event.stopPropagation(); markOrbitDismissedThisSession(); document.getElementById('guide-bubble').style.display='none';" aria-label="Dismiss">✕</button>
+    </div>
     <svg class="guide-avatar float" viewBox="0 0 100 100" onclick="openOrbitPanel()" role="button" tabindex="0" aria-label="Chat with Orbit, your WRLD learning companion"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
   </div>
   <div class="orbit-panel" id="orbit-panel">

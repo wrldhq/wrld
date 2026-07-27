@@ -182,10 +182,16 @@ document.getElementById('pillars-grid').innerHTML = Object.entries(PILLARS).map(
     learning:['Study Skills','Scholarships','University','AI Literacy'],
     development:['Leadership','Financial Literacy','Public Speaking','Life Skills'],
   };
+  const descriptionMap = {
+    work:'Practical tools for finding opportunities, building professional skills, and navigating the workplace with confidence.',
+    resilience:'Support for managing setbacks, strengthening confidence, protecting your well-being, and continuing forward when life gets difficult.',
+    learning:'Strategies for studying, accessing education, building useful knowledge, and becoming a more independent lifelong learner.',
+    development:'Guidance for growing into adulthood through stronger communication, financial awareness, leadership, and everyday life skills.',
+  };
   return `<div class="pillar card hoverable ${p.color} reveal reveal-d${i+1}">
     <div class="pillar-icon" style="background:${p.color==='yellow'?'var(--yellow-15)':p.color==='navy'?'var(--navy-10)':'var(--blue-15)'};">${p.icon}</div>
     <h3>${p.label}</h3>
-    <p style="font-size:14.5px;">Real Playbooks covering ${p.label.toLowerCase()} — from first steps to real confidence.</p>
+    <p style="font-size:14.5px;">${descriptionMap[key]}</p>
     <ul>${topicsMap[key].map(t=>`<li>${t}</li>`).join('')}</ul>
   </div>`;
 }).join('');
