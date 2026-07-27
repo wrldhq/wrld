@@ -85,6 +85,8 @@ function wrldBuildUserFromCache(){
   return {
     id: p.id,
     name: p.name,
+    firstName: p.first_name,
+    lastName: p.last_name,
     email: p.email,
     role: p.role,
     avatarUrl: p.avatar_url,

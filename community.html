@@ -327,33 +327,50 @@ function renderCommons(){
     restrictedNote.classList.add('hidden');
   }
 
+  // Public visitors (including logged-out) can still read the board —
+  // only the composer above is gated. renderCommonsList() below queries
+  // Supabase directly (RLS permits anon SELECT of approved content), so
+  // this works whether or not `user` exists.
   renderCommonsList();
   window.refreshAfterReport = renderCommonsList;
 }
 
-function renderCommonsList(){
-  const posts = communityPostsFor('commons', activeCommonsCategory).filter(p=>p.status==='approved');
+async function renderCommonsList(){
   const list = document.getElementById('commons-list');
+  list.innerHTML = `<p style="font-size:13px; color:var(--ink-faint); text-align:center; padding:16px 0;">Loading…</p>`;
+  const posts = (await communityPostsFor(activeCommonsCategory)).filter(p=>p.status==='approved');
   if(!posts.length){
     list.innerHTML = `<p style="font-size:13.5px; color:var(--ink-faint); text-align:center; padding:16px 0;">🌍 Nothing posted here yet — be the first to say something.</p>`;
     return;
   }
-  list.innerHTML = posts.map(commonsThreadCard).join('');
+  const me = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  const canModerate = me && typeof roleAtLeast==='function' && roleAtLeast(me, ROLES.ADMIN);
+  list.innerHTML = posts.map(p=>commonsThreadCard(p, me, canModerate)).join('');
 }
 
-function commonsThreadCard(post){
+function commonsThreadCard(post, me, canModerate){
   const approvedReplies = (post.replies||[]).filter(r=>r.status==='approved');
+  const canDeletePost = me && (me.id===post.authorId || canModerate);
   return `<div class="thread-item">
-    <div class="flex gap-10 items-center mb-6"><span style="font-size:16px;">🧑</span><span style="font-weight:700; font-size:13px; color:var(--navy);">${escapeHtml(post.authorName)}</span><span style="font-size:11px; color:var(--ink-faint);">${timeAgo(post.createdAt)}</span></div>
+    <div class="flex gap-10 items-center justify-between mb-6">
+      <div class="flex gap-10 items-center"><span style="font-size:16px;">🧑</span><span style="font-weight:700; font-size:13px; color:var(--navy);">${escapeHtml(post.authorName)}</span><span style="font-size:11px; color:var(--ink-faint);">${timeAgo(post.createdAt)}</span></div>
+      ${canDeletePost ? `<button class="thread-action muted" onclick="confirmDeleteCommonsPost('${post.id}')" aria-label="Delete post">⋯ Delete</button>` : ''}
+    </div>
     <p style="margin:0 0 8px; font-size:14px;">${escapeHtml(post.body)}</p>
-    ${approvedReplies.map(r=>`
+    ${approvedReplies.map(r=>{
+      const canDeleteReply = me && (me.id===r.authorId || canModerate);
+      return `
       <div class="thread-reply">
-        <span style="font-weight:700; font-size:12.5px; color:var(--navy);">${escapeHtml(r.authorName)}</span> <span style="font-size:11px; color:var(--ink-faint);">${timeAgo(r.createdAt)}</span>
+        <div class="flex justify-between items-start">
+          <div><span style="font-weight:700; font-size:12.5px; color:var(--navy);">${escapeHtml(r.authorName)}</span> <span style="font-size:11px; color:var(--ink-faint);">${timeAgo(r.createdAt)}</span></div>
+          ${canDeleteReply ? `<button class="thread-action muted" style="font-size:11px;" onclick="confirmDeleteCommonsReply('${post.id}','${r.id}')" aria-label="Delete reply">⋯ Delete</button>` : ''}
+        </div>
         <p style="margin:2px 0 0; font-size:13.5px;">${escapeHtml(r.body)}</p>
-      </div>`).join('')}
+      </div>`;
+    }).join('')}
     <div class="flex gap-16 mt-8">
       <button class="thread-action" onclick="toggleCommonsReplyBox('${post.id}')">Reply</button>
-      <button class="thread-action muted" onclick="openReportModal('${post.id}', null)">Report</button>
+      <button class="thread-action muted" onclick="handleReportClick('${post.id}', null)">Report</button>
     </div>
     <div class="hidden mt-8" id="commons-reply-box-${post.id}">
       <textarea id="commons-reply-input-${post.id}" placeholder="Write a reply..." style="width:100%; min-height:60px; border:1.5px solid var(--navy-10); border-radius:12px; padding:10px; font-family:inherit; font-size:13.5px; resize:vertical;"></textarea>
@@ -362,14 +379,57 @@ function commonsThreadCard(post){
   </div>`;
 }
 
+// Logged-out visitors can read but not report/reply/post — same gate
+// message pattern used for the composer above, per spec's "prompt them
+// to log in or create a free account" requirement.
+function handleReportClick(postId, replyId){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  if(!user){ showToast('Create a free account to report content.'); return; }
+  openReportModal(postId, replyId);
+}
+
+function confirmDeleteCommonsPost(postId){
+  showConfirmModal({
+    title: '🗑️ Delete this post?',
+    detailsHtml: `<div>This will permanently remove the post and its replies.</div>`,
+    warning: 'This will permanently remove the post and its replies. This action cannot be undone.',
+    confirmLabel: 'Delete Post',
+    onConfirm: async (closeModal)=>{
+      const ok = await deleteOwnCommunityPost(postId);
+      if(!ok){ showToast("Couldn't delete that post — try again."); return; }
+      closeModal();
+      showToast('✅ Post deleted successfully.');
+      renderCommonsList();
+    },
+  });
+}
+function confirmDeleteCommonsReply(postId, replyId){
+  showConfirmModal({
+    title: '🗑️ Delete this comment?',
+    detailsHtml: `<div>This will permanently remove it from the community board.</div>`,
+    warning: 'This will permanently remove it from the community board. This action cannot be undone.',
+    confirmLabel: 'Delete Comment',
+    onConfirm: async (closeModal)=>{
+      const ok = await deleteOwnCommunityReply(replyId);
+      if(!ok){ showToast("Couldn't delete that comment — try again."); return; }
+      closeModal();
+      showToast('✅ Comment deleted successfully.');
+      renderCommonsList();
+    },
+  });
+}
+
 function toggleCommonsReplyBox(postId){
   document.getElementById('commons-reply-box-'+postId)?.classList.toggle('hidden');
 }
 
-function postCommonsMessage(){
+async function postCommonsMessage(){
   const input = document.getElementById('commons-input');
   const errEl = document.getElementById('commons-error');
-  const res = createCommunityPost({contextType:'commons', contextId:activeCommonsCategory, category:activeCommonsCategory, body:input.value});
+  const btn = document.querySelector('#commons-composer .btn-primary');
+  if(btn){ btn.disabled = true; btn.textContent = 'Posting...'; }
+  const res = await createCommunityPost({category:activeCommonsCategory, body:input.value});
+  if(btn){ btn.disabled = false; btn.textContent = 'Post'; }
   if(!res.ok){ errEl.textContent = res.error; return; }
   errEl.textContent = '';
   input.value = '';
@@ -377,9 +437,9 @@ function postCommonsMessage(){
   renderCommonsList();
 }
 
-function postCommonsReply(postId){
+async function postCommonsReply(postId){
   const input = document.getElementById('commons-reply-input-'+postId);
-  const res = addCommunityReply(postId, input.value);
+  const res = await addCommunityReply(postId, input.value);
   if(!res.ok){ showToast(res.error); return; }
   showToast(res.reply.status==='held' ? "✅ Reply posted — it's being reviewed before going public." : '✅ Reply posted');
   renderCommonsList();

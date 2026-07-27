@@ -67,7 +67,7 @@ const ROLE_LABELS = {
 const ROLE_DESTINATIONS = {
   [ROLES.EXPLORER]: 'dashboard.html',
   [ROLES.MENTOR]: 'mentor-studio.html',
-  [ROLES.ADMIN]: 'owner-dashboard.html',
+  [ROLES.ADMIN]: 'administrator-dashboard.html',
   [ROLES.OWNER]: 'owner-dashboard.html',
 };
 
@@ -378,6 +378,32 @@ async function warnUser(userId){
   return !error;
 }
 
+/* Self-service, any role. Calls the update_own_name() RPC (see
+   supabase/migrations/035) rather than a raw table update, since that
+   function is the one place validation (non-empty first name, trimming)
+   and the single-source-of-truth `name` recomputation both happen —
+   see that migration's header comment. Also mirrors the new name into
+   Supabase Auth's own user metadata via updateUser(), since signUp()
+   already writes `name` there at signup time (see signUp() above) and
+   the two should stay in sync rather than silently drifting apart.
+   Refreshes the in-memory session cache afterward so getCurrentUser()
+   reflects the new name everywhere on the current page immediately,
+   with no logout/login required. */
+async function updateOwnName(firstName, lastName){
+  const { data, error } = await sbClient.rpc('update_own_name', {
+    p_first_name: firstName, p_last_name: lastName || null,
+  });
+  if(error) return {ok:false, error: error.message || "Couldn't update your name — try again."};
+
+  // Best-effort — Auth metadata is a convenience mirror, not the source
+  // of truth (public.profiles is), so a failure here doesn't block the
+  // save the user actually asked for.
+  try{ await sbClient.auth.updateUser({ data: { name: data.name } }); }catch(e){ /* non-fatal */ }
+
+  await wrldRefreshSessionCache(_wrldSessionCache);
+  return {ok:true, name: data.name, firstName: data.first_name, lastName: data.last_name};
+}
+
 /* Owner-only. Moves the Owner role to an existing Administrator and
    demotes the current Owner to Administrator — enforced twice: here, and
    by the one-Owner-only partial unique index in the database, which
@@ -505,7 +531,14 @@ function requireMinRole(role){
 function canAccessExplorerDashboard(user){ return roleAtLeast(user, ROLES.EXPLORER); }
 function canAccessMentorStudio(user){ return roleAtLeast(user, ROLES.MENTOR); }
 function canAccessModerationDashboard(user){ return roleAtLeast(user, ROLES.ADMIN); }
-function canAccessOwnerDashboard(user){ return roleAtLeast(user, ROLES.ADMIN); } // matches the existing requireMinRole(ROLES.ADMIN) gate on owner-dashboard.html — Administrators share it, Owner-only tabs are further gated inside that page
+// V19: Owner Command Centre is now Owner-exclusive — day-to-day
+// operational work for Administrators moved to the new, separate
+// Administrator Dashboard (administrator-dashboard.html) below. Owner
+// Command Centre remains the highest-level workspace (governance,
+// security, organization settings, permanent deletion, sensitive
+// analytics) per the V19 spec's explicit separation of the two.
+function canAccessOwnerDashboard(user){ return roleAtLeast(user, ROLES.OWNER); }
+function canAccessAdministratorDashboard(user){ return roleAtLeast(user, ROLES.ADMIN); } // Administrator and Owner both
 function canAccessAdministratorsPanel(user){ return roleAtLeast(user, ROLES.OWNER); }
 function canAccessSecurityPanel(user){ return roleAtLeast(user, ROLES.OWNER); }
 

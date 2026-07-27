@@ -65,10 +65,56 @@ if(requireCapability(canAccessOwnerDashboard)){
     TABS.push({key:'administrators', label:'👑 Administrators'});
     TABS.push({key:'security', label:'🔐 Security'});
   }
+  const tabByKey = Object.fromEntries(TABS.map(t=>[t.key, t]));
+
+  // V19: the same tabs above, grouped into 5 clear categories instead of
+  // one long crowded row — no tab/section removed, purely a navigation
+  // reorganization. A category is simply skipped if none of its tabs
+  // exist for the current viewer (e.g. Security/Administrators only
+  // ever apply here since this whole page is now Owner-exclusive).
+  const NAV_CATEGORIES = [
+    {key:'dashboard', label:'Dashboard', icon:'📊', tabs:['overview','analytics','notifications']},
+    {key:'people', label:'People and Access', icon:'👥', tabs:['users','administrators','mentors','volunteer']},
+    {key:'content', label:'Content and Community', icon:'📚', tabs:['content','community']},
+    {key:'organization', label:'Organization and Planning', icon:'🏢', tabs:['organization','roadmap']},
+    {key:'security', label:'Security and System', icon:'🔐', tabs:['security']},
+  ].map(c=>({...c, tabs:c.tabs.filter(k=>tabByKey[k])})).filter(c=>c.tabs.length);
+
   let activeTab = 'overview';
+  const ODCATSTORAGEKEY = 'wrld_od_open_categories_v1';
+  function odCategoryForTab(key){ const c = NAV_CATEGORIES.find(c=>c.tabs.includes(key)); return c ? c.key : null; }
+  function odGetOpenCategories(){
+    try{ return JSON.parse(sessionStorage.getItem(ODCATSTORAGEKEY)) || [odCategoryForTab(activeTab)]; }
+    catch(e){ return [odCategoryForTab(activeTab)]; }
+  }
+  function odSetOpenCategories(list){
+    try{ sessionStorage.setItem(ODCATSTORAGEKEY, JSON.stringify(list)); }catch(e){ /* private browsing — fine, just won't persist */ }
+  }
+  window.odToggleCategory = function(catKey){
+    let open = odGetOpenCategories();
+    open = open.includes(catKey) ? open.filter(k=>k!==catKey) : [...open, catKey];
+    odSetOpenCategories(open);
+    renderTabs();
+  };
 
   function renderTabs(){
-    document.getElementById('od-tabs').innerHTML = TABS.map(t=>`<button type="button" class="filter-chip ${t.key===activeTab?'active':''}" onclick="setOdTab('${t.key}')">${t.label}</button>`).join('');
+    const openCats = odGetOpenCategories();
+    // The category containing the active tab is always visually open,
+    // even if collapsed in storage — a click shouldn't ever hide the
+    // section you're currently looking at.
+    const activeCat = odCategoryForTab(activeTab);
+    document.getElementById('od-tabs').innerHTML = NAV_CATEGORIES.map(cat=>{
+      const isOpen = cat.key===activeCat || openCats.includes(cat.key);
+      return `<div class="owner-nav-group ${isOpen?'open':''}">
+        <button type="button" class="owner-nav-group-head" aria-expanded="${isOpen}" aria-controls="owner-nav-group-${cat.key}" onclick="odToggleCategory('${cat.key}')">
+          <span>${cat.icon} ${cat.label}</span>
+          <span class="owner-nav-chevron">▾</span>
+        </button>
+        <div class="owner-nav-group-body" id="owner-nav-group-${cat.key}" ${isOpen?'':'hidden'}>
+          ${cat.tabs.map(key=>`<button type="button" class="filter-chip ${key===activeTab?'active':''}" onclick="setOdTab('${key}')">${tabByKey[key].label}</button>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
   }
   window.setOdTab = function(key){
     activeTab = key;
@@ -105,7 +151,7 @@ if(requireCapability(canAccessOwnerDashboard)){
     const popular = popRes.data || [];
     const active = activeRes.data || [];
     const recent = recentRes.data || [];
-    const feed = typeof getRecentActivityFeed === 'function' ? getRecentActivityFeed(8) : [];
+    const feed = typeof getRecentActivityFeed === 'function' ? await getRecentActivityFeed(8) : [];
     document.getElementById('od-panels').innerHTML = panelShell(`
       <h3 class="mb-16">Platform Overview</h3>
       <p style="font-size:13px; color:var(--ink-faint); margin-bottom:20px;">Every figure below is computed live in the database — real, cross-device counts, not per-browser estimates.</p>
@@ -194,6 +240,9 @@ if(requireCapability(canAccessOwnerDashboard)){
           ${u.role!==ROLES.OWNER ? (u.suspended ? `<button class="btn btn-primary btn-sm" onclick="odUnsuspend('${u.id}')">Restore</button>` : `<button class="btn btn-outline btn-sm" onclick="odSuspend('${u.id}')">🚫 Suspend</button>`) : ''}
           ${u.role!==ROLES.OWNER ? (u.deactivated ? `<button class="btn btn-primary btn-sm" onclick="odReactivate('${u.id}')">Reactivate</button>` : `<button class="btn btn-outline btn-sm" onclick="odDeactivate('${u.id}')">🗑️ Deactivate</button>`) : ''}
           ${u.role!==ROLES.OWNER ? (u.banned ? `<button class="btn btn-primary btn-sm" onclick="odUnban('${u.id}')">Unban</button>` : `<button class="btn btn-outline btn-sm" style="border-color:#F5C6C2; color:#B3403A;" onclick="odBan('${u.id}')">⛔ Ban</button>`) : ''}
+          ${u.id===me.id
+            ? `<span class="pill pill-navy" style="font-size:11px; align-self:center;" title="You cannot delete the account you are currently using.">This is you</span>`
+            : `<button class="btn btn-outline btn-sm" style="border-color:#F5C6C2; color:#B3403A;" onclick="odDeleteUser('${u.id}')">🗑️ Delete User</button>`}
         </div>
       </div>
       <div id="user-progress-${u.id}" class="hidden" style="margin-top:14px; padding-top:14px; border-top:1px solid var(--gray);"></div>
@@ -249,6 +298,32 @@ if(requireCapability(canAccessOwnerDashboard)){
       <p style="font-size:11px; color:var(--ink-faint); margin-top:6px;">🎓 Certificates: Coming Soon platform-wide, not yet issued to anyone. Program enrollment/completion isn't tracked in learner_state yet, so it isn't shown here either — see Roadmap.</p>
     `;
   };
+  window.odDeleteUser = (id)=>{
+    const u = odUsers.rows.find(r=>r.id===id);
+    if(!u) return;
+    const statusLabel = u.banned ? 'Banned' : u.suspended ? 'Suspended' : u.deactivated ? 'Deactivated' : 'Active';
+    showConfirmModal({
+      title: '🗑️ Delete this user?',
+      detailsHtml: `
+        <div><strong>Name:</strong> ${escapeHtml(u.name)}</div>
+        <div><strong>Email:</strong> ${escapeHtml(u.email)}</div>
+        <div><strong>Role:</strong> ${ROLE_LABELS[u.role]||u.role}</div>
+        <div><strong>Status:</strong> ${statusLabel}</div>`,
+      warning: "This will permanently remove the user's account and associated WRLD profile data. This action cannot be undone.",
+      confirmLabel: 'Delete User',
+      onConfirm: async (closeModal)=>{
+        const { data, error } = await sbClient.functions.invoke('delete-user', { body: { userId: id } });
+        if(error || !data?.ok){
+          showToast('❌ ' + friendlyBackendError((data && data.error) ? {message:data.error} : error));
+          return; // modal stays open, row stays visible — no false success
+        }
+        closeModal();
+        showToast('✅ User deleted successfully.');
+        await renderUsers(); // re-fetches with the same search/filter/page already in odUsers
+      },
+    });
+  };
+
   async function renderUsers(){
     document.getElementById('od-panels').innerHTML = panelShell(`<h3 class="mb-16">Members</h3><p style="font-size:13px; color:var(--ink-faint);">Loading members from the database…</p>`);
     await odFetchUsers();
@@ -428,6 +503,7 @@ if(requireCapability(canAccessOwnerDashboard)){
         <button class="btn btn-outline btn-sm" onclick="odMentorStatus('${a.id}','more_information_requested')">Request More Info</button>
         <button class="btn btn-primary btn-sm" onclick="odMentorStatus('${a.id}','approved')">✅ Approve</button>
         <button class="btn btn-outline btn-sm" onclick="odMentorStatus('${a.id}','declined')">Decline</button>
+        <button class="btn btn-outline btn-sm" style="border-color:#F5C6C2; color:#B3403A;" onclick="odDeleteMentorApp('${a.id}')">🗑️ Delete Application</button>
       </div>
       <h5 class="mb-8" style="font-size:12.5px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.03em;">Internal Notes (not visible to the applicant)</h5>
       <div class="mb-10">${(a.internal_notes||[]).length ? a.internal_notes.map(n=>`<div class="card mb-6" style="padding:10px 14px; background:var(--gray);"><div style="font-size:12px; color:var(--ink-faint); margin-bottom:2px;">${escapeHtml(n.authorName)} · ${timeAgo(n.at)}</div><div style="font-size:13px;">${escapeHtml(n.note)}</div></div>`).join('') : `<p style="font-size:12px; color:var(--ink-faint);">No internal notes yet.</p>`}</div>
@@ -472,6 +548,33 @@ if(requireCapability(canAccessOwnerDashboard)){
     document.getElementById('mentor-app-detail-'+id)?.classList.add('hidden');
     odToggleMentorApp(id);
   };
+  window.odDeleteMentorApp = (id)=>{
+    const a = odMentors.rows.find(x=>x.id===id);
+    if(!a) return;
+    const fileCount = (a.resume_file_path?1:0) + (a.certs_path?1:0);
+    showConfirmModal({
+      title: '🗑️ Delete this mentor application?',
+      detailsHtml: `
+        <div><strong>Applicant:</strong> ${escapeHtml(a.name)}</div>
+        <div><strong>Email:</strong> ${escapeHtml(a.email)}</div>
+        <div><strong>Status:</strong> ${MENTOR_STATUS_LABELS[a.status]||a.status}</div>
+        <div><strong>Submitted:</strong> ${new Date(a.created_at).toLocaleDateString()}</div>
+        <div><strong>Attached files:</strong> ${fileCount}</div>`,
+      warning: "This will permanently remove the submitted application and its associated application files. The applicant's WRLD account and current role will not be deleted.",
+      confirmLabel: 'Delete Application',
+      onConfirm: async (closeModal)=>{
+        const { error } = await sbClient.rpc('delete_mentor_application', { p_application_id: id });
+        if(error){
+          showToast('❌ ' + friendlyBackendError(error));
+          return; // modal stays open, record stays visible — no false success
+        }
+        closeModal();
+        showToast('✅ Mentor application deleted successfully.');
+        await renderMentors(); // re-fetches with the same search/filter already in odMentors
+      },
+    });
+  };
+
   async function renderMentors(){
     document.getElementById('od-panels').innerHTML = panelShell(`<h3 class="mb-16">Mentors</h3><p style="font-size:13px; color:var(--ink-faint);">Loading applications from the database…</p>`);
     await odFetchMentorApps();
@@ -562,18 +665,19 @@ if(requireCapability(canAccessOwnerDashboard)){
   window.odVerifyVolunteer = (id, status)=>{ setVolunteerVerification(id, status); showToast(status==='verified' ? '✅ Marked verified' : '📩 Requested more info from the learner'); renderPanel(); };
 
   /* ---------------- COMMUNITY ---------------- */
-  function renderCommunity(){
-    const reported = getReportedItems();
-    const queue = getModerationQueue();
+  async function renderCommunity(){
+    document.getElementById('od-panels').innerHTML = panelShell(`<h3 class="mb-16">Community Safety</h3><p style="font-size:13px; color:var(--ink-faint);">Loading community data…</p>`);
+    const reported = await getReportedItems();
+    const queue = await getModerationQueue();
     const log = getModerationLog();
     const users = getUsers();
     const warned = users.filter(u=>(u.warnings||0)>0);
     const suspended = users.filter(u=>u.suspended && !u.banned);
     const banned = users.filter(u=>u.banned);
-    const posts = getCommunityPosts();
+    const posts = await getCommunityPosts();
     const newDiscussions = posts.filter(p=>p.status==='approved' && (Date.now()-new Date(p.createdAt).getTime())<=7*24*60*60*1000).length;
     const m = getMembersStats();
-    return panelShell(`
+    document.getElementById('od-panels').innerHTML = panelShell(`
       <h3 class="mb-16">Community Safety</h3>
       <div class="owner-metric-row mb-16">
         ${metricCard(newDiscussions, 'New Discussions (7d)')}
@@ -592,6 +696,7 @@ if(requireCapability(canAccessOwnerDashboard)){
       <h4 class="mb-12">🕐 Recent Moderation History</h4>
       <div>${log.length ? log.slice(0,8).map(e=>`<div class="card mb-8" style="padding:12px 16px; font-size:12.5px;"><strong style="color:var(--navy);">${e.action}</strong> on <code style="font-size:11.5px;">${e.targetId}</code><span style="float:right; color:var(--ink-faint);">${timeAgo(e.at)}</span></div>`).join('') : `<div class="empty-state"><div class="ic">🕐</div><h4>No moderation actions yet</h4></div>`}</div>
     `);
+    setTimeout(initReveal, 20);
   }
 
   /* ---------------- CONTENT ---------------- */
@@ -666,16 +771,18 @@ if(requireCapability(canAccessOwnerDashboard)){
   };
 
   /* ---------------- NOTIFICATIONS ---------------- */
-  function renderNotifications(){
-    const alerts = getSystemAlerts();
-    const feed = getRecentActivityFeed(20);
-    return panelShell(`
+  async function renderNotifications(){
+    document.getElementById('od-panels').innerHTML = panelShell(`<h3 class="mb-16">Notifications</h3><p style="font-size:13px; color:var(--ink-faint);">Loading…</p>`);
+    const alerts = await getSystemAlerts();
+    const feed = await getRecentActivityFeed(20);
+    document.getElementById('od-panels').innerHTML = panelShell(`
       <h3 class="mb-16">Notifications</h3>
       <h4 class="mb-12">🚨 System Alerts</h4>
       <div class="mb-24">${alerts.map(a=>`<div class="card mb-8" style="padding:14px 18px; display:flex; align-items:center; gap:10px;"><span>${a.icon}</span><span style="font-size:13.5px; ${a.level==='warn'?'font-weight:700; color:#B3403A;':''}">${escapeHtml(a.text)}</span></div>`).join('')}</div>
       <h4 class="mb-12">🕐 Recent Activity</h4>
       <div>${feed.length ? feed.map(e=>`<div class="card mb-8" style="padding:12px 16px; display:flex; align-items:center; gap:10px;"><span>${e.icon}</span><span style="font-size:13px; flex:1;">${escapeHtml(e.text)}</span><span style="font-size:11.5px; color:var(--ink-faint); flex-shrink:0;">${timeAgo(e.at)}</span></div>`).join('') : `<div class="empty-state"><div class="ic">🔔</div><h4>Nothing yet</h4><p>Signups, posts, applications, and volunteer logs will show up here as they happen.</p></div>`}</div>
     `);
+    setTimeout(initReveal, 20);
   }
 
   /* ---------------- ORGANIZATION ---------------- */
@@ -720,16 +827,17 @@ if(requireCapability(canAccessOwnerDashboard)){
   };
 
   /* ---------------- ANALYTICS ---------------- */
-  function renderAnalytics(){
+  async function renderAnalytics(){
+    document.getElementById('od-panels').innerHTML = panelShell(`<h3 class="mb-16">Analytics</h3><p style="font-size:13px; color:var(--ink-faint);">Loading…</p>`);
     const users = getUsers();
     const byRole = {};
     users.forEach(u=>{ byRole[u.role] = (byRole[u.role]||0)+1; });
-    const posts = getCommunityPosts();
+    const posts = await getCommunityPosts();
     const allItems = posts.length + posts.reduce((s,p)=>s+(p.replies||[]).length,0);
     const heldItems = posts.filter(p=>p.status==='held').length + posts.reduce((s,p)=>s+(p.replies||[]).filter(r=>r.status==='held').length,0);
     const approvalRate = allItems ? Math.round(((allItems-heldItems)/allItems)*100) : 100;
     const apps = getMentorApplications();
-    return panelShell(`
+    document.getElementById('od-panels').innerHTML = panelShell(`
       <h3 class="mb-16">Analytics</h3>
       <h4 class="mb-12">👥 Users by Role</h4>
       <div class="owner-metric-row mb-24">
@@ -751,6 +859,7 @@ if(requireCapability(canAccessOwnerDashboard)){
         ${metricCard(apps.filter(a=>a.status==='rejected').length, 'Declined')}
       </div>
     `);
+    setTimeout(initReveal, 20);
   }
 
   /* ---------------- ADMINISTRATORS (Owner-only) ---------------- */
@@ -845,7 +954,7 @@ if(requireCapability(canAccessOwnerDashboard)){
       notifications: renderNotifications, roadmap: renderRoadmap,
     };
     const fn = map[activeTab] || renderOverview;
-    if(fn===renderOverview || fn===renderUsers || fn===renderMentors){
+    if(fn===renderOverview || fn===renderUsers || fn===renderMentors || fn===renderCommunity || fn===renderNotifications || fn===renderAnalytics){
       fn(); // async — paints its own loading state, then real content
       return;
     }

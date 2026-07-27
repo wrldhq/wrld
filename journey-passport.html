@@ -108,7 +108,7 @@ if(requireAuth()){
   document.getElementById('passport-achievements').innerHTML = computeAchievements().map(a=>`
     <div class="pill ${a.unlocked?'pill-success':'pill-navy'}" style="opacity:${a.unlocked?1:.4};" title="${a.unlocked?'Unlocked!':'Locked'}">${a.icon} ${a.label}</div>`).join('');
 
-  document.getElementById('passport-community-badges').innerHTML = computeCommunityBadges().map(b=>`
+  document.getElementById('passport-community-badges').innerHTML = (await computeCommunityBadges()).map(b=>`
     <div class="pill ${b.unlocked?'pill-success':'pill-navy'}" style="opacity:${b.unlocked?1:.4};" title="${b.desc}">${b.icon} ${b.label}</div>`).join('');
 
   const volSummary = getVolunteerSummary();

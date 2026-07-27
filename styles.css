@@ -694,7 +694,13 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
 .role-pill.role-mentor{background:var(--yellow-15); color:#8A6A1A;}
 .role-pill.role-admin{background:var(--navy); color:white;}
 .role-pill.role-owner{background:linear-gradient(135deg, var(--blue-dark), var(--navy)); color:white;}
-.owner-tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:28px;}
+.owner-tabs{display:flex; flex-direction:column; gap:10px; margin-bottom:28px;}
+.owner-nav-group{border:1.5px solid var(--navy-06); border-radius:var(--r-md); overflow:hidden; background:white;}
+.owner-nav-group-head{width:100%; display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:none; border:none; cursor:pointer; font-family:'Plus Jakarta Sans'; font-weight:700; font-size:14px; color:var(--navy); text-align:left;}
+.owner-nav-group-head:hover{background:var(--gray);}
+.owner-nav-chevron{transition:transform .2s var(--ease); color:var(--ink-faint); font-size:12px;}
+.owner-nav-group.open .owner-nav-chevron{transform:rotate(180deg);}
+.owner-nav-group-body{display:flex; flex-wrap:wrap; gap:8px; padding:0 16px 16px;}
 .owner-metric-row{display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:8px;}
 .owner-metric{padding:18px; text-align:center;}
 .owner-metric .num{font-family:'Plus Jakarta Sans'; font-weight:800; font-size:1.5rem; color:var(--blue);}
@@ -911,6 +917,11 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   /* Auth cards: less side padding so the form isn't cramped */
   .auth-card{padding:30px 22px;}
   .auth-shell{padding:32px 16px;}
+
+  /* Owner Command Centre's collapsible nav groups (V19): full-width
+     touch targets, no label clipping, comfortable spacing. */
+  .owner-nav-group-head{padding:14px 16px; min-height:44px;}
+  .owner-nav-group-body{padding:0 12px 14px;}
 }
 
 /* ---- About page: "Meet the Founder" section ----
@@ -975,4 +986,22 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   .nav{gap:6px;}
   .nav-cta{gap:6px;}
   .nav-cta:not(.nav-cta-user) .btn{padding:8px 10px; font-size:12px;}
+}
+
+/* ---------------------------------------------------------------------
+   CONFIRMATION MODAL (V19) — see app.js's showConfirmModal(). Built
+   entirely from existing tokens (--navy, --shadow-lg, --r-lg, .card,
+   .btn) so it matches the current dashboard design rather than
+   introducing a new visual system.
+   --------------------------------------------------------------------- */
+.wrld-modal-overlay{position:fixed; inset:0; background:rgba(31,61,77,.55); z-index:400; display:flex; align-items:center; justify-content:center; padding:20px;}
+.wrld-modal{max-width:480px; width:100%; max-height:calc(100dvh - 40px); overflow-y:auto; padding:28px; border-radius:var(--r-lg); box-shadow:var(--shadow-lg);}
+.wrld-modal-details{background:var(--gray); border-radius:var(--r-md); padding:14px 16px; font-size:13.5px; color:var(--navy);}
+.wrld-modal-details div{margin-bottom:4px;}
+.wrld-modal-details div:last-child{margin-bottom:0;}
+.wrld-modal-warning{font-size:13px; color:#B3403A; font-weight:600; margin:0;}
+
+@media(max-width:560px){
+  .wrld-modal{padding:22px 20px; max-height:calc(100dvh - 24px);}
+  .wrld-modal-overlay{padding:12px;}
 }

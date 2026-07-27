@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Administrator Dashboard — WRLD.</title>
+<meta name="description" content="WRLD's Administrator Dashboard — day-to-day operations: users, mentor and volunteer applications, content and community moderation.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+  <section class="section-sm surface-sky">
+    <div class="container">
+      <div class="eyebrow reveal">🛡️ Administrator Dashboard</div>
+      <h2 class="reveal">Day-to-day WRLD operations.</h2>
+      <p class="reveal" style="max-width:640px;">Everything here is real, live data — nothing invented or simulated. Permanent deletion, security, and organization-level settings live in the Owner Command Centre, not here.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="owner-tabs reveal" id="ad-tabs"></div>
+      <div id="ad-panels"></div>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js"></script>
+<script src="data.js"></script>
+<script src="orbit-knowledge.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="orbit.js?v=16"></script>
+<script>
+(async () => {
+await window.wrldAuthReady;
+// V19: Administrator Dashboard — Administrator and Owner both pass (see
+// canAccessAdministratorDashboard() in auth.js). Explorers/Mentors are
+// redirected to their own dashboard by requireCapability(), never just
+// hidden from nav — see AUTH-SECURITY-SETUP.md's capability-gate model.
+if(requireCapability(canAccessAdministratorDashboard)){
+  await refreshUsersCache();
+  const me = getCurrentUser();
+
+  const TABS = [
+    {key:'overview', label:'📊 Overview'},
+    {key:'users', label:'👤 Users'},
+    {key:'mentors', label:'🤝 Mentor Operations'},
+    {key:'volunteer', label:'🌍 Volunteer Operations'},
+    {key:'community', label:'🛡️ Community & Content'},
+    {key:'notifications', label:'🔔 Support & Notifications'},
+  ];
+  let activeTab = 'overview';
+
+  function renderTabs(){
+    document.getElementById('ad-tabs').innerHTML = TABS.map(t=>`<button type="button" class="filter-chip ${t.key===activeTab?'active':''}" onclick="setAdTab('${t.key}')">${t.label}</button>`).join('');
+  }
+  window.setAdTab = function(key){ activeTab = key; renderTabs(); renderPanel(); };
+  function panelShell(inner){ return `<div class="reveal">${inner}</div>`; }
+  function metricCard(num, label){ return `<div class="card owner-metric"><div class="num">${num}</div><div class="lbl">${label}</div></div>`; }
+
+  /* ---------------- OVERVIEW ---------------- */
+  // Same real, server-aggregated RPCs the Owner Command Centre's
+  // Overview tab uses (admin_platform_overview() etc, supabase/migrations
+  // /022-025) — Administrators get the same real numbers, just without
+  // the Owner-only tabs (Administrators, Security, Organization,
+  // Roadmap) surrounding them.
+  async function renderOverview(){
+    document.getElementById('ad-panels').innerHTML = panelShell(`<h3 class="mb-16">Operational Overview</h3><p style="font-size:13px; color:var(--ink-faint);">Loading live metrics…</p>`);
+    const [ovRes, mentorAppsRes] = await Promise.all([
+      sbClient.rpc('admin_platform_overview'),
+      sbClient.rpc('admin_user_list', {search:'', role_filter:'', status_filter:'', verified_filter:'', sort_by:'newest', page_limit:1, page_offset:0}),
+    ]);
+    if(ovRes.error){
+      document.getElementById('ad-panels').innerHTML = panelShell(`<h3 class="mb-16">Operational Overview</h3><div class="empty-state"><div class="ic">⚠️</div><h4>Couldn't load metrics</h4><p>${escapeHtml(ovRes.error.message)}</p></div>`);
+      return;
+    }
+    const o = (ovRes.data && ovRes.data[0]) || {};
+    const { data: apps } = await sbClient.from('mentor_applications').select('status');
+    const pendingMentorApps = (apps||[]).filter(a=>a.status==='submitted'||a.status==='under_review').length;
+    const volSummary = typeof getVolunteerSummary==='function' ? getVolunteerSummary() : {entryCount:0};
+    const modQueue = typeof getModerationQueue==='function' ? await getModerationQueue() : [];
+    const feed = typeof getRecentActivityFeed==='function' ? await getRecentActivityFeed(8) : [];
+    document.getElementById('ad-panels').innerHTML = panelShell(`
+      <h3 class="mb-16">Operational Overview</h3>
+      <p style="font-size:13px; color:var(--ink-faint); margin-bottom:20px;">Real, live figures — the same underlying data the Owner Command Centre reads, scoped to day-to-day operations.</p>
+      <div class="owner-metric-row mb-16">
+        ${metricCard(o.total_users||0, 'Total Active Users')}
+        ${metricCard(o.new_today||0, 'New Users Today')}
+        ${metricCard(pendingMentorApps, 'Pending Mentor Applications')}
+        ${metricCard(volSummary.entryCount||0, 'Volunteer Entries Logged')}
+        ${metricCard(modQueue.length, 'Content Awaiting Review')}
+      </div>
+      <div class="card mb-16" style="padding:20px 22px;">
+        <h4 class="mb-12">🕐 Recent Activity</h4>
+        ${feed.length ? feed.slice(0,8).map(e=>`<div class="owner-list-item"><span style="font-size:13px;">${e.icon} ${escapeHtml(e.text)}</span><span style="font-size:11px; color:var(--ink-faint);">${timeAgo(e.at)}</span></div>`).join('') : `<p style="font-size:12.5px; color:var(--ink-faint);">Nothing logged yet on this browser.</p>`}
+      </div>
+      <p style="font-size:11.5px; color:var(--ink-faint);">Sensitive platform-wide analytics and organization settings are Owner-only and live in the Owner Command Centre.</p>
+    `);
+    setTimeout(initReveal, 20);
+  }
+
+  /* ---------------- USERS (non-destructive only) ---------------- */
+  let adUsers = { search:'', role:'', status:'', sort:'newest', page:0, pageSize:20, totalCount:0, rows:[] };
+  async function adFetchUsers(){
+    const { data, error } = await sbClient.rpc('admin_user_list', {
+      search: adUsers.search, role_filter: adUsers.role, status_filter: adUsers.status,
+      verified_filter: '', sort_by: adUsers.sort, page_limit: adUsers.pageSize, page_offset: adUsers.page*adUsers.pageSize,
+    });
+    if(error){ adUsers.rows = []; adUsers.totalCount = 0; return; }
+    adUsers.rows = data || [];
+    adUsers.totalCount = (data && data[0] && Number(data[0].total_count)) || 0;
+  }
+  function adUserRow(u){
+    const status = u.banned ? '<span class="pill pill-live">Banned</span>' : u.suspended ? '<span class="pill pill-sample">Suspended</span>' : u.deactivated ? '<span class="pill pill-navy">Deactivated</span>' : '<span class="pill pill-success">Active</span>';
+    return `<div class="card owner-row mb-12" style="flex-direction:column; align-items:stretch;">
+      <div class="flex justify-between items-start" style="flex-wrap:wrap; gap:12px;">
+        <div style="flex:1; min-width:220px;">
+          <div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(u.name)} ${status}</div>
+          <div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(u.email)} · <span class="role-pill role-${u.role}">${ROLE_LABELS[u.role]||u.role}</span> · joined ${new Date(u.created_at).toLocaleDateString()}</div>
+        </div>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          ${u.role===ROLES.EXPLORER ? `<button class="btn btn-outline btn-sm" onclick="adPromote('${u.id}')">🤝 Make Mentor</button>` : ''}
+          ${u.role===ROLES.MENTOR ? `<button class="btn btn-outline btn-sm" onclick="adDemote('${u.id}')">Revert to Explorer</button>` : ''}
+          ${u.role!==ROLES.OWNER ? `<button class="btn btn-outline btn-sm" onclick="adResetPassword('${escapeHtml(u.email)}')">🔑 Reset Password</button>` : ''}
+          ${u.role!==ROLES.OWNER ? (u.suspended ? `<button class="btn btn-primary btn-sm" onclick="adUnsuspend('${u.id}')">Restore</button>` : `<button class="btn btn-outline btn-sm" onclick="adSuspend('${u.id}')">🚫 Suspend</button>`) : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+  window.adPromote = async (id)=>{ await promoteUserRole(id, ROLES.MENTOR); showToast('🤝 Promoted to Mentor'); await refreshUsersCache(); renderUsers(); };
+  window.adDemote = async (id)=>{ await promoteUserRole(id, ROLES.EXPLORER); showToast('Reverted to Explorer'); await refreshUsersCache(); renderUsers(); };
+  window.adSuspend = async (id)=>{ await suspendUser(id); showToast('🚫 Account suspended'); renderUsers(); };
+  window.adUnsuspend = async (id)=>{ await unsuspendUser(id); showToast('✅ Account restored'); renderUsers(); };
+  window.adResetPassword = async (email)=>{
+    const result = await requestPasswordReset(email);
+    showToast(result.ok ? '📧 Reset email sent' : "Couldn't send reset email");
+  };
+  async function renderUsers(){
+    document.getElementById('ad-panels').innerHTML = panelShell(`<h3 class="mb-16">Users</h3><p style="font-size:13px; color:var(--ink-faint);">Loading…</p>`);
+    await adFetchUsers();
+    document.getElementById('ad-panels').innerHTML = panelShell(`
+      <h3 class="mb-16">Users</h3>
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:16px;">Routine, reversible account actions only — permanent deletion is Owner-only, in the Owner Command Centre.</p>
+      <div class="search-wrap mb-16" style="max-width:420px; margin:0 0 16px;">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="ad-user-search" placeholder="Search by name or email..." value="${escapeHtml(adUsers.search)}">
+      </div>
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:14px;">${adUsers.totalCount} member${adUsers.totalCount!==1?'s':''} found</p>
+      <div>${adUsers.rows.length ? adUsers.rows.map(adUserRow).join('') : `<div class="empty-state"><div class="ic">👤</div><h4>No matching accounts</h4></div>`}</div>
+    `);
+    const s = document.getElementById('ad-user-search');
+    if(s){ s.addEventListener('input', e=>{ adUsers.search = e.target.value; adUsers.page = 0; renderUsers(); }); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+    setTimeout(initReveal, 20);
+  }
+
+  /* ---------------- MENTOR OPERATIONS (no permanent deletion) ---------------- */
+  async function renderMentorOps(){
+    document.getElementById('ad-panels').innerHTML = panelShell(`<h3 class="mb-16">Mentor Operations</h3><p style="font-size:13px; color:var(--ink-faint);">Loading applications…</p>`);
+    const { data: apps, error } = await sbClient.from('mentor_applications').select('*').order('created_at', {ascending:false});
+    if(error){ document.getElementById('ad-panels').innerHTML = panelShell(`<h3 class="mb-16">Mentor Operations</h3><div class="empty-state"><div class="ic">⚠️</div><h4>Couldn't load applications</h4></div>`); return; }
+    const rows = apps || [];
+    const approvedMentors = getUsers().filter(u=>u.role===ROLES.MENTOR);
+    document.getElementById('ad-panels').innerHTML = panelShell(`
+      <h3 class="mb-16">Mentor Operations</h3>
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:16px;">Review and move applications through the workflow. Permanent application deletion is Owner-only.</p>
+      <div>${rows.length ? rows.map(a=>`
+        <div class="card owner-row mb-12" style="flex-direction:column; align-items:stretch;">
+          <div class="flex justify-between items-start" style="flex-wrap:wrap; gap:12px;">
+            <div style="flex:1; min-width:220px;">
+              <div style="font-weight:700; font-size:14px; color:var(--navy);">${escapeHtml(a.name)} <span class="pill pill-navy" style="font-size:10px;">${(a.status||'').replace(/_/g,' ')}</span></div>
+              <div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(a.email)}${a.expertise?` · ${escapeHtml(a.expertise)}`:''} · applied ${timeAgo(a.created_at)}</div>
+            </div>
+            <div class="flex gap-8" style="flex-wrap:wrap;">
+              ${a.status==='submitted'||a.status==='under_review' ? `<button class="btn btn-primary btn-sm" onclick="adMentorStatus('${a.id}','approved')">✅ Approve</button><button class="btn btn-outline btn-sm" onclick="adMentorStatus('${a.id}','declined')">Decline</button>` : ''}
+              <button class="btn btn-outline btn-sm" onclick="adMentorStatus('${a.id}','under_review')">Mark Under Review</button>
+            </div>
+          </div>
+        </div>`).join('') : `<div class="empty-state"><div class="ic">✅</div><h4>No applications</h4></div>`}</div>
+      <h4 class="mb-12 mt-24">🤝 Approved Mentors (${approvedMentors.length})</h4>
+      <div>${approvedMentors.length ? approvedMentors.map(m=>`<div class="card mb-8" style="padding:14px 18px;"><strong>${escapeHtml(m.name)}</strong> <span style="font-size:12px; color:var(--ink-faint);">${escapeHtml(m.email)}</span></div>`).join('') : `<div class="empty-state"><div class="ic">🤝</div><h4>No approved Mentors yet</h4></div>`}</div>
+    `);
+    setTimeout(initReveal, 20);
+  }
+  window.adMentorStatus = async (id, status)=>{
+    const { error } = await sbClient.rpc('set_mentor_application_status', {p_application_id:id, p_new_status:status, p_note:null});
+    if(error){ showToast("Couldn't update — try again."); return; }
+    showToast('✅ Status updated');
+    if(status==='approved') await refreshUsersCache();
+    renderMentorOps();
+  };
+
+  /* ---------------- VOLUNTEER OPERATIONS ---------------- */
+  function renderVolunteerOps(){
+    const entries = typeof getVolunteerEntries==='function' ? getVolunteerEntries() : [];
+    document.getElementById('ad-panels').innerHTML = panelShell(`
+      <h3 class="mb-16">Volunteer Operations</h3>
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:16px;">Volunteer log entries from this browser (see CLAUDE.md — not yet cross-device synced).</p>
+      <div>${entries.length ? entries.slice(0,30).map(e=>`
+        <div class="card mb-8" style="padding:14px 18px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div><strong style="font-size:13.5px; color:var(--navy);">${escapeHtml(e.organization||'Untitled')}</strong><div style="font-size:12px; color:var(--ink-faint);">${escapeHtml(e.role||'')} · ${e.hours||0} hrs</div></div>
+          <span class="pill ${e.status==='verified'?'pill-success':'pill-sample'}" style="align-self:center;">${e.status||'pending'}</span>
+        </div>`).join('') : `<div class="empty-state"><div class="ic">🌍</div><h4>No volunteer entries yet</h4></div>`}</div>
+    `);
+    setTimeout(initReveal, 20);
+  }
+
+  /* ---------------- COMMUNITY & CONTENT MODERATION ---------------- */
+  // Reuses the exact same queue/report functions as moderation-dashboard.html
+  // (getModerationQueue/getReportedItems/moderationSetStatus) — no new
+  // content-management system, per spec.
+  async function renderCommunity(){
+    document.getElementById('ad-panels').innerHTML = panelShell(`<h3 class="mb-16">Community &amp; Content Moderation</h3><p style="font-size:13px; color:var(--ink-faint);">Loading…</p>`);
+    const queue = typeof getModerationQueue==='function' ? await getModerationQueue() : [];
+    const reported = typeof getReportedItems==='function' ? await getReportedItems() : [];
+    document.getElementById('ad-panels').innerHTML = panelShell(`
+      <h3 class="mb-16">Community &amp; Content Moderation</h3>
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:16px;">Same moderation queue as the Moderator Dashboard — approve, request edits, or remove.</p>
+      <h4 class="mb-12">🚩 Held for Review (${queue.length})</h4>
+      <div class="mb-24">${queue.length ? queue.map(entry=>`
+        <div class="card mb-10" style="padding:14px 18px;">
+          <div style="font-weight:700; font-size:13px; color:var(--navy);">${escapeHtml(entry.item.authorName)}</div>
+          <p style="font-size:13px; margin:4px 0 10px;">${escapeHtml(entry.item.body)}</p>
+          <div class="flex gap-8" style="flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="adModApprove('${entry.post.id}', ${entry.type==='reply'?`'${entry.item.id}'`:'null'})">✅ Approve</button>
+            <button class="btn btn-outline btn-sm" onclick="adModRemove('${entry.post.id}', ${entry.type==='reply'?`'${entry.item.id}'`:'null'})">🗑️ Remove</button>
+          </div>
+        </div>`).join('') : `<div class="empty-state"><div class="ic">✅</div><h4>Nothing held right now</h4></div>`}</div>
+      <h4 class="mb-12">📋 Reported Content (${reported.length})</h4>
+      <div>${reported.length ? reported.map(entry=>`
+        <div class="card mb-10" style="padding:14px 18px;">
+          <div style="font-weight:700; font-size:13px; color:var(--navy);">${escapeHtml(entry.item.authorName)} <span class="pill pill-sample" style="font-size:10px;">${entry.item.reportCount} report${entry.item.reportCount!==1?'s':''}</span></div>
+          <p style="font-size:13px; margin:4px 0 10px;">${escapeHtml(entry.item.body)}</p>
+          <div class="flex gap-8" style="flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="adModApprove('${entry.post.id}', ${entry.type==='reply'?`'${entry.item.id}'`:'null'})">✅ Restore</button>
+            <button class="btn btn-outline btn-sm" onclick="adModRemove('${entry.post.id}', ${entry.type==='reply'?`'${entry.item.id}'`:'null'})">🗑️ Remove</button>
+          </div>
+        </div>`).join('') : `<div class="empty-state"><div class="ic">🌱</div><h4>No reports yet</h4></div>`}</div>
+      <p style="font-size:11.5px; color:var(--ink-faint); margin-top:16px;">Playbook and program content publication status is managed directly in <code>data.js</code> today — see CLAUDE.md.</p>
+    `);
+    setTimeout(initReveal, 20);
+  }
+  window.adModApprove = async (postId, replyId)=>{ await moderationSetStatus(postId, replyId, 'approved'); showToast('✅ Approved'); renderCommunity(); };
+  window.adModRemove = async (postId, replyId)=>{ await moderationSetStatus(postId, replyId, 'removed'); showToast('🗑️ Removed'); renderCommunity(); };
+
+  /* ---------------- SUPPORT & NOTIFICATIONS ---------------- */
+  // No contact-submission/support-ticket table exists anywhere in this
+  // project yet — shown honestly as Coming Soon rather than populated
+  // with invented sample tickets, matching WRLD's established "never
+  // fabricate content or features" rule (see data.js's header comment).
+  function renderNotifications(){
+    document.getElementById('ad-panels').innerHTML = panelShell(`
+      <h3 class="mb-16">Support &amp; Notifications</h3>
+      <div class="card" style="padding:24px; border:1.5px dashed var(--navy-10);">
+        <span class="pill pill-sample mb-8" style="display:inline-block;">Coming Soon</span>
+        <p style="font-size:13.5px;">A real contact/support-submission inbox doesn't exist in WRLD's backend yet — this panel will show real submissions the moment that store is built, rather than sample data today.</p>
+      </div>
+    `);
+  }
+
+  function renderPanel(){
+    if(activeTab==='overview') renderOverview();
+    else if(activeTab==='users') renderUsers();
+    else if(activeTab==='mentors') renderMentorOps();
+    else if(activeTab==='volunteer') renderVolunteerOps();
+    else if(activeTab==='community') renderCommunity();
+    else if(activeTab==='notifications') renderNotifications();
+  }
+
+  renderTabs();
+  renderPanel();
+  initPage(null, "This is your day-to-day operations view — permanent deletion and security controls live in the Owner Command Centre.");
+}
+})();
+</script>
+</body>
+</html>

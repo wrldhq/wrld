@@ -91,11 +91,7 @@ if(requireCapability(canAccessModerationDashboard)){
   }
 
   function contextLabel(post){
-    if(post.contextType==='playbook'){
-      const pb = typeof getPlaybook==='function' ? getPlaybook(post.contextId) : null;
-      return pb ? `Playbook: ${pb.title}` : 'Playbook discussion';
-    }
-    const cat = typeof getCommonsCategory==='function' ? getCommonsCategory(post.contextId) : null;
+    const cat = typeof getCommonsCategory==='function' ? getCommonsCategory(post.category) : null;
     return cat ? `Commons: ${cat.label}` : 'Community Commons';
   }
 
@@ -122,8 +118,8 @@ if(requireCapability(canAccessModerationDashboard)){
     </div>`;
   }
 
-  function renderQueue(){
-    const queue = getModerationQueue();
+  async function renderQueue(){
+    const queue = await getModerationQueue();
     document.getElementById('mod-queue-list').innerHTML = queue.length
       ? queue.map(queueItemCard).join('')
       : `<div class="empty-state"><div class="ic">✅</div><h4>Nothing held right now</h4><p>Automated screening and community reports will surface anything that needs review here.</p></div>`;
@@ -131,7 +127,6 @@ if(requireCapability(canAccessModerationDashboard)){
 
   function reportedItemCard(entry){
     const item = entry.item;
-    const reasons = (item.reports||[]).map(r=>r.reason);
     return `<div class="card reveal mb-16" style="padding:20px 22px;">
       <div class="flex justify-between items-start mb-8" style="flex-wrap:wrap; gap:10px;">
         <div>
@@ -142,7 +137,6 @@ if(requireCapability(canAccessModerationDashboard)){
       </div>
       <p style="font-size:13.5px; font-weight:700; color:var(--navy); margin-bottom:2px;">${escapeHtml(item.authorName)}</p>
       <p style="font-size:14px; margin-bottom:10px;">${escapeHtml(item.body)}</p>
-      <div class="flex gap-6 mb-10" style="flex-wrap:wrap;">${reasons.map(r=>`<span class="pill pill-navy" style="font-size:11px;">${r}</span>`).join('')}</div>
       <div class="flex gap-10" style="flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" onclick="modApprove('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">✅ Restore / Approve</button>
         <button class="btn btn-outline btn-sm" onclick="modRequestEdits('${entry.post.id}', ${entry.type==='reply'?`'${item.id}'`:'null'})">✏️ Request Edits</button>
@@ -152,8 +146,8 @@ if(requireCapability(canAccessModerationDashboard)){
     </div>`;
   }
 
-  function renderReported(){
-    const items = getReportedItems();
+  async function renderReported(){
+    const items = await getReportedItems();
     document.getElementById('mod-reported-list').innerHTML = items.length
       ? items.map(reportedItemCard).join('')
       : `<div class="empty-state"><div class="ic">🌱</div><h4>No reports yet</h4><p>Nothing has been reported by the community so far.</p></div>`;
@@ -197,10 +191,10 @@ if(requireCapability(canAccessModerationDashboard)){
       : `<div class="empty-state"><div class="ic">🕐</div><h4>No moderation actions yet</h4></div>`;
   }
 
-  window.modApprove = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'approved'); showToast('✅ Approved'); renderActivePanel(); };
-  window.modRequestEdits = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'edits_requested'); showToast('✏️ Edits requested — this stays hidden until it\'s approved.'); renderActivePanel(); };
-  window.modRemove = (postId, replyId)=>{ moderationSetStatus(postId, replyId, 'removed'); showToast('🗑️ Removed'); renderActivePanel(); };
-  window.modClearReports = (postId, replyId)=>{ moderationClearReports(postId, replyId); showToast('🧹 Reports cleared'); renderActivePanel(); };
+  window.modApprove = async (postId, replyId)=>{ await moderationSetStatus(postId, replyId, 'approved'); showToast('✅ Approved'); renderActivePanel(); };
+  window.modRequestEdits = async (postId, replyId)=>{ await moderationSetStatus(postId, replyId, 'edits_requested'); showToast('✏️ Edits requested — this stays hidden until it\'s approved.'); renderActivePanel(); };
+  window.modRemove = async (postId, replyId)=>{ await moderationSetStatus(postId, replyId, 'removed'); showToast('🗑️ Removed'); renderActivePanel(); };
+  window.modClearReports = async (postId, replyId)=>{ await moderationClearReports(postId, replyId); showToast('🧹 Reports cleared'); renderActivePanel(); };
   // These now write to Supabase (profiles table) instead of localStorage,
   // so each handler awaits the write, then re-pulls the fresh user list
   // via refreshUsersCache() before re-rendering — otherwise the panel

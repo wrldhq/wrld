@@ -41,7 +41,8 @@ function loggedInNavCTA(user){
         </div>
         <a href="dashboard.html">📊 ${isOwner ? 'My Explorer Dashboard' : 'My Dashboard'}</a>
         ${canMentor ? '<a href="mentor-studio.html">🎙️ Mentor Studio</a>' : ''}
-        ${canModerate ? `<a href="owner-dashboard.html">${isOwner ? '👑 Owner Command Centre' : '🛡️ Owner Dashboard'}</a>` : ''}
+        ${canModerate ? '<a href="administrator-dashboard.html">🛡️ Administrator Dashboard</a>' : ''}
+        ${isOwner ? '<a href="owner-dashboard.html">👑 Owner Command Centre</a>' : ''}
         <a href="account-settings.html">⚙️ Account Settings</a>
         <button onclick="handleLogOut()">🚪 Log Out</button>
       </div>
@@ -97,7 +98,8 @@ function renderHeader(activeKey){
     ${user ? `
       <a href="dashboard.html" class="btn btn-primary btn-block mt-24">📊 ${user.role===ROLES.OWNER ? 'My Explorer Dashboard' : 'My Dashboard'}</a>
       ${(typeof hasPermission==='function' && hasPermission(user,'manage_own_sessions')) ? '<a href="mentor-studio.html" class="btn btn-outline btn-block mt-12">🎙️ Mentor Studio</a>' : ''}
-      ${(typeof hasPermission==='function' && hasPermission(user,'moderate_platform')) ? `<a href="owner-dashboard.html" class="btn btn-outline btn-block mt-12">${user.role===ROLES.OWNER ? '👑 Owner Command Centre' : '🛡️ Owner Dashboard'}</a>` : ''}
+      ${(typeof hasPermission==='function' && hasPermission(user,'moderate_platform')) ? '<a href="administrator-dashboard.html" class="btn btn-outline btn-block mt-12">🛡️ Administrator Dashboard</a>' : ''}
+      ${user.role===ROLES.OWNER ? '<a href="owner-dashboard.html" class="btn btn-outline btn-block mt-12">👑 Owner Command Centre</a>' : ''}
       <a href="account-settings.html" class="btn btn-outline btn-block mt-12">⚙️ Account Settings</a>
       <button class="btn btn-outline btn-block mt-12" onclick="handleLogOut()">🚪 Log Out (${user.name.split(' ')[0]})</button>
     ` : `
@@ -721,25 +723,67 @@ function recordCommunityAction(kind, wasApproved){
 }
 
 /* ---------------------------------------------------------------------
-   POSTS + REPLIES
-   contextType is 'commons' (general Community Commons, with a category)
-   or 'playbook' (a Playbook's "Continue the Conversation" area, keyed by
-   slug). Same store, same moderation and trust rules either way.
+   POSTS + REPLIES (V19.2 — real, shared, Supabase-backed)
+   Previously this whole store was `localStorage` only
+   (`wrld_community_posts_v1`) — genuinely per-browser, never visible to
+   another user or device, which was the exact bug reported. Now backed
+   by public.community_posts / public.community_replies (see
+   supabase/migrations/036) with real RLS: anyone (including logged-out
+   visitors via the anon key) can read approved content; only an
+   authenticated author can insert as themselves; only the author or an
+   Administrator/Owner can delete. Every function here is now async —
+   callers (community.html, owner-dashboard.html, administrator-
+   dashboard.html, moderation-dashboard.html) await and re-render, the
+   same pattern already established for Playbook Q&A
+   (getPlaybookQuestions() etc, just above app.js's Playbook Questions
+   section) and for the Owner Dashboard's admin_user_list() etc.
+   Client-side moderateContent() still runs before every insert (a
+   courtesy check); RLS + moderation_set_community_status()/
+   report_community_content() (both security definer) are the real
+   security boundary, not this file.
    --------------------------------------------------------------------- */
-const COMMUNITY_KEY = 'wrld_community_posts_v1';
-function getCommunityPosts(){
-  try{ return JSON.parse(localStorage.getItem(COMMUNITY_KEY)) || []; }
-  catch(e){ return []; }
-}
-function saveCommunityPosts(posts){ localStorage.setItem(COMMUNITY_KEY, JSON.stringify(posts)); }
+async function getCommunityPosts(category){
+  let query = sbClient.from('community_posts').select('*').order('created_at', {ascending:false});
+  if(category) query = query.eq('category', category);
+  const { data, error } = await query;
+  if(error){ console.warn('WRLD: could not load community posts', error.message); return []; }
+  const posts = data || [];
+  if(!posts.length) return [];
 
-function communityPostsFor(contextType, contextId){
-  return getCommunityPosts()
-    .filter(p=>p.contextType===contextType && p.contextId===contextId && p.status!=='removed')
-    .sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const { data: replies, error: repliesError } = await sbClient
+    .from('community_replies').select('*').in('post_id', posts.map(p=>p.id)).order('created_at', {ascending:true});
+  if(repliesError) console.warn('WRLD: could not load community replies', repliesError.message);
+
+  const repliesByPost = {};
+  (replies||[]).forEach(r=>{ (repliesByPost[r.post_id] = repliesByPost[r.post_id]||[]).push(communityReplyFromRow(r)); });
+  return posts.map(p=>communityPostFromRow(p, repliesByPost[p.id]||[]));
 }
 
-function createCommunityPost({contextType, contextId, category, body}){
+// Normalizes a raw Supabase row into the same shape the UI (community.html,
+// dashboards) already expects (authorId/authorName/createdAt/reportCount),
+// resolving the display name live from the profiles relationship per the
+// V19.2 spec's "prefer the live profile name" choice — see
+// V19.2-BACKEND-SETUP.md's "Display names" section for why.
+function communityPostFromRow(row, replies){
+  return {
+    id: row.id, authorId: row.author_id, authorName: row.author_name || 'A WRLD member',
+    category: row.category, body: row.body, createdAt: row.created_at,
+    status: row.status, flags: row.flags||[], reportCount: row.report_count||0,
+    replies: replies||[],
+  };
+}
+function communityReplyFromRow(row){
+  return {
+    id: row.id, postId: row.post_id, authorId: row.author_id, authorName: row.author_name || 'A WRLD member',
+    body: row.body, createdAt: row.created_at, status: row.status, flags: row.flags||[], reportCount: row.report_count||0,
+  };
+}
+
+async function communityPostsFor(category){
+  return (await getCommunityPosts(category)).filter(p=>p.status!=='removed');
+}
+
+async function createCommunityPost({category, body}){
   const user = getCurrentUser();
   const gate = communityGateReason(user);
   if(!gate.ok) return {ok:false, error:gate.message};
@@ -752,26 +796,24 @@ function createCommunityPost({contextType, contextId, category, body}){
     return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
   }
 
-  const posts = getCommunityPosts();
-  const post = {
-    id: 'post_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
-    contextType, contextId, category: category||null,
-    authorId:user.id, authorName:user.name,
-    body: body.trim(), createdAt:new Date().toISOString(),
-    status: mod.status==='held' ? 'held' : 'approved',
-    flags: mod.flags, reportCount:0, reports:[], replies:[],
-  };
-  posts.unshift(post);
-  saveCommunityPosts(posts);
-  recordCommunityAction('post', post.status==='approved');
-  if(post.status==='held'){
-    logModerationEvent('auto-held', post.id, mod.flags);
-    recordViolationAndMaybeEscalate(user.id, mod.flags);
-  }
-  return {ok:true, post};
+  // author_name is resolved live from the profiles relationship by
+  // default throughout the UI (see communityPostFromRow) — this column
+  // is stored alongside it only so a post still shows *something*
+  // sensible if the author's account is later deleted (their profile
+  // row anonymizes author_id to null — see delete-user's cleanup step —
+  // at which point this stored name is what's left to show).
+  const { data, error } = await sbClient.from('community_posts').insert({
+    author_id: user.id, author_name: user.name, category: category||null,
+    body: body.trim(), status: mod.status==='held' ? 'held' : 'approved', flags: mod.flags||[],
+  }).select().single();
+  if(error){ console.warn('WRLD: could not post to community', error.message); return {ok:false, error:'Something went wrong posting that — try again.'}; }
+
+  recordCommunityAction('post', data.status==='approved');
+  if(data.status==='held') recordViolationAndMaybeEscalate(user.id, mod.flags);
+  return {ok:true, post: communityPostFromRow(data, [])};
 }
 
-function addCommunityReply(postId, body){
+async function addCommunityReply(postId, body){
   const user = getCurrentUser();
   const gate = communityGateReason(user);
   if(!gate.ok) return {ok:false, error:gate.message};
@@ -784,30 +826,92 @@ function addCommunityReply(postId, body){
     return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
   }
 
-  const posts = getCommunityPosts();
-  const post = posts.find(p=>p.id===postId);
-  if(!post) return {ok:false, error:'That discussion no longer exists.'};
+  const { data, error } = await sbClient.from('community_replies').insert({
+    post_id: postId, author_id: user.id, author_name: user.name,
+    body: body.trim(), status: mod.status==='held' ? 'held' : 'approved', flags: mod.flags||[],
+  }).select().single();
+  if(error){ console.warn('WRLD: could not post reply', error.message); return {ok:false, error:'Something went wrong posting that reply — try again.'}; }
 
-  const reply = {
-    id:'reply_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
-    authorId:user.id, authorName:user.name, body:body.trim(), createdAt:new Date().toISOString(),
-    status: mod.status==='held' ? 'held' : 'approved', flags:mod.flags, reportCount:0, reports:[],
-  };
-  post.replies.push(reply);
-  saveCommunityPosts(posts);
-  recordCommunityAction('reply', reply.status==='approved');
-  if(reply.status==='held'){
-    logModerationEvent('auto-held', reply.id, mod.flags);
-    recordViolationAndMaybeEscalate(user.id, mod.flags);
-  }
-  return {ok:true, reply};
+  recordCommunityAction('reply', data.status==='approved');
+  if(data.status==='held') recordViolationAndMaybeEscalate(user.id, mod.flags);
+  return {ok:true, reply: communityReplyFromRow(data)};
+}
+
+// Author-or-Administrator deletion — enforced by RLS
+// (community_posts_delete_own_or_admin / community_replies_delete_own_or_admin
+// in migration 036), not just by which button the UI shows. A plain
+// DELETE call is all that's needed; if the caller isn't the author or an
+// Administrator+, RLS silently matches zero rows and `error` stays null
+// but no row is removed — checked via the returned count.
+async function deleteOwnCommunityPost(postId){
+  const { error, count } = await sbClient.from('community_posts').delete({count:'exact'}).eq('id', postId);
+  return !error && count>0;
+}
+async function deleteOwnCommunityReply(replyId){
+  const { error, count } = await sbClient.from('community_replies').delete({count:'exact'}).eq('id', replyId);
+  return !error && count>0;
+}
+
+async function reportCommunityItem(postId, replyId, reason){
+  const { error } = await sbClient.rpc('report_community_content', {
+    p_post_id: replyId ? null : postId, p_reply_id: replyId||null, p_reason: reason||'unspecified',
+  });
+  return {ok: !error};
+}
+
+const MODERATION_LOG_KEY = 'wrld_moderation_log_v1';
+function logModerationEvent(action, targetId, flags){
+  let log = [];
+  try{ log = JSON.parse(localStorage.getItem(MODERATION_LOG_KEY)) || []; }catch(e){}
+  log.unshift({action, targetId, flags:flags||[], at:new Date().toISOString()});
+  localStorage.setItem(MODERATION_LOG_KEY, JSON.stringify(log.slice(0,300)));
+}
+function getModerationLog(){
+  try{ return JSON.parse(localStorage.getItem(MODERATION_LOG_KEY)) || []; }
+  catch(e){ return []; }
+}
+
+const QUEUE_STATUSES = ['held', 'edits_requested'];
+async function getModerationQueue(){
+  const queue = [];
+  (await getCommunityPosts()).forEach(p=>{
+    if(QUEUE_STATUSES.includes(p.status)) queue.push({type:'post', post:p, item:p});
+    (p.replies||[]).forEach(r=>{ if(QUEUE_STATUSES.includes(r.status)) queue.push({type:'reply', post:p, item:r}); });
+  });
+  return queue.sort((a,b)=>new Date(b.item.createdAt)-new Date(a.item.createdAt));
+}
+
+async function getReportedItems(){
+  const items = [];
+  (await getCommunityPosts()).forEach(p=>{
+    if((p.reportCount||0)>0) items.push({type:'post', post:p, item:p});
+    (p.replies||[]).forEach(r=>{ if((r.reportCount||0)>0) items.push({type:'reply', post:p, item:r}); });
+  });
+  return items.sort((a,b)=>(b.item.reportCount||0)-(a.item.reportCount||0));
+}
+
+// Admin+ only — enforced by moderation_set_community_status()'s own
+// role_at_least('admin') check (migration 036), not just by which
+// dashboard shows the button.
+async function moderationClearReports(postId, replyId){
+  const table = replyId ? 'community_replies' : 'community_posts';
+  const { error } = await sbClient.from(table).update({report_count:0}).eq('id', replyId||postId);
+  if(!error) logModerationEvent('reports-cleared', replyId||postId, []);
+  return !error;
+}
+async function moderationSetStatus(postId, replyId, status){
+  const { error } = await sbClient.rpc('moderation_set_community_status', {
+    p_post_id: replyId ? null : postId, p_reply_id: replyId||null, p_status: status,
+  });
+  if(!error) logModerationEvent(status, replyId||postId, []);
+  return !error;
 }
 
 /* =======================================================================
    PLAYBOOK QUESTIONS (V14 — real, Supabase-backed per-Playbook Q&A)
-   Unlike the Community Commons store just above (still localStorage-only
-   — see CLAUDE.md's "Current Architecture"), "Continue the Conversation"
-   on a Playbook page reads and writes real database tables
+   The Community Commons store above is now also real and Supabase-backed
+   as of V19.2 (see supabase/migrations/036) — both stores follow the
+   same pattern: real database tables
    (public.playbook_questions / public.playbook_question_replies, see
    supabase/migrations/028-029) so a question survives a cleared cache
    and shows up the same way on another device. Every function here is
@@ -930,99 +1034,15 @@ async function reportPlaybookContent(questionId, replyId, reason){
 }
 
 /* ---------------------------------------------------------------------
-   LAYER 3 — COMMUNITY REPORTING
-   Reporting is real: crossing a small threshold automatically hides
-   content from public view pending review, the same way the automated
-   screen does for flagged language.
-   --------------------------------------------------------------------- */
-const REPORT_HOLD_THRESHOLD = 3;
-function reportCommunityItem(postId, replyId, reason){
-  const posts = getCommunityPosts();
-  const post = posts.find(p=>p.id===postId);
-  if(!post) return {ok:false};
-  const target = replyId ? (post.replies||[]).find(r=>r.id===replyId) : post;
-  if(!target) return {ok:false};
-  target.reportCount = (target.reportCount||0)+1;
-  target.reports = target.reports||[];
-  target.reports.push({reason, at:new Date().toISOString()});
-  if(target.reportCount >= REPORT_HOLD_THRESHOLD && target.status==='approved'){
-    target.status = 'held';
-    logModerationEvent('reported-held', replyId||postId, [reason]);
-  }
-  saveCommunityPosts(posts);
-  return {ok:true};
-}
-
-/* ---------------------------------------------------------------------
-   LAYER 4 — MODERATOR DASHBOARD DATA
-   Gate the dashboard itself with hasPermission(user,'moderate_platform').
-   --------------------------------------------------------------------- */
-const MODERATION_LOG_KEY = 'wrld_moderation_log_v1';
-function logModerationEvent(action, targetId, flags){
-  let log = [];
-  try{ log = JSON.parse(localStorage.getItem(MODERATION_LOG_KEY)) || []; }catch(e){}
-  log.unshift({action, targetId, flags:flags||[], at:new Date().toISOString()});
-  localStorage.setItem(MODERATION_LOG_KEY, JSON.stringify(log.slice(0,300)));
-}
-function getModerationLog(){
-  try{ return JSON.parse(localStorage.getItem(MODERATION_LOG_KEY)) || []; }
-  catch(e){ return []; }
-}
-
-const QUEUE_STATUSES = ['held', 'edits_requested'];
-function getModerationQueue(){
-  const queue = [];
-  getCommunityPosts().forEach(p=>{
-    if(QUEUE_STATUSES.includes(p.status)) queue.push({type:'post', post:p, item:p});
-    (p.replies||[]).forEach(r=>{ if(QUEUE_STATUSES.includes(r.status)) queue.push({type:'reply', post:p, item:r}); });
-  });
-  return queue.sort((a,b)=>new Date(b.item.createdAt)-new Date(a.item.createdAt));
-}
-
-function getReportedItems(){
-  const items = [];
-  getCommunityPosts().forEach(p=>{
-    if((p.reportCount||0)>0) items.push({type:'post', post:p, item:p});
-    (p.replies||[]).forEach(r=>{ if((r.reportCount||0)>0) items.push({type:'reply', post:p, item:r}); });
-  });
-  return items.sort((a,b)=>(b.item.reportCount||0)-(a.item.reportCount||0));
-}
-
-function moderationClearReports(postId, replyId){
-  const posts = getCommunityPosts();
-  const post = posts.find(p=>p.id===postId);
-  if(!post) return false;
-  const target = replyId ? (post.replies||[]).find(r=>r.id===replyId) : post;
-  if(!target) return false;
-  target.reportCount = 0;
-  target.reports = [];
-  saveCommunityPosts(posts);
-  logModerationEvent('reports-cleared', replyId||postId, []);
-  return true;
-}
-
-function moderationSetStatus(postId, replyId, status){
-  const posts = getCommunityPosts();
-  const post = posts.find(p=>p.id===postId);
-  if(!post) return false;
-  const target = replyId ? (post.replies||[]).find(r=>r.id===replyId) : post;
-  if(!target) return false;
-  target.status = status;
-  saveCommunityPosts(posts);
-  logModerationEvent(status, replyId||postId, target.flags||[]);
-  return true;
-}
-
-/* ---------------------------------------------------------------------
    COMMUNITY RECOGNITION
    No likes, followers, or popularity rankings — badges are computed from
    real local participation and progress, the same honest way
    computeAchievements() works.
    --------------------------------------------------------------------- */
-function computeCommunityBadges(){
+async function computeCommunityBadges(){
   const user = getCurrentUser();
   const s = getState();
-  const posts = getCommunityPosts();
+  const posts = await getCommunityPosts();
   const myApprovedPosts = user ? posts.filter(p=>p.authorId===user.id && p.status==='approved').length : 0;
   const myApprovedReplies = user ? posts.reduce((sum,p)=>sum+(p.replies||[]).filter(r=>r.authorId===user.id && r.status==='approved').length, 0) : 0;
 
@@ -1368,14 +1388,14 @@ function setFeatureToggle(key, value){
    exist yet. Swapping these for real API aggregation later requires no
    change to anything that calls getPlatformOverview().
    --------------------------------------------------------------------- */
-function getPlatformOverview(){
+async function getPlatformOverview(){
   const users = typeof getUsers==='function' ? getUsers() : [];
   const now = Date.now();
   const THIRTY_DAYS = 30*24*60*60*1000;
   const newExplorers = users.filter(u=>u.role===ROLES.EXPLORER && u.createdAt && (now - new Date(u.createdAt).getTime()) <= THIRTY_DAYS).length;
   const activeUsers = users.filter(u=>u.lastLoginAt && (now - new Date(u.lastLoginAt).getTime()) <= THIRTY_DAYS).length;
   const s = getState();
-  const posts = getCommunityPosts();
+  const posts = await getCommunityPosts();
   const communityActivity = posts.length + posts.reduce((sum,p)=>sum+(p.replies||[]).length, 0);
   const volSummary = getVolunteerSummary();
   const mentorApps = getMentorApplications();
@@ -1448,22 +1468,22 @@ function getMembersStats(){
   };
 }
 
-function getRecentActivityFeed(limit){
+async function getRecentActivityFeed(limit){
   limit = limit || 20;
   const events = [];
   getModerationLog().forEach(e=>events.push({at:e.at, icon:'🛡️', text:`Moderation: ${e.action.replace(/-/g,' ')}`}));
   getMentorApplications().forEach(a=>events.push({at:a.submittedAt, icon:'🤝', text:`New mentor application from ${a.name}`}));
   getVolunteerEntries().forEach(v=>events.push({at:v.loggedAt, icon:'🌍', text:`${v.organization||'A learner'} — ${v.hours} volunteer hour${v.hours!==1?'s':''} logged`}));
-  getCommunityPosts().forEach(p=>events.push({at:p.createdAt, icon:'💬', text:`New ${p.contextType==='commons'?'Community Commons':'Playbook discussion'} post from ${p.authorName}`}));
+  (await getCommunityPosts()).forEach(p=>events.push({at:p.createdAt, icon:'💬', text:`New Community Commons post from ${p.authorName}`}));
   getUsers().forEach(u=>events.push({at:u.createdAt, icon:'🌱', text:`${u.name} joined WRLD as an Explorer`}));
   return events.filter(e=>e.at).sort((a,b)=>new Date(b.at)-new Date(a.at)).slice(0, limit);
 }
 
-function getSystemAlerts(){
+async function getSystemAlerts(){
   const alerts = [];
   const pendingApps = getMentorApplications().filter(a=>a.status==='pending').length;
   if(pendingApps>0) alerts.push({level:'info', icon:'🤝', text:`${pendingApps} mentor application${pendingApps!==1?'s':''} awaiting review`});
-  const flagged = getModerationQueue().length;
+  const flagged = (await getModerationQueue()).length;
   if(flagged>0) alerts.push({level:'warn', icon:'🛡️', text:`${flagged} post${flagged!==1?'s':''} in the AI moderation queue`});
   const pendingVol = getVolunteerEntries().filter(e=>e.verification && e.verification.status==='pending_review').length;
   if(pendingVol>0) alerts.push({level:'info', icon:'🌍', text:`${pendingVol} volunteer entr${pendingVol!==1?'ies':'y'} awaiting verification review`});
@@ -1501,11 +1521,11 @@ function closeReportModal(){
   document.getElementById('report-modal')?.classList.remove('open');
   reportTarget = null;
 }
-function submitReport(){
+async function submitReport(){
   if(!reportTarget) return;
   const reasonEl = document.getElementById('report-reason');
   const reason = reasonEl ? reasonEl.value : 'Other';
-  reportCommunityItem(reportTarget.postId, reportTarget.replyId, reason);
+  await reportCommunityItem(reportTarget.postId, reportTarget.replyId, reason);
   closeReportModal();
   showToast('🚩 Report submitted — thanks for helping keep WRLD safe.');
   if(typeof window.refreshAfterReport === 'function') window.refreshAfterReport();
@@ -1522,6 +1542,85 @@ function showToast(msg){
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+/* ---------------------------------------------------------------------
+   CONFIRMATION MODAL (V19)
+   A small, reusable danger-confirmation dialog — WRLD had no modal
+   system before this (Owner Dashboard's own progress drill-down uses an
+   inline show/hide panel instead, see owner-dashboard.html). Permanent
+   deletion (Delete User, Delete Mentor Application) needs a real modal
+   with the record's details and a deliberate second confirmation, per
+   spec, so this is added once here, reusable by any page. Built from
+   the existing .card/.btn/.callout design language — no new visual
+   system introduced. See styles.css's "Confirmation modal (V19)" block.
+   --------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------
+   BACKEND ERROR MESSAGES (V19.2)
+   Turns a raw Supabase JS SDK / PostgREST error into one of the specific,
+   safe messages required by the spec — never a raw stack trace, never a
+   secret, but also never just "something went wrong" when the real
+   cause (undeployed function, unapplied migration, permission, network)
+   is knowable from the error shape.
+   --------------------------------------------------------------------- */
+function friendlyBackendError(err){
+  const msg = (err && (err.message || err.error_description || String(err))) || '';
+  const lower = msg.toLowerCase();
+  if(lower.includes('failed to send a request') || lower.includes('failed to fetch')){
+    return 'The secure deletion service is not currently available. Confirm that the Supabase Edge Function has been deployed.';
+  }
+  if(lower.includes('could not find the function') || lower.includes('schema cache')){
+    return 'The required database function has not been installed. Apply the V19.2 Supabase migration and try again.';
+  }
+  if(lower.includes('permission') || lower.includes('not allowed') || lower.includes('access required') || lower.includes('only the owner')){
+    return msg; // already the specific, safe, correctly-worded message the function itself returns
+  }
+  if(lower.includes('networkerror') || lower.includes('network request failed') || lower.includes('load failed')){
+    return 'WRLD could not reach the server. Check your connection and try again.';
+  }
+  return msg || 'Something went wrong — please try again.';
+}
+
+function showConfirmModal({title, detailsHtml, warning, confirmLabel, onConfirm}){
+  const existing = document.getElementById('wrld-confirm-modal');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'wrld-confirm-modal';
+  overlay.className = 'wrld-modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.innerHTML = `
+    <div class="wrld-modal card">
+      <h4 class="mb-12">${title}</h4>
+      <div class="wrld-modal-details mb-16">${detailsHtml}</div>
+      <p class="wrld-modal-warning mb-20">⚠️ ${warning}</p>
+      <div class="flex gap-10" style="flex-wrap:wrap; justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" id="wrld-modal-cancel">Cancel</button>
+        <button type="button" class="btn" style="background:#B3403A; color:white;" id="wrld-modal-confirm">${confirmLabel}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden'; // prevent background scroll while a destructive modal is open
+
+  function closeModal(){
+    overlay.remove();
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', onKeydown);
+  }
+  function onKeydown(e){ if(e.key==='Escape') closeModal(); }
+  document.addEventListener('keydown', onKeydown);
+
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
+  document.getElementById('wrld-modal-cancel').addEventListener('click', closeModal);
+  document.getElementById('wrld-modal-confirm').addEventListener('click', async ()=>{
+    const btn = document.getElementById('wrld-modal-confirm');
+    btn.disabled = true; btn.textContent = 'Working…';
+    await onConfirm(closeModal);
+    btn.disabled = false; btn.textContent = confirmLabel;
+  });
+
+  setTimeout(()=>document.getElementById('wrld-modal-cancel')?.focus(), 30);
 }
 
 /* ---------------------------------------------------------------------

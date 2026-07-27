@@ -29,6 +29,25 @@
       </div>
 
       <div class="card reveal mb-24" style="padding:28px;">
+        <h4 class="mb-16">✍️ Your Name</h4>
+        <div class="form-error" id="name-error"></div>
+        <div id="name-success" class="hidden" style="background:var(--sky); border-radius:var(--r-md); padding:12px 16px; font-size:13.5px; font-weight:600; color:var(--navy); margin-bottom:16px;">✅ Your name has been updated.</div>
+        <form id="name-form">
+          <div class="flex gap-16" style="flex-wrap:wrap;">
+            <div class="form-group" style="flex:1; min-width:180px;">
+              <label class="form-label" for="name-first">First Name</label>
+              <input class="form-input" id="name-first" type="text" autocomplete="given-name" required>
+            </div>
+            <div class="form-group" style="flex:1; min-width:180px;">
+              <label class="form-label" for="name-last">Last Name <span style="font-weight:400; color:var(--ink-faint);">(optional)</span></label>
+              <input class="form-input" id="name-last" type="text" autocomplete="family-name">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="name-submit">Save Changes →</button>
+        </form>
+      </div>
+
+      <div class="card reveal mb-24" style="padding:28px;">
         <h4 class="mb-16">🔒 Change Password</h4>
         <div class="form-error" id="cp-error"></div>
         <div id="cp-success" class="hidden" style="background:var(--sky); border-radius:var(--r-md); padding:12px 16px; font-size:13.5px; font-weight:600; color:var(--navy); margin-bottom:16px;">✅ Password updated successfully.</div>
@@ -92,6 +111,46 @@ if(requireAuth()){
   const user = getCurrentUser();
   document.getElementById('as-heading').textContent = `Hi, ${user.name.split(' ')[0]}`;
   document.getElementById('as-account-line').innerHTML = `${escapeHtml(user.email)} &nbsp;·&nbsp; <span class="role-pill role-${user.role}">${ROLE_LABELS[user.role]||user.role}</span>`;
+
+  // Pre-fill from the real first_name/last_name columns if this account
+  // has saved them before; otherwise fall back to splitting the existing
+  // combined `name` on the first space, just so the fields start with a
+  // sensible guess rather than empty — nothing is written back to the
+  // database until the person actually presses Save Changes.
+  const nameParts = (user.name||'').trim().split(/\s+/);
+  document.getElementById('name-first').value = user.firstName || nameParts[0] || '';
+  document.getElementById('name-last').value = user.lastName != null ? user.lastName : (nameParts.slice(1).join(' ') || '');
+
+  document.getElementById('name-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const errEl = document.getElementById('name-error');
+    errEl.classList.remove('show'); errEl.textContent = '';
+    document.getElementById('name-success').classList.add('hidden');
+
+    const firstName = document.getElementById('name-first').value.trim();
+    const lastName = document.getElementById('name-last').value.trim();
+    if(!firstName){ errEl.textContent = 'First name cannot be empty.'; errEl.classList.add('show'); return; }
+
+    const btn = document.getElementById('name-submit');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    const result = await updateOwnName(firstName, lastName);
+    btn.disabled = false; btn.textContent = 'Save Changes →';
+
+    if(!result.ok){ errEl.textContent = result.error; errEl.classList.add('show'); return; }
+
+    // Reflect the change immediately, everywhere this page already shows
+    // a name, with no logout/login required — getCurrentUser() now
+    // returns the refreshed cache updateOwnName() already awaited.
+    document.getElementById('name-first').value = result.firstName || '';
+    document.getElementById('name-last').value = result.lastName || '';
+    document.getElementById('as-heading').textContent = `Hi, ${result.name.split(' ')[0]}`;
+    document.getElementById('name-success').classList.remove('hidden');
+    showToast('✅ Your name has been updated.');
+    // The header's own avatar/name (rendered by renderHeader() inside
+    // initPage()) reads getCurrentUser() fresh on every render, so
+    // re-running it here updates the nav without a full page reload.
+    if(typeof renderHeader==='function') renderHeader(null);
+  });
 
   if(roleAtLeast(user, ROLES.OWNER)){
     document.getElementById('owner-security-panel').classList.remove('hidden');
