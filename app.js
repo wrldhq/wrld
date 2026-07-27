@@ -208,6 +208,7 @@ function renderFooter(){
         <div class="name">Orbit</div>
         <div class="status">Your WRLD learning companion</div>
       </div>
+      <button class="orbit-panel-clear" onclick="clearOrbitConversation()" aria-label="Clear conversation" title="Clear conversation">↺</button>
       <button class="orbit-panel-close" onclick="dismissOrbitPanel()" aria-label="Close Orbit">✕</button>
     </div>
     <div class="orbit-messages" id="orbit-messages"></div>

@@ -155,18 +155,88 @@ function askOrbit(text){
   sendOrbitMessage();
 }
 
-function sendOrbitMessage(){
+/* ---------------------------------------------------------------------
+   ORBIT AI — safe page context
+   Built fresh per message from real, already-available state (no new
+   globals other pages need to set) — see orbit-knowledge.js for the
+   companion content index this is sent alongside.
+   --------------------------------------------------------------------- */
+function buildOrbitContext(){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  const s = typeof getState==='function' ? getState() : null;
+  const params = new URLSearchParams(location.search);
+  return {
+    page: location.pathname.split('/').pop().replace('.html','') || 'index',
+    playbookSlug: params.get('slug') || undefined,
+    programId: params.get('id') || undefined,
+    loggedIn: !!user,
+    role: user ? user.role : undefined,
+    progress: s ? {
+      completedPlaybooks: (s.completed||[]).length,
+      completedPaths: typeof completedPathKeys==='function' ? completedPathKeys().length : undefined,
+      streak: s.streak || 0,
+    } : undefined,
+  };
+}
+
+// Shown once per session on the first fallback, so a real outage doesn't
+// silently look like Orbit just got worse — but doesn't repeat and
+// clutter every subsequent message once the person keeps chatting.
+let orbitAIFallbackNoticeShown = false;
+
+async function tryOrbitAI(text){
+  if(typeof sbClient === 'undefined' || !sbClient?.functions?.invoke) return null;
+  try{
+    const knowledge = typeof retrieveOrbitKnowledge==='function' ? retrieveOrbitKnowledge(text, 6) : [];
+    const history = orbitHistory.slice(-6).map(m=>({from:m.from, text: (new DOMParser().parseFromString(m.html,'text/html')).body.textContent || ''}));
+    const { data, error } = await sbClient.functions.invoke('orbit-ai', {
+      body: { message: text, history, context: buildOrbitContext(), knowledge },
+    });
+    if(error || !data?.ok || !data?.reply) return null;
+    return data;
+  }catch(e){
+    return null;
+  }
+}
+
+async function sendOrbitMessage(){
   const input = document.getElementById('orbit-input');
   if(!input) return;
   const text = input.value.trim();
   if(!text) return;
   addOrbitMessage(escapeHtml(text), 'user');
   input.value = '';
+
+  const aiResult = await tryOrbitAI(text);
+
+  if(aiResult){
+    const linksHtml = (aiResult.links||[]).map(l=>orbitActionLink(l.label+' →', l.url)).join('');
+    setTimeout(()=>{
+      addOrbitMessage(escapeHtml(aiResult.reply).replace(/\n/g,'<br>') + linksHtml, 'orbit');
+      renderOrbitSuggestions(defaultOrbitSuggestions());
+    }, 260);
+    return;
+  }
+
+  // Fall back to the existing rule-based Orbit — unchanged behavior,
+  // exactly as before Orbit AI existed.
   const res = getOrbitResponse(text);
   setTimeout(()=>{
+    if(!orbitAIFallbackNoticeShown){
+      orbitAIFallbackNoticeShown = true;
+      addOrbitMessage(`<em>My AI connection is taking a quick orbit. You can still use my shortcuts and explore WRLD while I reconnect.</em>`, 'orbit');
+    }
     addOrbitMessage(res.html, 'orbit');
     renderOrbitSuggestions(res.suggestions || defaultOrbitSuggestions());
   }, 260);
+}
+
+function clearOrbitConversation(){
+  orbitHistory = [];
+  const wrap = document.getElementById('orbit-messages');
+  if(wrap) wrap.innerHTML = '';
+  addOrbitMessage(orbitGreeting(), 'orbit');
+  renderOrbitSuggestions(defaultOrbitSuggestions());
 }
 
 function escapeHtml(s){

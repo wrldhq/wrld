@@ -1216,6 +1216,136 @@ const PLAYBOOKS = [
   download:'goal-setting-workbook', journeys:['university'], nextInJourney:null,
 },
 
+/* ---------------------------- LIFE SKILLS: FIRST VEHICLE ---------------------------- */
+
+{
+  slug:'first-vehicle', outcome:'Buy, insure, and maintain your first vehicle with real confidence — no surprises.', title:'Getting Your First Vehicle', pillar:'development', flagship:false,
+  category:'Life Skills', emoji:'🚗', color:'yellow', difficulty:'Intermediate',
+  readTime:'19 min read', completionTime:'70 min to complete',
+  author:'WRLD Learning Team', dateUpdated:'July 2026',
+  dek:'A car can be the most expensive thing you\'ve ever bought — and the one with the least guidance attached. Here\'s how to decide, shop, finance, insure, and maintain your first vehicle without getting taken advantage of.',
+  objectives:[
+    'Decide honestly whether you actually need a vehicle right now, or if alternatives make more sense',
+    'Understand the true monthly cost of ownership — far more than just a purchase price',
+    'Compare new vs. used, and financing vs. leasing vs. paying cash',
+    'Know how credit affects your interest rate, and how to shop for a loan',
+    'Inspect a used vehicle and spot red flags before you buy',
+    'Understand registration, required documents, and insurance basics',
+    'Build routine and seasonal maintenance habits that protect your investment',
+    'Know exactly what to do if you\'re ever in an accident',
+    'Avoid the most common first-time buyer mistakes',
+  ],
+  sections:[
+    {h:'Do you actually need a vehicle?', p:[
+      'Before comparing a single car, it\'s worth answering a more basic question honestly: do you need one at all? A vehicle is one of the largest recurring expenses most people ever take on, so it\'s worth checking it against your actual life — not just the idea of having one.',
+      'If you live somewhere with reliable public transit, walk or bike to work and school, or could realistically rely on rideshares for occasional trips, the math sometimes favors waiting. If you commute somewhere transit doesn\'t reach, work irregular hours, or need to carry equipment or people regularly, a vehicle often becomes close to essential.',
+    ], callout:{type:'tip', title:'A simple gut-check', text:'Add up what you\'d actually spend on rideshares, transit passes, and occasional rentals in a typical month. If that number is already close to what a modest car payment plus insurance would cost, ownership may make more financial sense than it first appears — and vice versa.'}},
+    {h:'The true cost of owning a vehicle', p:[
+      'The purchase price — or monthly payment — is only one piece of what a vehicle actually costs. Insurance, fuel, maintenance, registration, and depreciation all show up whether or not you\'re thinking about them, and together they often add up to more than the payment itself.',
+      'Building a full monthly picture before you buy — not after — is what separates people who feel financially in control of their vehicle from people who feel blindsided by it every few months.',
+    ], table:{headers:['Cost Category','What It Covers','Typical Monthly Range'], rows:[
+      ['Loan or lease payment','Financing the vehicle itself','Varies by price, term, and rate'],
+      ['Insurance','Legally required coverage plus protection for you and the car','$100–$250+'],
+      ['Fuel or charging','Getting around day to day','$100–$250'],
+      ['Maintenance & repairs','Oil changes, tires, brakes, unexpected fixes','$50–$150 (averaged)'],
+      ['Registration & fees','Legal right to drive the vehicle','Varies — often annual, budget monthly'],
+      ['Parking','Where applicable — a permit, a spot, a garage','$0–$200+'],
+    ]}},
+    {mini:true, q:'Which of these is most often left out of a first-time buyer\'s budget?', options:['The monthly loan payment','Maintenance, fuel, and insurance combined'], correct:1, explain:'The payment is the easy number to find — the ongoing costs around it are what actually surprise first-time owners.'},
+    {h:'New vs. used — the real trade-offs', p:[
+      'A new vehicle comes with a full warranty, the latest safety features, and zero prior wear — but it also loses value fastest in its first few years, a cost called depreciation that you pay even if you never sell it. A used vehicle, especially one two to five years old, has already absorbed that steepest drop in value, often for a meaningfully lower price with years of reliable life left.',
+      'For a first vehicle, a well-inspected used car is frequently the more practical starting point — it lowers both the purchase price and the insurance cost, while still giving you a dependable vehicle if you choose carefully.',
+    ], callout:{type:'fact', title:'Did You Know?', text:'A new vehicle typically loses a significant portion of its value within the first year alone, and continues depreciating quickly through year three — which is exactly the window many used-car buyers target to get a newer vehicle at a meaningfully lower price.'}},
+    {h:'Financing vs. leasing vs. paying outright', p:[
+      'Paying outright means no interest and no monthly payment, but it ties up a large amount of cash at once. Financing (a loan) spreads the cost over time in exchange for interest, and once the loan is paid off, the vehicle is fully yours. Leasing is essentially a long-term rental — lower monthly payments, but you don\'t own the car at the end, and mileage limits and wear-and-tear charges can add unexpected costs.',
+      'For a first vehicle intended to last several years, financing (if you can\'t pay cash) or paying outright (if you genuinely can, without draining your emergency fund) usually make more sense than leasing, which tends to fit people who want a new vehicle every few years, not someone building long-term ownership.',
+    ], list:['Paying outright: no interest, full ownership immediately, requires the most cash upfront','Financing: builds ownership over time, requires a down payment and monthly payments plus interest','Leasing: lowest monthly cost, but no ownership, mileage limits, and extra fees at lease-end']},
+    {h:'Interest rates, loan terms, and what your payment actually means', p:[
+      'A loan\'s monthly payment is driven by three things: how much you borrow, your interest rate, and your loan term (how many months you\'re paying it off). A longer term lowers the monthly payment but increases the total interest you pay over the life of the loan — sometimes substantially.',
+      'It\'s worth resisting the urge to shop by monthly payment alone. A dealer can make almost any car "fit" your target monthly number simply by stretching the term longer — which can mean paying thousands more in interest for a payment that looks similar.',
+    ], callout:{type:'example', title:'Same car, different term', text:'Financing $18,000 at 7% interest over 4 years costs meaningfully less in total interest than financing the same amount over 6 years — even though the 6-year payment looks smaller each month. Always compare the total cost, not just the monthly number.'}},
+    {h:'Building credit — and how it shapes your rate', p:[
+      'Your credit score is one of the biggest factors in the interest rate a lender offers you. A stronger credit history typically unlocks a meaningfully lower rate, which can save real money over the life of the loan — sometimes more than negotiating the purchase price itself.',
+      'If your credit is still thin or new, a few honest options exist: a co-signer with stronger credit, a larger down payment to lower the lender\'s risk, or simply waiting a few months while you build a short track record of on-time payments elsewhere.',
+    ], callout:{type:'protip', title:'Pro Tip', text:'Get pre-approved for a loan through your own bank or credit union before you ever visit a dealership. Walking in with a real, comparison-ready rate in hand means the dealer\'s financing has to beat it — not just sound reasonable.'}},
+    {h:'Shopping for a vehicle', p:[
+      'Start with a realistic list: your budget ceiling (including all the ongoing costs above, not just the payment), the body style you actually need, and two or three specific models known for reliability in that category. Cross-shopping a few real listings, rather than falling for the first car that "feels right," is what keeps the process from becoming an emotional decision.',
+    ]},
+    {mini:true, q:'Why is it risky to shop for a car by "monthly payment" alone?', options:['Payments are always fixed by law','A longer loan term can lower the payment while increasing total interest paid','Monthly payments never include interest'], correct:1, explain:'Stretching the loan term can make almost any car "fit" a target monthly payment — while quietly increasing how much you pay in total.'},
+    {h:'Dealership vs. private seller', p:[
+      'A dealership typically offers more consumer protection, financing on-site, and sometimes a limited warranty on used vehicles — often for a somewhat higher price. A private seller is often cheaper and more negotiable, but offers no formal protections, so the burden of inspection and verification falls entirely on you.',
+      'Neither option is automatically the "right" one — a private-sale deal that\'s been properly inspected and history-checked can be an excellent value, while a dealership purchase gives more built-in peace of mind for a first-time buyer who\'d rather not do all the verification alone.',
+    ]},
+    {h:'Inspecting a used vehicle before you commit', p:[
+      'Never buy a used vehicle you (or someone you trust) hasn\'t physically inspected and, ideally, test-driven. A independent mechanic\'s pre-purchase inspection — usually a modest flat fee — is one of the highest-value steps in this entire process, because it can surface expensive problems a casual look would miss entirely.',
+    ], list:['Check for uneven tire wear, which can signal alignment or suspension issues','Look under the vehicle for fluid leaks','Test all electronics — windows, lights, AC/heat, infotainment','Listen for unusual engine noises at idle and while driving','Check that the VIN on the dashboard matches the title and registration','Take it on a real test drive, including highway speed if possible']},
+    {h:'Vehicle history reports, recalls, liens, and red flags', p:[
+      'Before buying any used vehicle, run its VIN through a vehicle history report — it can reveal prior accidents, flood or fire damage, odometer inconsistencies, and how many previous owners it\'s had. Separately, check for open safety recalls (often free to search by VIN) and confirm there\'s no outstanding lien, which could mean the seller doesn\'t actually have clear legal ownership to sell it to you.',
+    ], callout:{type:'mistake', title:'Common Mistake: Skipping the lien check', text:'Buying a vehicle that still has a lien against it (an unpaid loan secured by the car) can leave you owning a vehicle the bank can legally repossess, even though you paid the seller in full. A quick title/lien check before any money changes hands avoids this entirely.'}},
+    {h:'Negotiating a fair price', p:[
+      'Research the vehicle\'s fair market value beforehand using its year, make, model, mileage, and condition — this is your anchor number, not the sticker price. Approach the conversation calmly and be willing to walk away; that willingness alone is often what gets a seller to move on price.',
+    ], callout:{type:'protip', title:'Pro Tip', text:'Negotiate the total price first, before ever discussing monthly payment or financing. Dealers sometimes prefer to negotiate the monthly number because it obscures the real total cost — keep the conversation anchored to the actual purchase price.'}},
+    {h:'Registration, licensing, and the documents you need before driving away', p:[
+      'Every vehicle needs to be legally registered in your name, and most places require proof of insurance before you can register or legally drive it off the lot. Exact requirements, fees, and documents vary by province or state — this section will grow with region-specific detail over time, so check your local motor vehicle authority for the current requirements where you live.',
+    ], list:['Bill of sale or purchase agreement','Proof of valid insurance (usually required before registration)','The vehicle\'s title, signed over to you','A valid driver\'s license','Proof of address, if required locally','Payment for registration fees and any applicable taxes']},
+    {h:'Understanding vehicle insurance', p:[
+      'Insurance isn\'t optional — nearly everywhere requires at least a minimum level of coverage before you can legally drive, and it protects you from a single accident turning into a financial catastrophe. Coverage generally breaks into a few categories, and understanding what each one actually does makes comparing quotes far less confusing.',
+    ], table:{headers:['Coverage Type','What It Protects'], rows:[
+      ['Liability','Damage or injury you cause to others — usually legally required'],
+      ['Collision','Damage to your own vehicle from an accident, regardless of fault'],
+      ['Comprehensive','Non-collision damage — theft, weather, vandalism, animals'],
+      ['Uninsured/underinsured motorist','Protects you if the at-fault driver has no or insufficient insurance'],
+    ]}},
+    {h:'Deductibles, premiums, and comparing providers', p:[
+      'Your premium is what you pay regularly for coverage; your deductible is what you pay out of pocket before insurance kicks in on a claim. A higher deductible usually lowers your premium — a reasonable trade if you have savings to cover it, riskier if you don\'t.',
+      'Get quotes from at least three providers using identical coverage levels so you\'re comparing like for like, not just the lowest headline number. Ask specifically about student, safe-driver, and bundling discounts, which can meaningfully lower a first-time driver\'s premium.',
+    ], callout:{type:'tip', title:'Comparing quotes fairly', text:'Two quotes with wildly different prices often reflect different coverage levels, not just different pricing. Always confirm liability limits, deductible amounts, and comprehensive/collision inclusion are identical before comparing the dollar figures.'}},
+    {h:'Routine and seasonal maintenance', p:[
+      'A predictable maintenance rhythm is what keeps small issues from becoming expensive ones, and it protects the vehicle\'s resale value down the line. Your owner\'s manual has the manufacturer\'s exact schedule — but a few habits apply almost universally.',
+    ], timeline:[
+      {label:'Every oil change interval', text:'Follow your owner\'s manual — commonly every 5,000–7,500 miles, though this varies by vehicle and oil type.'},
+      {label:'Every few months', text:'Check tire pressure and tread, top off washer fluid, inspect wiper blades.'},
+      {label:'Before winter', text:'Check battery health, antifreeze levels, and tire tread — cold weather is hardest on both batteries and tires.'},
+      {label:'Before long trips', text:'Check tire pressure, fluid levels, and brakes before any long highway drive.'},
+    ]},
+    {h:'Fuel choices and ongoing operating costs', p:[
+      'Fuel type (gasoline, diesel, hybrid, or electric) meaningfully affects your ongoing costs — a more fuel-efficient or electric vehicle can cost noticeably less to run day-to-day, even if the upfront price is similar or slightly higher. Factor your realistic weekly driving distance into this decision rather than the sticker efficiency number alone.',
+    ]},
+    {h:'What to keep inside your vehicle', p:[
+      'A small, well-stocked vehicle is one of the easiest ways to turn a stressful roadside moment into a minor inconvenience.',
+    ], list:['Proof of insurance and registration','A basic emergency kit — flashlight, jumper cables, a small first-aid kit','A phone charger','An ice scraper (in cold climates)','A spare tire, jack, and tire iron, confirmed to actually be in the vehicle','Emergency contact info written down, not just on a phone that could die']},
+    {h:'If you\'re ever in an accident', p:[
+      'The moments right after an accident feel chaotic, which is exactly why having a simple, memorized order of steps matters more than trying to think clearly from scratch in the moment.',
+    ], callout:{type:'warn', title:'Heads up', text:'Check for injuries first, move to safety if possible, and call emergency services if anyone is hurt or the vehicles are blocking traffic. Exchange insurance and contact information with the other driver, take photos of all vehicles and the scene, and never admit fault at the scene — let the insurance investigation determine that.'}},
+    {h:'Common mistakes first-time buyers make', p:[
+      'Most first-vehicle regrets trace back to a small handful of avoidable patterns, far more often than to bad luck.',
+    ], list:['Shopping by monthly payment instead of total cost','Skipping a pre-purchase inspection on a used vehicle','Underestimating insurance and maintenance costs before buying','Stretching a loan term to make an unaffordable car look affordable','Not test-driving at highway speed','Skipping the vehicle history and lien check']},
+    {h:'Selling or trading in down the road', p:[
+      'When it\'s eventually time to move on, you generally have two paths: sell privately, which usually nets more money but takes more effort, or trade it in toward your next vehicle, which is faster and simpler but typically offers less value. Either way, having maintenance records and a clean history report ready makes the vehicle noticeably easier to sell — and often worth more.',
+    ]},
+  ],
+  practiceExercises:['Add up your realistic all-in monthly budget using the cost table above, before looking at a single listing','Get pre-approved for a loan quote from your own bank or credit union','Write your top 3 must-haves and 3 nice-to-haves for your first vehicle','Request insurance quotes from at least 3 providers using identical coverage levels','List what you\'d keep in your emergency kit, and confirm you actually have each item'],
+  checklist:['Decide honestly whether a vehicle is the right choice right now','Build your full monthly budget, not just a target payment','Get pre-approved for financing before visiting a dealer or seller','Research fair market value for the specific vehicle you\'re considering','Get an independent pre-purchase inspection on any used vehicle','Run a vehicle history report and check for open recalls and liens','Compare at least 3 insurance quotes with identical coverage levels','Confirm all required documents before driving away','Set a maintenance reminder for your first scheduled service'],
+  reflection:['Do you actually need a vehicle right now, or are you buying one out of habit or pressure?','What\'s your honest, all-in monthly budget — not just what you wish it were?','What would make you walk away from a deal, no matter how good it initially looks?','Who could you ask to look over a used vehicle with you before you commit?'],
+  quiz:[
+    {q:'What is usually the biggest hidden cost first-time buyers underestimate?', options:['The purchase price','Insurance, fuel, and maintenance combined','Registration fees','Sales tax'], correct:1, explain:'The ongoing costs around a vehicle often add up to more than people expect, well beyond the payment or price tag.'},
+    {q:'Why can a longer loan term be risky, even with a lower monthly payment?', options:['It\'s illegal in most places','It usually increases the total interest paid over the life of the loan','It automatically raises your insurance','It has no real downside'], correct:1, explain:'A longer term spreads the same loan over more months, often at real cost — more total interest — even though the monthly number looks smaller.'},
+    {q:'What does a pre-purchase inspection help you avoid?', options:['Paying sales tax','Buying a used vehicle with expensive hidden problems','Needing insurance','Registering the vehicle'], correct:1, explain:'An independent mechanic can catch issues a casual look or test drive would miss, often for a small flat fee relative to the risk.'},
+    {q:'What should you check before buying a used vehicle to avoid inheriting someone else\'s unpaid loan?', options:['The color history','Whether there\'s an outstanding lien on the title','The number of previous owners only','The paint code'], correct:1, explain:'A lien means the vehicle can legally be repossessed even after you\'ve paid the seller — always confirm the title is clear first.'},
+    {q:'What should you do immediately after any accident, before anything else?', options:['Post about it on social media','Check for injuries and move to safety if possible','Immediately admit fault to speed things up','Drive away if the damage looks minor'], correct:1, explain:'Safety comes first — checking for injuries and getting out of traffic matters more than anything else in the first moments.'},
+    {q:'What\'s a smart move to make before ever visiting a dealership?', options:['Deciding on a monthly payment only','Getting pre-approved for financing through your own bank or credit union','Skipping insurance research until after buying','Avoiding test drives to save time'], correct:1, explain:'Walking in with your own pre-approved rate means dealer financing has to beat a real number, not just sound reasonable.'},
+  ],
+  faq:[
+    {q:'Should I buy new or used for my first vehicle?', a:'A well-inspected used vehicle, roughly two to five years old, is often the more practical starting point — it avoids the steepest depreciation while still offering years of reliable use.'},
+    {q:'How much car can I actually afford?', a:'Build your full monthly picture first — payment, insurance, fuel, and maintenance together — rather than stretching a loan term to hit a payment that looks affordable in isolation.'},
+    {q:'Do I really need a pre-purchase inspection?', a:'Yes, for any used vehicle — it\'s a small cost relative to the risk of discovering an expensive problem after you\'ve already paid.'},
+    {q:'What\'s the minimum insurance I need?', a:'Requirements vary by where you live, but nearly everywhere requires at least liability coverage before you can legally register and drive — check your local requirements for the current minimum.'},
+    {q:'What if my credit isn\'t strong enough for a good rate yet?', a:'A co-signer, a larger down payment, or simply waiting while you build a short track record of on-time payments elsewhere can all meaningfully improve the rate you\'re offered.'},
+  ],
+  takeaways:['Work out your full monthly cost — insurance, fuel, and maintenance included — before you shop, not after.','A longer loan term can lower your payment while quietly increasing your total interest paid.','Never buy a used vehicle without an independent inspection and a vehicle history/lien check.','Get pre-approved for financing before visiting a dealer, so you have a real number to compare against.','Compare insurance quotes with identical coverage levels, not just the lowest headline price.','A simple maintenance rhythm protects both your safety and your vehicle\'s resale value.'],
+  download:'vehicle-purchase-checklist', journeys:['becoming-independent'], nextInJourney:null,
+},
+
 ];
 
 /* Helper: fetch a playbook by slug */
@@ -1237,7 +1367,7 @@ const RELATED_PLAYBOOKS = {
   'professional-growth': ['salary-negotiation','networking','first-day'],
   'budgeting': ['emergency-funds','credit-scores','bank-accounts'],
   'bank-accounts': ['budgeting','credit-scores','emergency-funds'],
-  'credit-scores': ['budgeting','taxes','financial-planning'],
+  'credit-scores': ['budgeting','financial-planning','first-vehicle'],
   'taxes': ['budgeting','credit-scores','financial-planning'],
   'emergency-funds': ['budgeting','investing-basics','financial-planning'],
   'investing-basics': ['emergency-funds','financial-planning','budgeting'],
@@ -1247,9 +1377,10 @@ const RELATED_PLAYBOOKS = {
   'study-skills': ['time-management','scholarships','managing-anxiety'],
   'mental-wellness': ['managing-anxiety','time-management','study-skills'],
   'managing-anxiety': ['mental-wellness','interview-skills','time-management'],
-  'apartment-renting': ['emergency-funds','bank-accounts','graduation-planning'],
+  'apartment-renting': ['emergency-funds','bank-accounts','first-vehicle','graduation-planning'],
   'internships': ['resume','networking','professional-growth'],
   'graduation-planning': ['time-management','apartment-renting','financial-planning'],
+  'first-vehicle': ['budgeting','credit-scores','emergency-funds'],
 };
 function getRelatedPlaybooks(slug){
   return (RELATED_PLAYBOOKS[slug]||[]).map(getPlaybook).filter(Boolean);
@@ -1290,8 +1421,8 @@ const LEARNING_PATHS = [
   {
     key:'becoming-independent', title:'Becoming Independent', icon:'🗝️', color:'navy', status:'live',
     desc:'Moving out and running your own household for the first time — the practical, grown-up logistics of daily life.',
-    skillsGained:['Renting your first apartment with confidence','Building an emergency fund','Choosing and using bank accounts wisely','Planning your next chapter with intention'],
-    steps:['apartment-renting','emergency-funds','bank-accounts','graduation-planning'],
+    skillsGained:['Renting your first apartment with confidence','Building an emergency fund','Choosing and using bank accounts wisely','Buying and maintaining your first vehicle','Planning your next chapter with intention'],
+    steps:['apartment-renting','emergency-funds','bank-accounts','first-vehicle','graduation-planning'],
   },
   {
     key:'mental-wellness-path', title:'Mental Wellness & Resilience', icon:'🌱', color:'navy', status:'live',
@@ -1528,6 +1659,7 @@ const DOWNLOADS = [
   {type:'salary-negotiation-worksheet', title:'Salary Negotiation Worksheet', icon:'💬', pillar:'work', desc:'Plan your target number, script, and fallback options.'},
   {type:'career-planner', title:'Career Planner', icon:'📈', pillar:'development', desc:'A broader planning sheet linking goals, skills, and next steps.'},
   {type:'volunteer-log', title:'Volunteer Log', icon:'🌍', pillar:'development', desc:'Track volunteer hours, roles, and reflections over time.'},
+  {type:'vehicle-purchase-checklist', title:'Vehicle Purchase Checklist', icon:'🚗', pillar:'development', desc:'A budget worksheet plus a comparison and inspection checklist for buying your first vehicle.'},
 ];
 function getDownload(type){ return DOWNLOADS.find(d=>d.type===type); }
 
@@ -1554,6 +1686,7 @@ const DOWNLOAD_NEXT_STEP = {
   'salary-negotiation-worksheet': 'professional-growth',
   'career-planner': 'internships',
   'volunteer-log': null, // no natural Playbook follow-up — points to Community instead
+  'vehicle-purchase-checklist': 'emergency-funds',
 };
 function getDownloadNextStep(type){
   const slug = DOWNLOAD_NEXT_STEP[type];

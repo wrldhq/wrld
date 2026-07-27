@@ -25,6 +25,7 @@
 </main>
 <div class="no-print" id="site-footer"></div>
 <script src="data.js"></script>
+<script src="orbit-knowledge.js"></script>
 <script>
 /* ===================================================================
    WORKSHEET CONTENT SPECS
@@ -109,6 +110,13 @@ const WORKSHEET_SPECS = {
   'volunteer-log':{subtitle:'Log every opportunity — useful for applications and reflection alike.', sections:[
     {kind:'table', label:'Volunteer Log', columns:['Date','Organization','Role','Hours'], rows:8},
     {kind:'lines', label:'What I learned from this experience', count:3},
+  ]},
+  'vehicle-purchase-checklist':{subtitle:'Use this before, during, and after buying your first vehicle.', sections:[
+    {kind:'table', label:'Your All-In Monthly Budget', columns:['Cost Category','Estimated Amount'], rows:6},
+    {kind:'table', label:'Comparing Vehicles', columns:['Vehicle','Price','Mileage','Est. Insurance','Inspection Done?'], rows:3},
+    {kind:'checklist', label:'Before You Buy', items:['Get pre-approved for financing at your own bank or credit union','Research fair market value for the specific vehicle','Get an independent pre-purchase inspection (used vehicles)','Run a vehicle history report','Check for open recalls','Confirm there is no outstanding lien on the title','Compare at least 3 insurance quotes with identical coverage']},
+    {kind:'checklist', label:'Documents Before Driving Away', items:['Bill of sale or purchase agreement','Proof of insurance','Signed-over title','Valid driver\'s license','Proof of address (if required locally)','Registration fees and applicable taxes']},
+    {kind:'lines', label:'Notes from your inspection or test drive', count:4},
   ]},
 };
 
