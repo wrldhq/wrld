@@ -1097,3 +1097,57 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   .wrld-modal{padding:22px 20px; max-height:calc(100dvh - 24px);}
   .wrld-modal-overlay{padding:12px;}
 }
+
+/* =====================================================================
+   V21.1 — FIX 1: Tools page mobile horizontal overflow
+   Root cause: the site-wide `.btn` rule sets `white-space:nowrap` (needed
+   so nav/CTA buttons never break mid-label). Inside the Tools page result
+   panels, a couple of generated CTAs — e.g. "⬇️ Generate My Downloadable
+   Budget Plan" — are long enough that, left unwrapped, they render wider
+   than a phone viewport. No ancestor between the button and <body> clips
+   overflow, so the button's box silently extends past the right edge —
+   invisible on load, revealed only when the page is dragged horizontally.
+   Scoped to `.tool-panel` only (the 5 Tools cards), so no button on any
+   other page is affected. `.card` padding is also nudged down to match
+   the same 720px treatment already used for `.pillar/.value-card/.diff-
+   card` elsewhere in this file, giving long labels more room to wrap.
+   ===================================================================== */
+@media(max-width:720px){
+  .tool-panel .card{padding:28px 22px;}
+  .tool-panel .btn{white-space:normal; text-align:center; max-width:100%;}
+}
+
+/* Belt-and-suspenders containment: `body` already has `overflow-x:hidden`
+   (line ~98), which stops the *visible* render from showing a horizontal
+   scrollbar, but on iOS Safari a descendant that overflows can still be
+   revealed by the elastic drag/bounce unless `html` is also clipped. This
+   has zero visual effect on any page unless something overflows — it only
+   closes the gap iOS leaves open when just `body` is clipped. */
+html{overflow-x:hidden;}
+
+/* =====================================================================
+   V21.1 — FIX 2: Individual program detail pages, mobile layout
+   Root cause: the hero row (badges/title/tagline + the enrolment card)
+   is a `.flex` row with `min-width:300px` on the main column and
+   `min-width:280px; max-width:320px` on the enrolment card. The existing
+   V21 rule `[style*="min-width:"]{min-width:0 !important;}` (in the
+   720px block above) correctly removes the min-width floor so text can
+   shrink instead of forcing real overflow — but with both floors gone,
+   flex-wrap no longer has a reason to trigger, so the browser keeps both
+   columns side-by-side and just keeps shrinking them, squeezing the main
+   content into a narrow strip and shrinking the enrolment card down over
+   it instead of stacking. `.prog-hero-row/.prog-hero-main/.prog-hero-
+   enroll` are new classes added only to program.html's hero markup, so
+   this fix cannot affect any other page's `.flex.justify-between` row
+   (several other pages use that same generic combo for unrelated UI).
+   `!important` is required to win over the inline styles on these same
+   elements, matching the pattern already used elsewhere in this file. */
+@media(max-width:720px){
+  .prog-hero-row{flex-direction:column !important; align-items:stretch !important; gap:24px !important;}
+  .prog-hero-main{width:100% !important; max-width:100% !important; flex:none !important;}
+  .prog-hero-enroll{width:100% !important; max-width:100% !important; margin:0 !important;}
+  /* Enrolment card buttons ("✓ Enrolled — View Dashboard" etc.) can be
+     longer than "Enroll for Free" — let them wrap instead of relying on
+     the site-wide .btn nowrap, same reasoning as the Tools fix above. */
+  .prog-hero-enroll .btn{white-space:normal; text-align:center;}
+}
