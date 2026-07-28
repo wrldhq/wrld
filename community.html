@@ -314,6 +314,22 @@ function renderCommons(){
 
   document.getElementById('commons-category-desc').textContent = cat.desc;
 
+  // V20.4 audit: this gating logic (which category, which roles) was
+  // already correct — it only runs after `await window.wrldAuthReady`
+  // (see the bottom of this file), so `user` always reflects the fully-
+  // resolved profile/role by the time this executes, and the composer
+  // is hidden via the `.hidden` class (the whole form, not just the
+  // button — it can't be submitted while hidden). The actual gap this
+  // release closes is server-side: nothing previously stopped a direct
+  // insert (bypassing this UI entirely) from writing
+  // category='announcements' as any authenticated user — see migration
+  // 039_restrict_announcements_posting.sql, which tightens the
+  // `posts_insert_own` RLS policy itself so the rule holds regardless
+  // of what any client does or doesn't render. `user?.role` below is a
+  // defensive-only addition (was `user.role`) — `gate.ok` is already
+  // false whenever `user` is null so this branch was never actually
+  // reachable with a null user, but the optional chaining costs nothing
+  // and removes that assumption.
   if(!gate.ok){
     gateLine.style.display = 'flex';
     gateLine.style.flexDirection = 'column';
@@ -322,7 +338,7 @@ function renderCommons(){
     gateLine.innerHTML = `<div style="display:flex; gap:12px; width:100%;">${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:500;">${gate.message}</p></div>${acceptBtn}`;
     composer.classList.add('hidden');
     restrictedNote.classList.add('hidden');
-  } else if(cat.restricted && !(typeof hasPermission==='function' && (hasPermission(user,'publish_resources') || user.role==='mentor'))){
+  } else if(cat.restricted && !(typeof hasPermission==='function' && (hasPermission(user,'publish_resources') || user?.role==='mentor'))){
     gateLine.style.display = 'none';
     composer.classList.add('hidden');
     restrictedNote.classList.remove('hidden');
