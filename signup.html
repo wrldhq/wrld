@@ -61,11 +61,11 @@
 <div id="site-footer"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=2"></script>
-<script src="supabase-client.js?v=2"></script>
+<script src="supabase-client.js?v=20.6.2"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js"></script>
-<script src="app.js"></script>
+<script src="auth.js?v=20.6.2"></script>
+<script src="app.js?v=20.6.2"></script>
 <script src="orbit.js?v=16"></script>
 <script>
 function showFormError(msg){
@@ -150,11 +150,32 @@ document.getElementById('signup-form').addEventListener('submit', async (e)=>{
 
   const params = new URLSearchParams(location.search);
 
-  // V15.1: the normal path now — email verification is off for this
-  // project (see auth.js's "NO-VERIFICATION SIGNUP FLOW" note), so the
-  // account is already fully created and confirmed. Send the user to
-  // login.html with a success flag rather than auto-logging them in;
-  // login.html reads `created=1` and shows the "account created" message.
+  // V20.6: email verification is off for this project (see auth.js's
+  // "NO-VERIFICATION SIGNUP FLOW" note), so signUp() now returns an
+  // already-active, real Supabase session (result.hasSession) instead of
+  // signing the new account back out. The new user is already
+  // authenticated and is an Explorer with no completed Adulting
+  // Readiness Assessment yet.
+  // V20.6.2: routes with source:'signup' explicitly — this call is
+  // Create Account's own pathway, never inferred/shared with login.html's
+  // (see auth.js's postAuthDestination()). A brand-new account always
+  // goes straight into the first-time welcome/Orbit/Assessment flow,
+  // carrying any originally-requested destination (`next`) forward
+  // instead of losing it, unconditionally — not because getState()
+  // happens to show no assessment yet, but because signing up IS the
+  // signal this is a new-user journey. This is what replaced the old
+  // "sign out, then log back in manually, then land on the dashboard
+  // and skip onboarding" bug: there is no intermediate login.html stop
+  // for a real new-user signup anymore.
+  if(result.hasSession){
+    location.href = postAuthDestination(params.get('next'), 'signup');
+    return;
+  }
+  // Fallback: signUp() created the account but Supabase did not hand back
+  // an immediate session (only possible if "Confirm email" is ever
+  // re-enabled on the Supabase project — see the branches below). In
+  // that case there is no session yet to route with, so the existing
+  // pre-V20.6 behavior is preserved unchanged.
   if(result.accountCreated){
     location.href = 'login.html?created=1' + (params.get('next') ? '&next='+encodeURIComponent(params.get('next')) : '');
     return;

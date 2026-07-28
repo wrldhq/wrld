@@ -125,12 +125,12 @@
 <div id="site-footer" class="no-print"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=20.6.2"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
 <script src="illustrations.js"></script>
-<script src="auth.js"></script>
-<script src="app.js"></script>
+<script src="auth.js?v=20.6.2"></script>
+<script src="app.js?v=20.6.2"></script>
 <script src="orbit.js"></script>
 <script>
 /* ===================================================================
@@ -219,13 +219,37 @@ const SCALE_LABELS = ['Not at all','A little','Somewhat','Confident','Very confi
 
 /* ===================================================================
    STATE & FLOW
+   V20.6.2: this in-progress draft (answers so far, not yet submitted)
+   used to live under one flat, un-namespaced key regardless of who was
+   signed in — worse than the old wrld_state_v1, this had no per-account
+   scoping at all, ever. A signed-out visitor (or a different account)
+   opening this page on a browser where someone else had a saved-in-
+   progress or just-completed assessment would see THEIR answers/results
+   here. Now namespaced the same way as app.js's getState() (same
+   wrldNamespacedKey()/wrldResolveStateOwnerId() helpers, defined in
+   app.js which always loads before this inline script) — this page's
+   own control flow is unchanged, only which storage bucket these two
+   functions read/write from. The final, COMMITTED assessment result
+   (what needsOnboarding()/the dashboard actually read) already goes
+   through app.js's getState()/setState() and was fixed there; this is
+   only the scratch pad of answers while the assessment is still in
+   progress.
    =================================================================== */
-const ASSESS_KEY = 'wrld_assessment_v1';
+const ASSESS_KEY_BASE = 'wrld_assessment_v2';
 function getAssessState(){
-  try{ const raw = localStorage.getItem(ASSESS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  const ownerId = typeof wrldResolveStateOwnerId==='function' ? wrldResolveStateOwnerId() : null;
+  const key = typeof wrldNamespacedKey==='function' ? wrldNamespacedKey(ASSESS_KEY_BASE, ownerId) : ASSESS_KEY_BASE;
+  try{
+    const raw = localStorage.getItem(key);
+    if(raw){ const record = JSON.parse(raw); if(record && record.data) return record.data; }
+  }catch(e){}
   return {answers:{}, currentSection:0, completed:false};
 }
-function setAssessState(s){ localStorage.setItem(ASSESS_KEY, JSON.stringify(s)); }
+function setAssessState(s){
+  const ownerId = typeof wrldResolveStateOwnerId==='function' ? wrldResolveStateOwnerId() : null;
+  const key = typeof wrldNamespacedKey==='function' ? wrldNamespacedKey(ASSESS_KEY_BASE, ownerId) : ASSESS_KEY_BASE;
+  try{ localStorage.setItem(key, JSON.stringify({ ownerUserId: ownerId||null, version:2, data:s })); }catch(e){}
+}
 
 let assess = getAssessState();
 

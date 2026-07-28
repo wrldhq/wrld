@@ -271,20 +271,84 @@ function subscribeNewsletter(e){
 }
 
 /* ---------------------------------------------------------------------
-   LOCAL STATE
+   LOCAL STATE (V20.6.2 — account-scoped browser storage)
    Browser-local progress store. getState()/setState() are the single
    read/write boundary for user progress — when accounts/auth land, swap
    the bodies of these two functions for API calls and everything else
    on the site (bookmarks, streak, quiz scores, achievements) keeps working
    unchanged.
+
+   V20.6.1 kept everything under one global, un-namespaced localStorage
+   key (`wrld_state_v1`) and added a side-marker (`wrld_state_owner_v1`)
+   recording who it currently belonged to, so the NEXT sync could detect
+   a mismatched account before pushing foreign data to Supabase — see
+   CHANGES-V20.6.1.md. That correctly stopped the specific "new signup
+   inherits a foreign completed assessment" symptom it was written for,
+   but getState() itself never checked the marker, so anything reading
+   local progress directly (dashboard greeting, Programs recommendations,
+   the assessment "already completed" banner, etc.) could still show a
+   different account's cached data for as long as the marker and the
+   data happened to be out of sync (e.g. a failed/slow pull, or any page
+   that reads progress before this page's own auth state has resolved).
+
+   V20.6.2 replaces the single shared key with one real, separate
+   localStorage key PER Supabase account — `wrld_state_v2:<user_id>` —
+   plus a single fixed `wrld_state_v2:guest` bucket for logged-out/
+   pre-signup browsing. Reading "the wrong account's data" is now
+   structurally impossible (there is no shared key left to misread);
+   each stored record also carries its own `ownerUserId` marker as a
+   second, defense-in-depth check. See CHANGES-V20.6.2.md for the full
+   design and wrldMigrateLegacyStateOnce() below for how existing
+   browsers with the old V20.6.1 key are handled safely.
    --------------------------------------------------------------------- */
-const STORE_KEY = 'wrld_state_v1';
-function getState(){
-  try{
-    const raw = localStorage.getItem(STORE_KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
+/* Durable, synchronously-readable pointer to "whichever account this
+   browser most recently, authoritatively confirmed is signed in." Set
+   ONLY by wrldSetActiveStateOwner() (called from supabase-client.js's
+   wrldRefreshSessionCache(), the one real place Supabase Auth
+   resolution happens) — never guessed at by getState()/setState()
+   themselves. getCurrentUser() is the more authoritative source
+   whenever it's already resolved, but it can briefly return null on a
+   fresh page load before this page's own `window.wrldAuthReady` settles
+   (a pre-existing, documented property of this codebase's sync-
+   getCurrentUser()/async-Supabase bridge — see supabase-client.js's
+   top comment). Falling back to this pointer instead of assuming
+   "guest" during that brief window is what lets a page that reads
+   progress early (e.g. programs.html's recommended-programs render,
+   assessment.html's resume-in-progress check) keep showing the correct
+   signed-in account's data exactly as before, now that data lives under
+   a namespaced key instead of one shared one. */
+const WRLD_STATE_OWNER_POINTER_KEY = 'wrld_state_owner_v2';
+function wrldSetActiveStateOwner(ownerId){
+  try{ localStorage.setItem(WRLD_STATE_OWNER_POINTER_KEY, ownerId || ''); }catch(e){}
+}
+function wrldResolveStateOwnerId(){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  if(user) return user.id;
+  try{ return localStorage.getItem(WRLD_STATE_OWNER_POINTER_KEY) || null; }catch(e){ return null; }
+}
+function wrldNamespacedKey(base, ownerId){
+  return base + ':' + (ownerId || 'guest');
+}
+
+const STORE_KEY_BASE = 'wrld_state_v2';
+function wrldEmptyLearnerState(){
   return {bookmarks:[], completed:[], checklists:{}, quizScores:{}, streak:0, lastVisit:null, recentlyViewed:[], guidelinesAcceptedAt:null};
+}
+function getState(){
+  const ownerId = wrldResolveStateOwnerId();
+  try{
+    const raw = localStorage.getItem(wrldNamespacedKey(STORE_KEY_BASE, ownerId));
+    if(raw){
+      const record = JSON.parse(raw);
+      // Defense in depth only — the namespaced key already makes reading
+      // a different account's record structurally impossible; this just
+      // refuses to ever hand back a payload whose own embedded marker
+      // disagrees with the key it was read from (e.g. a corrupted or
+      // hand-edited entry).
+      if(record && record.data && record.ownerUserId === (ownerId || null)) return record.data;
+    }
+  }catch(e){}
+  return wrldEmptyLearnerState();
 }
 /* setState() stays SYNCHRONOUS on purpose — dozens of existing call sites
    (markComplete, toggleBookmark, renderQuiz, renderChecklist, the
@@ -296,9 +360,13 @@ function getState(){
    right after it, un-awaited, for any logged-in user — never blocking
    the UI and never throwing into a caller that isn't expecting a
    promise. See pullLearnerStateFromSupabase() below for the other half
-   (pulling this back down on a new device/session). */
+   (pulling this back down on a new device/session). Every write is
+   wrapped with {ownerUserId, version, data} so the record is
+   self-describing, matching the key it lives under. */
 function setState(state){
-  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  const ownerId = wrldResolveStateOwnerId();
+  const record = { ownerUserId: ownerId || null, version: 2, data: state };
+  try{ localStorage.setItem(wrldNamespacedKey(STORE_KEY_BASE, ownerId), JSON.stringify(record)); }catch(e){}
   syncLearnerStateToSupabase(state);
 }
 async function syncLearnerStateToSupabase(state){
@@ -324,19 +392,20 @@ async function syncLearnerStateToSupabase(state){
    wrldRefreshSessionCache(), which calls this automatically so every page
    gets it for free via `await window.wrldAuthReady` with no extra
    per-page wiring). If this account already has a row in `learner_state`
-   (e.g. progress made on another device), it overwrites the local cache
-   with the server's copy so this device picks up right where the other
-   one left off. If this is the first time this account has synced,
-   there's nothing to pull yet, so instead it pushes whatever progress
-   already exists locally (e.g. from browsing before creating an
-   account) up to the server. */
+   (e.g. progress made on another device), it overwrites this account's
+   own namespaced local cache with the server's copy so this device picks
+   up right where the other one left off. If this is the first time this
+   account has synced, there's nothing to pull yet, so instead it pushes
+   whatever progress already exists locally up to the server — but ONLY
+   progress that can legitimately belong to this account already. */
 async function pullLearnerStateFromSupabase(){
   const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
   if(!user || typeof sbClient==='undefined') return;
+  const key = wrldNamespacedKey(STORE_KEY_BASE, user.id);
   const { data, error } = await sbClient.from('learner_state').select('*').eq('user_id', user.id).maybeSingle();
   if(error){ console.warn('WRLD: could not load progress from the database', error.message); return; }
   if(data){
-    localStorage.setItem(STORE_KEY, JSON.stringify({
+    const record = { ownerUserId: user.id, version: 2, data: {
       bookmarks: data.bookmarks||[],
       completed: data.completed||[],
       checklists: data.checklists||{},
@@ -346,11 +415,100 @@ async function pullLearnerStateFromSupabase(){
       recentlyViewed: data.recently_viewed||[],
       guidelinesAcceptedAt: data.guidelines_accepted_at||null,
       assessment: data.assessment||null,
-    }));
+    }};
+    try{ localStorage.setItem(key, JSON.stringify(record)); }catch(e){}
   } else {
-    await syncLearnerStateToSupabase(getState());
+    // This account has no learner_state row yet. Its OWN namespaced
+    // bucket (wrld_state_v2:<this user's id>), by construction, can only
+    // ever already contain data this exact account previously wrote
+    // itself under this same key — never another account's, since a
+    // different account always writes to ITS OWN separate key. The one
+    // legitimate case left to check is a guest's pre-signup local
+    // progress on this same browser (wrld_state_v2:guest) — the
+    // existing, intentional "sign up fresh and your local progress
+    // carries over" feature. A different account's leftover cache is
+    // never in the running at all under this scheme, so it's never
+    // mistakenly pushed up as this brand-new account's own history.
+    let ownState = null;
+    try{ const raw = localStorage.getItem(key); if(raw) ownState = JSON.parse(raw); }catch(e){}
+    if(ownState && ownState.data){
+      await syncLearnerStateToSupabase(ownState.data);
+      return;
+    }
+    let guestState = null;
+    try{ const raw = localStorage.getItem(wrldNamespacedKey(STORE_KEY_BASE, null)); if(raw) guestState = JSON.parse(raw); }catch(e){}
+    if(guestState && guestState.data){
+      const record = { ownerUserId: user.id, version: 2, data: guestState.data };
+      try{ localStorage.setItem(key, JSON.stringify(record)); }catch(e){}
+      await syncLearnerStateToSupabase(guestState.data);
+    }
+    // Otherwise: genuinely nothing to carry over. getState() already
+    // defaults to a fresh, empty state for a key that doesn't exist yet.
   }
 }
+
+/* ---------------------------------------------------------------------
+   LEGACY BROWSER-STATE MIGRATION (V20.6.1 → V20.6.2, one time only)
+   Runs once per browser, ever (guarded by WRLD_V2_MIGRATION_FLAG), and
+   as early as possible (called unconditionally below, at top-level, so
+   it always finishes before any other script on the page — including
+   this same page's own inline script — can call getState() or
+   getVolunteerEntries()). See CHANGES-V20.6.2.md for the full rationale.
+   --------------------------------------------------------------------- */
+const WRLD_V2_MIGRATION_FLAG = 'wrld_v2_migration_done';
+function wrldMigrateLegacyStateOnce(){
+  try{
+    if(localStorage.getItem(WRLD_V2_MIGRATION_FLAG) === '1') return;
+
+    // wrld_state_v1 / wrld_state_owner_v1 (V20.6.1) is the one legacy
+    // store that already carried a real, self-healing ownership marker
+    // (see CHANGES-V20.6.1.md) — ownership CAN be verified here, so it's
+    // safe to migrate into that exact same account's new namespaced
+    // bucket. An empty/unset legacy owner ('') meant "a guest's
+    // pre-signup progress, no account yet" in the old scheme, which maps
+    // directly onto the new dedicated guest bucket — not to any specific
+    // account. Never overwrites a bucket that already has data in it
+    // (e.g. this migration somehow running twice, or a bucket a fresher
+    // pull already populated).
+    const legacyStateRaw = localStorage.getItem('wrld_state_v1');
+    if(legacyStateRaw){
+      let legacyState = null;
+      try{ legacyState = JSON.parse(legacyStateRaw); }catch(e){}
+      if(legacyState){
+        const legacyOwner = localStorage.getItem('wrld_state_owner_v1') || '';
+        const targetKey = wrldNamespacedKey(STORE_KEY_BASE, legacyOwner || null);
+        if(!localStorage.getItem(targetKey)){
+          localStorage.setItem(targetKey, JSON.stringify({ ownerUserId: legacyOwner || null, version: 2, data: legacyState }));
+        }
+      }
+    }
+
+    // wrld_volunteer_log_v1 and wrld_assessment_v1 never had ANY
+    // ownership marker, ever, at any point in this project's history —
+    // under the migration rule that ownership must be verifiable before
+    // any legacy data is attached to an account, neither can be safely
+    // migrated to anyone, so both are quarantined (discarded) rather
+    // than guessed at:
+    //  - volunteer entries: the real record already lives in Supabase's
+    //    volunteer_entries table (RLS-scoped per user) and reloads
+    //    correctly via pullVolunteerEntriesFromSupabase() on next login
+    //    — nothing real is lost.
+    //  - the assessment draft store only ever holds mid-progress answers
+    //    before submission; a genuinely COMPLETED assessment was already
+    //    carried over above as part of wrld_state_v1 (the field
+    //    needsOnboarding()/the dashboard actually read).
+    localStorage.removeItem('wrld_volunteer_log_v1');
+    localStorage.removeItem('wrld_assessment_v1');
+
+    // Legacy keys fully processed — remove them so nothing can ever read
+    // them again (including this function, on a future no-op call).
+    localStorage.removeItem('wrld_state_v1');
+    localStorage.removeItem('wrld_state_owner_v1');
+
+    localStorage.setItem(WRLD_V2_MIGRATION_FLAG, '1');
+  }catch(e){ /* storage disabled/unavailable — nothing can be safely migrated; no-op */ }
+}
+wrldMigrateLegacyStateOnce();
 
 /* ---------------------------------------------------------------------
    LIVE SESSIONS (Live Learning + Mentor Studio)
@@ -1086,10 +1244,30 @@ async function computeCommunityBadges(){
    type today (not the file itself) — real secure file storage is future
    work, and the UI says so honestly rather than pretending it's stored.
    --------------------------------------------------------------------- */
-const VOLUNTEER_LOG_KEY = 'wrld_volunteer_log_v1';
+/* V20.6.2 — namespaced per Supabase account, same scheme as getState()/
+   setState() above (see that section's header comment for the full
+   rationale). This key had NO ownership marker at all before this
+   release — worse than the pre-V20.6.2 learner-state key — so on a
+   browser previously used by a different account, a brand-new account's
+   first sync could silently upload that OTHER account's cached volunteer
+   hours into its own Supabase row the instant pullVolunteerEntriesFromSupabase()
+   found no rows yet for it. Namespacing by account id makes that
+   structurally impossible: this key can now only ever hold entries this
+   exact account itself wrote. Volunteer Tracker is authenticated-only
+   (requireAuth() gates volunteer-tracker.html), so unlike learner state
+   there is no separate "guest" bucket to carry over here — nothing
+   legitimate to inherit before an account exists. */
+const VOLUNTEER_LOG_KEY_BASE = 'wrld_volunteer_log_v2';
 function getVolunteerEntries(){
-  try{ return JSON.parse(localStorage.getItem(VOLUNTEER_LOG_KEY)) || []; }
-  catch(e){ return []; }
+  const ownerId = wrldResolveStateOwnerId();
+  try{
+    const raw = localStorage.getItem(wrldNamespacedKey(VOLUNTEER_LOG_KEY_BASE, ownerId));
+    if(raw){
+      const record = JSON.parse(raw);
+      if(record && Array.isArray(record.data) && record.ownerUserId === (ownerId || null)) return record.data;
+    }
+  }catch(e){}
+  return [];
 }
 /* Same write-through-cache pattern as setState() above: the localStorage
    write is instant and unchanged, and a background full-resync to
@@ -1099,7 +1277,9 @@ function getVolunteerEntries(){
    — simple and correct given a person typically has a handful of
    volunteer entries, not thousands. */
 function saveVolunteerEntries(entries){
-  localStorage.setItem(VOLUNTEER_LOG_KEY, JSON.stringify(entries));
+  const ownerId = wrldResolveStateOwnerId();
+  const record = { ownerUserId: ownerId || null, version: 2, data: entries };
+  try{ localStorage.setItem(wrldNamespacedKey(VOLUNTEER_LOG_KEY_BASE, ownerId), JSON.stringify(record)); }catch(e){}
   syncVolunteerEntriesToSupabase(entries);
 }
 function volunteerEntryToRow(entry, userId){
@@ -1167,11 +1347,30 @@ async function syncVolunteerEntriesToSupabase(entries){
 async function pullVolunteerEntriesFromSupabase(){
   const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
   if(!user || typeof sbClient==='undefined') return;
+  const key = wrldNamespacedKey(VOLUNTEER_LOG_KEY_BASE, user.id);
   const { data, error } = await sbClient.from('volunteer_entries').select('*').eq('user_id', user.id).order('created_at', {ascending:false});
-  if(error){ console.warn('WRLD: could not load volunteer entries from the database', error.message); return; }
+  if(error){
+    console.warn('WRLD: could not load volunteer entries from the database', error.message);
+    // V20.6: authentication succeeding but this one read failing is a
+    // real, distinct condition from "not logged in" — volunteer-tracker.html
+    // checks this flag (after requireAuth() already passed) to show a
+    // tracker-specific error + Retry action instead of ever bouncing the
+    // user to login or the dashboard. Never treated as a logout signal.
+    window.__wrldVolunteerLoadFailed = true;
+    return;
+  }
+  window.__wrldVolunteerLoadFailed = false;
   if(data && data.length){
-    localStorage.setItem(VOLUNTEER_LOG_KEY, JSON.stringify(data.map(volunteerRowToEntry)));
+    const record = { ownerUserId: user.id, version: 2, data: data.map(volunteerRowToEntry) };
+    try{ localStorage.setItem(key, JSON.stringify(record)); }catch(e){}
   } else {
+    // No server rows yet for this account. This account's OWN namespaced
+    // bucket, by construction, can only ever already contain entries
+    // this exact account previously wrote — never a different account's
+    // (that was the actual bug this release fixes: the old unscoped key
+    // had no such guarantee at all). getVolunteerEntries() already
+    // refuses to hand back anything whose embedded ownerUserId doesn't
+    // match this account, as a second, defense-in-depth check.
     const local = getVolunteerEntries();
     if(local.length) await syncVolunteerEntriesToSupabase(local);
   }
@@ -1995,6 +2194,12 @@ async function initPage(activeKey, customGuideMsg){
   // same fire-and-forget way it always did (`initPage('dashboard')`),
   // so making this async required no changes to any of the 28 callers.
   if(typeof window.wrldAuthReady !== 'undefined') await window.wrldAuthReady;
+  // V20.6: remembered so supabase-client.js can re-render the header if a
+  // LATER auth-state event (a delayed session-restore resolution, a token
+  // refresh, a sign-out in another tab) resolves after this first render —
+  // see the matching comment in supabase-client.js's onAuthStateChange
+  // handler. Harmless to set on every page; only used defensively.
+  window.__wrldLastNavKey = activeKey;
   renderHeader(activeKey);
   renderFooter();
   updateStreak();

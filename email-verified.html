@@ -64,11 +64,11 @@
 <div id="site-footer"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js"></script>
-<script src="supabase-client.js"></script>
+<script src="supabase-client.js?v=20.6.2"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js"></script>
-<script src="app.js"></script>
+<script src="auth.js?v=20.6.2"></script>
+<script src="app.js?v=20.6.2"></script>
 <script src="orbit.js?v=16"></script>
 <script>
 function showPanel(id){
@@ -77,14 +77,21 @@ function showPanel(id){
   });
 }
 
-// Role destinations come from the shared ROLE_DESTINATIONS map in auth.js
-// (also used by login.html) — never decided by localStorage, a query
-// parameter, or any other editable frontend value. getCurrentUser() below
-// reflects the real public.profiles row for the account that owns the
-// session Supabase just established from the verification link.
-function goToDashboard(){
-  const user = getCurrentUser();
-  location.href = (user && ROLE_DESTINATIONS[user.role]) || 'dashboard.html';
+// V20.6.2: routes through the same shared postAuthDestination() helper
+// login.html/signup.html/assessment.html already use, with an explicit
+// `source` rather than ever jumping straight to ROLE_DESTINATIONS or
+// inferring the journey from cached state. This page is only reachable
+// if Supabase "Confirm email" is ever re-enabled (see CLAUDE.md/
+// signup.html) — but if it is, the exception carved out for email
+// confirmation applies: a just-verified first session (hadTokens===true,
+// the 'ev-success' panel) is still genuinely completing the Create
+// Account journey, so it continues with source:'signup' straight into
+// the first-time welcome/Orbit/Assessment flow. Reopening an old/already-
+// verified link while already signed in (the 'ev-already' panel) is not
+// a fresh signup moment, so it routes with source:'login' instead —
+// straight to the account's own destination, same as a normal log in.
+function goToDashboard(source){
+  location.href = (typeof postAuthDestination==='function') ? postAuthDestination(null, source) : 'dashboard.html';
 }
 
 async function handleExpiredResend(){
@@ -127,12 +134,13 @@ async function handleExpiredResend(){
   const user = getCurrentUser();
 
   if(user){
-    document.getElementById('ev-continue-btn').addEventListener('click', goToDashboard);
-    document.getElementById('ev-already-continue-btn').addEventListener('click', goToDashboard);
+    document.getElementById('ev-continue-btn').addEventListener('click', ()=>goToDashboard('signup'));
+    document.getElementById('ev-already-continue-btn').addEventListener('click', ()=>goToDashboard('login'));
     // If this page load actually carried fresh verification tokens/code,
-    // this is a real "just verified" moment; otherwise the visitor simply
-    // opened this URL directly (or reused an old link) while already
-    // signed in and verified.
+    // this is a real "just verified" moment (continues the signup
+    // pathway); otherwise the visitor simply opened this URL directly
+    // (or reused an old link) while already signed in and verified
+    // (treated like a normal returning-user login).
     showPanel(hadTokens ? 'ev-success' : 'ev-already');
     return;
   }

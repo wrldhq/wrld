@@ -198,25 +198,31 @@ async function signUp({name, email, password, captchaToken}){
 
   if(error) return {ok:false, error: friendlyAuthError(error)};
 
-  // V15.1: email verification is no longer required on this project (the
-  // Supabase dashboard's Auth → Providers → Email → "Confirm email"
-  // toggle has been switched off — see the "No-Verification Signup Flow"
-  // note near the top of this file). With that setting off, signUp()
-  // returns an active session immediately instead of the
-  // needsEmailConfirmation branch below. The product decision for this
-  // pass is still to send the user to login.html to sign in with the
-  // credentials they just created, rather than silently auto-logging
-  // them in — so any session Supabase just issued is deliberately signed
-  // back out here before returning, guaranteeing no hidden active session
-  // is left behind while the success/login screen is shown. The account,
-  // its auth.users row, and its public.profiles row (created by the
-  // existing handle_new_user() trigger) are all real and already
-  // persisted at this point — signing out only clears the *client-side*
-  // session token, it does not undo account creation.
+  // V20.6 (was V15.1): email verification is no longer required on this
+  // project (the Supabase dashboard's Auth → Providers → Email →
+  // "Confirm email" toggle has been switched off — see the
+  // "No-Verification Signup Flow" note near the top of this file). With
+  // that setting off, signUp() returns an active session immediately.
+  //
+  // V15.1 used to sign that session back out here and send the new user
+  // to login.html to sign back in by hand — which is exactly the
+  // "new account created, then treated like a returning user, shown
+  // 'Welcome back,' and forced to log in manually before ever meeting
+  // Orbit or taking the Adulting Readiness Assessment" bug this release
+  // (V20.6) is required to fix. A valid Supabase session already exists
+  // the instant signUp() returns one — there is no reason to discard it
+  // and ask the person to re-prove a password they just chose seconds
+  // ago. The session is now kept, the in-memory cache is refreshed so
+  // getCurrentUser() reflects the new account immediately, and the
+  // caller (signup.html) routes the now-authenticated, onboarding-
+  // incomplete Explorer straight into the first-time welcome/Orbit/
+  // Assessment flow via postAuthDestination() — never through
+  // login.html. `hasSession:true` tells signup.html which path to take;
+  // `accountCreated:true` is kept on the returned object for any other
+  // caller that only checks that flag.
   if(data.session){
-    await sbClient.auth.signOut();
-    await wrldRefreshSessionCache(null);
-    return {ok:true, user:null, accountCreated:true};
+    await wrldRefreshSessionCache(data.session);
+    return {ok:true, user:getCurrentUser(), accountCreated:true, hasSession:true};
   }
   // Fallback path: only reached if a future project configuration change
   // re-enables "Confirm email" — kept intact so signup.html's existing
@@ -527,21 +533,48 @@ function needsOnboarding(user){
   return !(s && s.assessment);
 }
 
-// The one shared routing decision used after both login and assessment
-// completion, in this exact priority order:
-//   1. Onboarding incomplete (Explorer, no assessment yet) → welcome.html,
-//      carrying the original destination forward as its own `next=` so
-//      it isn't lost — resumed after the assessment instead of dropped.
-//   2. A validated, safe requested destination (e.g. a Volunteer Tracker
-//      link that triggered the login redirect) → that destination.
-//   3. No destination requested → the account's normal role dashboard.
-// Both login.html (after a successful login) and assessment.html's
-// beginJourney() (after a successful first-time assessment) call this
-// same function, so the priority order can't drift between the two
-// entry points.
-function postAuthDestination(requestedNext){
+// V20.6.2 — Create Account and Log In are two separate journeys and must
+// never share a routing decision that's INFERRED from cached/local state
+// (assessment completion, browser history, account age, etc.) — only the
+// explicit action the person actually took (which form they submitted)
+// decides which journey runs. `source` makes that explicit:
+//   source === 'signup' → this IS a brand-new account's first authenticated
+//     moment. Always the first-time onboarding flow (Orbit welcome → the
+//     Adulting Readiness Assessment), unconditionally — never inferred
+//     from getState(), never "welcome back," never a dashboard skip based
+//     on anything that happens to be cached in this browser.
+//   source === 'login' → this IS a returning user's deliberate log-in.
+//     Always their requested destination or role dashboard, directly —
+//     never re-triggers onboarding or the Orbit welcome from this
+//     function. (A genuinely onboarding-incomplete returning account is
+//     still caught — correctly, from real account data, not inferred
+//     here — by requireAuth()'s own independent guard on whichever
+//     protected page loads next; see that function below. This routing
+//     step itself just never makes that call.)
+//   source omitted → legacy/shared priority order, used by
+//     assessment.html's beginJourney() right after a first-time
+//     assessment completes, where checking "is onboarding needed now" is
+//     exactly correct (it just became false) rather than an inference
+//     about which journey the person is on.
+function postAuthDestination(requestedNext, source){
   const user = getCurrentUser();
   const safeNext = safeInternalNext(requestedNext);
+
+  if(source === 'signup'){
+    return 'welcome.html' + (safeNext ? '?next=' + encodeURIComponent(safeNext) : '');
+  }
+  if(source === 'login'){
+    if(safeNext) return safeNext;
+    return (user && ROLE_DESTINATIONS[user.role]) || 'dashboard.html';
+  }
+
+  // Legacy/default priority order:
+  //   1. Onboarding incomplete (Explorer, no assessment yet) → welcome.html,
+  //      carrying the original destination forward as its own `next=` so
+  //      it isn't lost — resumed after the assessment instead of dropped.
+  //   2. A validated, safe requested destination (e.g. a Volunteer Tracker
+  //      link that triggered the login redirect) → that destination.
+  //   3. No destination requested → the account's normal role dashboard.
   if(needsOnboarding(user)){
     return 'welcome.html' + (safeNext ? '?next=' + encodeURIComponent(safeNext) : '');
   }
@@ -740,8 +773,10 @@ async function claimOwnerRole(){
    table. There is nothing to bulk-migrate server-side: each browser's
    demo account only ever existed in that one browser. What CAN and DOES
    carry over automatically is real: if someone with old local progress
-   (`wrld_state_v1`/`wrld_volunteer_log_v1`) signs up fresh for a real
-   account, pullLearnerStateFromSupabase()/pullVolunteerEntriesFromSupabase()
+   (the account-scoped learner-state/volunteer-log stores in app.js — see
+   that file's LOCAL STATE section and CHANGES-V20.6.2.md for the current
+   key scheme) signs up fresh for a real account,
+   pullLearnerStateFromSupabase()/pullVolunteerEntriesFromSupabase()
    (app.js) find no server row yet on first login and push their existing
    local progress up — so their progress survives the migration even
    though the account itself has to be re-created. (Passwords can't be

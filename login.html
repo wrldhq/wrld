@@ -44,11 +44,11 @@
 <div id="site-footer"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=2"></script>
-<script src="supabase-client.js?v=2"></script>
+<script src="supabase-client.js?v=20.6.2"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js"></script>
-<script src="app.js"></script>
+<script src="auth.js?v=20.6.2"></script>
+<script src="app.js?v=20.6.2"></script>
 <script src="orbit.js?v=16"></script>
 <script>
 // One login for everyone — the account's real, stored role decides where
@@ -96,16 +96,21 @@ document.getElementById('login-form').addEventListener('submit', async (e)=>{
   // ever using it as a redirect target — `next` comes straight from the
   // URL, which is attacker-controllable if someone shares a crafted
   // login link (e.g. login.html?next=https://evil.example).
-  // V20.5: routing itself now goes through postAuthDestination() (see
-  // auth.js) — the single shared priority order (incomplete onboarding
-  // → requested destination → role dashboard) also used by
-  // assessment.html's beginJourney() after first-time onboarding
-  // completes, so a signed-in-but-not-yet-onboarded Explorer with a
-  // pending `next` (e.g. they tried the Volunteer Tracker before ever
-  // finishing onboarding) is sent to finish onboarding first, carrying
-  // that destination forward instead of losing it.
+  // V20.6.2: routes with source:'login' explicitly — Log In is a
+  // returning-user pathway, separate from Create Account's, and never
+  // infers "does this account need onboarding" from cached local state
+  // here (see auth.js's postAuthDestination()). This always sends a
+  // successful login straight to its requested destination or role
+  // dashboard. A genuinely onboarding-incomplete returning account (e.g.
+  // they created an account, closed the browser before finishing the
+  // assessment, and came back to log in normally) is still caught —
+  // correctly, from this account's own real data — by requireAuth()'s
+  // independent guard the instant the destination page loads, which
+  // also preserves any pending `next` (e.g. the Volunteer Tracker)
+  // forward through onboarding exactly as before; this routing step
+  // itself just never makes that inference.
   const params = new URLSearchParams(location.search);
-  location.href = postAuthDestination(params.get('next'));
+  location.href = postAuthDestination(params.get('next'), 'login');
 });
 
 initPage(null);
