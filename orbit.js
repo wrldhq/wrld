@@ -45,23 +45,40 @@ function closeOrbitPanel(){
 }
 
 /* ---------------------------------------------------------------------
-   MOBILE AUTO-OPEN / AUTO-COLLAPSE
-   On small screens Orbit's chat panel is large enough to sit over page
-   content (forms, CTAs, onboarding), so it briefly shows itself on load
-   — same greeting as a manual open — then tucks back down to just the
-   round icon on its own. Nothing here changes what Orbit says or how the
-   panel looks; it only automates open/close via the exact same
-   openOrbitPanel()/closeOrbitPanel() class-toggle the click handlers
-   already use, so re-opening (by tap) behaves exactly as before.
-   Desktop is untouched — this only runs at the same <=720px breakpoint
-   where styles.css already gives the panel its compact mobile sizing.
+   MOBILE COMPACT PREVIEW (V21)
+   On small screens only, Orbit briefly shows a short, page-relevant
+   preview — reusing the SAME small "guide" bubble that already sits next
+   to Orbit's circular launcher on every screen size — then automatically
+   collapses back to just the circular launcher a few seconds later.
+
+   V21 replaces this section's previous approach (auto-opening the FULL
+   orbit-panel chat window with Orbit's full greeting paragraph, then
+   auto-closing it) with the shorter, purpose-built compact preview
+   described below. The full assistant panel (openOrbitPanel()/
+   closeOrbitPanel(), the chat history, the response engine) is completely
+   unchanged — it's still exactly how a person reaches Orbit's full
+   contextual greeting and conversation; the compact preview is a new,
+   smaller, separate thing that sits in front of it and links into it.
+
+   Desktop is untouched: every function below either no-ops or is never
+   invoked once window.innerWidth is above ORBIT_MOBILE_BREAKPOINT (the
+   same 720px breakpoint styles.css already uses for the site's other
+   mobile-only rules) — see orbitLauncherTap()/initOrbitAutoBehavior().
+   On desktop the guide bubble keeps showing its full contextual tip
+   permanently, exactly as before; only the CSS in styles.css's
+   `@media(max-width:720px)` block hides/reveals it on small screens.
    --------------------------------------------------------------------- */
 const ORBIT_MOBILE_BREAKPOINT = 720;
 const ORBIT_SESSION_DISMISS_KEY = 'wrld_orbit_dismissed_v1';
-const ORBIT_AUTO_COLLAPSE_MS = 6500; // "approximately 5 to 8 seconds"
+const ORBIT_AUTO_COLLAPSE_MS = 5000; // "approximately five seconds"
 
 let orbitAutoCollapseTimer = null;
 let orbitAutoCollapseScrollHandler = null;
+let orbitCompactPreviewOpen = false;       // current visible state on THIS page load
+let orbitAutoBehaviorInitialized = false;  // guards against a duplicate timer/listener if initOrbitAutoBehavior() were ever called twice
+let orbitOutsideTapHandler = null;
+
+function orbitIsMobile(){ return window.innerWidth <= ORBIT_MOBILE_BREAKPOINT; }
 
 function orbitWasDismissedThisSession(){
   try{ return sessionStorage.getItem(ORBIT_SESSION_DISMISS_KEY) === '1'; }
@@ -81,10 +98,154 @@ function clearOrbitAutoCollapseWatchers(){
   }
 }
 
-// Manual close (the ✕ button) — remembers the dismissal for the rest of
-// this browsing session so Orbit stops auto-opening on later pages.
-// Tapping the icon still reopens it any time; this only silences the
-// automatic on-load popup.
+/* Shortens any existing contextual guide message down to roughly the
+   page-relevant preview WRLD's mobile spec asks for (about 120
+   characters / two compact lines) — never the full desktop paragraph.
+   Cuts at the nearest sentence boundary when one exists in range, so it
+   reads as a complete short thought rather than a mid-word clip; falls
+   back to a clean word-boundary + ellipsis otherwise. Pure/no DOM access
+   so it's easy to unit-test on its own (see local-simulation/). */
+function orbitCompactPreviewText(fullMsg){
+  if(!fullMsg) return '';
+  const MAX = 120;
+  if(fullMsg.length <= MAX) return fullMsg;
+  const punctMatch = fullMsg.slice(0, MAX + 20).match(/^(.*?[.!?])\s/);
+  if(punctMatch && punctMatch[1].length <= MAX + 15) return punctMatch[1];
+  const cut = fullMsg.slice(0, MAX);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > 40 ? cut.slice(0, lastSpace) : cut).trim() + '…';
+}
+
+// One of the site's approved short action labels, per page — a sensible,
+// safe default everywhere else. Purely cosmetic/copy — every one of
+// these opens the exact same full Orbit assistant.
+function contextualOrbitPreviewAction(pageKey){
+  const ACTIONS = {
+    playbooks: 'Get a recommendation →',
+    paths: 'Get a recommendation →',
+    programs: 'Show me around →',
+    assessment: 'Ask Orbit →',
+    community: 'Ask Orbit →',
+  };
+  return ACTIONS[pageKey] || 'Tap me for more →';
+}
+
+/* Called by app.js's setGuideMessage() every time it has a contextual
+   message to show. Desktop: unchanged, full message, no action line
+   (styles.css keeps the action line hidden outside the mobile media
+   query regardless). Mobile: the same message, shortened, plus a short
+   action line — never both the short preview AND the full desktop
+   paragraph at once. */
+function orbitRenderGuideBubbleContent(fullMsg){
+  const textEl = document.getElementById('guide-bubble-text');
+  const actionEl = document.getElementById('guide-bubble-action');
+  if(!textEl || !fullMsg) return;
+  if(orbitIsMobile()){
+    textEl.textContent = orbitCompactPreviewText(fullMsg);
+    if(actionEl) actionEl.textContent = contextualOrbitPreviewAction(window.__wrldLastNavKey);
+  } else {
+    textEl.textContent = fullMsg;
+    if(actionEl) actionEl.textContent = '';
+  }
+}
+
+/* Shows the compact preview: clears any leftover inline `display:none`
+   from a previous manual dismiss (see dismissOrbitCompactPreview()),
+   restores the bubble's own focusability/visibility to assistive tech,
+   and starts listening for an outside tap to collapse it. Safe to call
+   on desktop (styles.css only makes any of this visually matter inside
+   its mobile media query), but every call site below already only
+   reaches this on mobile. */
+function showOrbitCompactPreview(){
+  const b = document.getElementById('guide-bubble');
+  if(!b) return;
+  b.style.removeProperty('display');
+  b.classList.add('orbit-preview-open');
+  b.setAttribute('aria-hidden', 'false');
+  b.setAttribute('tabindex', '0');
+  const dismissBtn = b.querySelector('.guide-bubble-dismiss');
+  if(dismissBtn) dismissBtn.tabIndex = 0;
+  orbitCompactPreviewOpen = true;
+  attachOrbitOutsideTapListener();
+}
+
+/* Collapses the compact preview back to just the circular launcher.
+   Does NOT touch sessionStorage/dismissal state on its own — the timer,
+   a tap-outside, and a second launcher tap all collapse this way but
+   leave the preview eligible to reopen on a later manual tap; only the
+   explicit "✕" (dismissOrbitCompactPreview()) marks it as manually
+   closed for the rest of the session, per the required interaction
+   rules. */
+function collapseOrbitCompactPreview(){
+  const b = document.getElementById('guide-bubble');
+  if(!b) return;
+  b.classList.remove('orbit-preview-open');
+  b.setAttribute('aria-hidden', 'true');
+  b.setAttribute('tabindex', '-1');
+  const dismissBtn = b.querySelector('.guide-bubble-dismiss');
+  if(dismissBtn) dismissBtn.tabIndex = -1;
+  orbitCompactPreviewOpen = false;
+  clearOrbitAutoCollapseWatchers();
+  detachOrbitOutsideTapListener();
+}
+
+// Explicit "✕" — collapses immediately, keeps the launcher visible, and
+// (via the existing session-wide dismissal flag, unchanged from before
+// V21) stops the automatic preview from popping up again on later pages
+// this session, exactly like dismissing Orbit's tip already worked prior
+// to this release.
+function dismissOrbitCompactPreview(){
+  collapseOrbitCompactPreview();
+  const b = document.getElementById('guide-bubble');
+  if(b) b.style.display = 'none';
+  markOrbitDismissedThisSession();
+}
+
+// A tap anywhere outside the guide bubble/launcher collapses the
+// compact preview — added only while it's open, removed the moment it
+// isn't, so it can never intercept or block a tap on ordinary page
+// content (it never calls preventDefault()/stopPropagation(), so the
+// same tap still reaches whatever the visitor actually tapped).
+function attachOrbitOutsideTapListener(){
+  if(orbitOutsideTapHandler) return;
+  orbitOutsideTapHandler = (e)=>{
+    const guide = document.getElementById('guide');
+    if(guide && !guide.contains(e.target)) collapseOrbitCompactPreview();
+  };
+  document.addEventListener('pointerdown', orbitOutsideTapHandler, {passive:true});
+}
+function detachOrbitOutsideTapListener(){
+  if(orbitOutsideTapHandler){
+    document.removeEventListener('pointerdown', orbitOutsideTapHandler);
+    orbitOutsideTapHandler = null;
+  }
+}
+
+// The circular launcher's click handler. Desktop: unchanged — opens the
+// full assistant directly, exactly as always. Mobile: single-tap toggle
+// between the compact preview and just-the-launcher, per the required
+// interaction rules — never opens the full assistant directly from a
+// launcher tap on mobile (tapping the preview's own text/action line
+// does that instead, via orbitOpenFullFromPreview() below).
+function orbitLauncherTap(){
+  if(!orbitIsMobile()){ openOrbitPanel(); return; }
+  if(orbitCompactPreviewOpen) collapseOrbitCompactPreview();
+  else showOrbitCompactPreview();
+}
+
+// Tapping the preview's message/action line (or, on desktop, the always-
+// on tip bubble) opens the full assistant. On mobile this also collapses
+// the compact preview first, so the two panels never show at once; on
+// desktop collapseOrbitCompactPreview() has nothing to do (the preview
+// was never toggled open in the first place) so this is functionally
+// identical to the old direct openOrbitPanel() call.
+function orbitOpenFullFromPreview(){
+  if(orbitIsMobile()) collapseOrbitCompactPreview();
+  openOrbitPanel();
+}
+
+// Manual close of the FULL assistant panel (its own "✕", unrelated to
+// the compact preview's) — unchanged from before V21.
 function dismissOrbitPanel(){
   closeOrbitPanel();
   markOrbitDismissedThisSession();
@@ -93,7 +254,7 @@ function dismissOrbitPanel(){
 
 // Pages that are primarily a form or a guided onboarding flow — Orbit
 // never auto-opens over these on mobile (it stays available as a tap-to-
-// open icon), since the auto-panel would otherwise sit on top of a
+// open icon), since the auto-preview would otherwise sit on top of a
 // short-viewport form field or an onboarding step. Matched against the
 // current page's filename, not activeKey, so it works even on pages
 // that aren't in top nav (login/signup/forgot-password/reset-password/
@@ -108,28 +269,33 @@ function orbitCurrentPageExcludedFromAutoShow(){
 }
 
 function initOrbitAutoBehavior(){
-  if(window.innerWidth > ORBIT_MOBILE_BREAKPOINT) return;
+  if(orbitAutoBehaviorInitialized) return; // one call per page load — no duplicate timers/listeners
+  orbitAutoBehaviorInitialized = true;
+
+  if(!orbitIsMobile()) return;
   if(orbitWasDismissedThisSession()) return;
   if(orbitCurrentPageExcludedFromAutoShow()) return;
-  const panel = document.getElementById('orbit-panel');
-  if(!panel) return;
+  const bubble = document.getElementById('guide-bubble');
+  if(!bubble) return;
 
-  openOrbitPanel(true);
+  // Begin the auto-collapse countdown only once the preview has actually
+  // been rendered (next frame), not the instant this function runs.
+  showOrbitCompactPreview();
+  requestAnimationFrame(()=>{
+    orbitAutoCollapseTimer = setTimeout(()=>{
+      collapseOrbitCompactPreview();
+    }, ORBIT_AUTO_COLLAPSE_MS);
+  });
 
-  orbitAutoCollapseTimer = setTimeout(()=>{
-    closeOrbitPanel();
-    clearOrbitAutoCollapseWatchers();
-  }, ORBIT_AUTO_COLLAPSE_MS);
-
-  orbitAutoCollapseScrollHandler = ()=>{
-    closeOrbitPanel();
-    clearOrbitAutoCollapseWatchers();
-  };
+  orbitAutoCollapseScrollHandler = ()=>{ collapseOrbitCompactPreview(); };
   window.addEventListener('scroll', orbitAutoCollapseScrollHandler, {passive:true, once:true});
 
-  // If the person actually starts using the auto-opened panel, stop the
-  // countdown — don't snap it shut on someone mid-message.
-  panel.addEventListener('focusin', clearOrbitAutoCollapseWatchers, {once:true});
+  // If the person actually starts interacting with the auto-shown
+  // preview before the timer fires — tapping it, focusing the "✕" via
+  // keyboard, etc. — stop the countdown rather than collapsing out from
+  // under them.
+  bubble.addEventListener('pointerdown', clearOrbitAutoCollapseWatchers, {once:true});
+  bubble.addEventListener('focusin', clearOrbitAutoCollapseWatchers, {once:true});
 }
 
 function addOrbitMessage(html, from){

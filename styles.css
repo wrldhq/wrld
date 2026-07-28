@@ -717,6 +717,11 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
 .guide-bubble{background:white; border-radius:16px 16px 4px 16px; padding:13px 17px; box-shadow:var(--shadow-lg); font-size:13px; max-width:210px; color:var(--navy); font-weight:500; cursor:pointer; position:relative;}
 .guide-bubble span{padding-right:14px;}
 .guide-bubble-dismiss{position:absolute; top:4px; right:6px; background:none; border:none; color:var(--ink-faint); font-size:11px; cursor:pointer; width:20px; height:20px; display:flex; align-items:center; justify-content:center; line-height:1;}
+/* V21: the short action line ("Tap me for more →", etc.) — desktop-hidden
+   at every width above the mobile breakpoint, so the always-on desktop
+   tip bubble's appearance/copy is completely unaffected; only the
+   `@media(max-width:720px)` rule below ever reveals it. */
+.guide-bubble-action{display:none;}
 .guide-avatar{width:54px; height:54px; cursor:pointer;}
 
 /* ===== Orbit chat panel (Orbit v2) ===== */
@@ -962,6 +967,27 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   .guide{bottom:calc(16px + env(safe-area-inset-bottom, 0px)); right:16px; gap:8px;}
   .guide-avatar{width:44px; height:44px;}
   .guide-bubble{max-width:min(200px, calc(100vw - 90px)); font-size:12.5px; padding:11px 14px;}
+
+  /* V21 — mobile compact preview: collapsed (just the circular launcher)
+     is the default state; showOrbitCompactPreview() (orbit.js) adds
+     .orbit-preview-open to reveal it. Uses opacity/transform, never
+     `display`, so the bubble's own box keeps its normal flex space at
+     all times and the launcher never shifts position when the preview
+     opens or collapses. The global `@media(prefers-reduced-motion)`
+     rule near the top of this file already forces every transition
+     (including these) to ~0ms, so reduced-motion users get an instant
+     show/hide with no extra rules needed here. */
+  .guide-bubble{
+    opacity:0; transform:translateY(8px) scale(.96); pointer-events:none;
+    transition:opacity .22s var(--ease), transform .22s var(--ease);
+  }
+  .guide-bubble.orbit-preview-open{opacity:1; transform:translateY(0) scale(1); pointer-events:auto;}
+  /* Short action line ("Tap me for more →", etc.) — mobile-only; see the
+     base `.guide-bubble-action{display:none;}` rule this overrides. */
+  .guide-bubble-action{
+    display:block; margin-top:4px; font-weight:800; font-size:12px;
+    color:var(--blue-dark); padding-right:14px;
+  }
 
   /* Toast: full-width with side margins instead of a fixed-width pill */
   .toast{left:16px; right:16px; transform:translateY(20px); width:auto; max-width:none;}

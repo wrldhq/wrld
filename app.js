@@ -200,11 +200,12 @@ function renderFooter(){
     </div>
   </footer>
   <div class="guide" id="guide">
-    <div class="guide-bubble" id="guide-bubble" role="button" tabindex="0" aria-label="Open Orbit">
-      <span onclick="openOrbitPanel()" style="display:block;">Hi! I'm Orbit 🌎</span>
-      <button type="button" class="guide-bubble-dismiss" onclick="event.stopPropagation(); markOrbitDismissedThisSession(); document.getElementById('guide-bubble').style.display='none';" aria-label="Dismiss">✕</button>
+    <div class="guide-bubble" id="guide-bubble" role="button" tabindex="0" aria-label="Open Orbit" onclick="orbitOpenFullFromPreview()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); orbitOpenFullFromPreview();}">
+      <span id="guide-bubble-text" style="display:block;">Hi! I'm Orbit 🌎</span>
+      <div class="guide-bubble-action" id="guide-bubble-action"></div>
+      <button type="button" class="guide-bubble-dismiss" onclick="event.stopPropagation(); dismissOrbitCompactPreview();" aria-label="Close Orbit preview">✕</button>
     </div>
-    <svg class="guide-avatar float" viewBox="0 0 100 100" onclick="openOrbitPanel()" role="button" tabindex="0" aria-label="Chat with Orbit, your WRLD learning companion"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+    <svg class="guide-avatar float" viewBox="0 0 100 100" onclick="orbitLauncherTap()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); orbitLauncherTap();}" role="button" tabindex="0" aria-label="Chat with Orbit, your WRLD learning companion"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
   </div>
   <div class="orbit-panel" id="orbit-panel">
     <div class="orbit-panel-head">
@@ -2157,8 +2158,30 @@ function contextualGuideMessage(pageKey){
   return "Hi! I'm Orbit 🌎 — click me anytime for a tip, or just say hello.";
 }
 
+/* V21 bugfix: this used to set `.textContent` on `#guide-bubble` itself —
+   the OUTER wrapper div, which also contains the dismiss "✕" button (and,
+   as of V21, the mobile action-line). Setting `.textContent` on an
+   element replaces ALL of its children with one plain text node, so
+   every call here was silently deleting the dismiss button (and the
+   message span's own click target) from the DOM on every single page
+   load, immediately after renderFooter() first created them. The
+   circular avatar icon (a separate sibling element with its own working
+   click handler) was always still there, so Orbit itself never looked
+   broken — but the bubble's own tap target and "✕" stopped working
+   before a person ever saw them. Fixed by targeting the dedicated
+   `#guide-bubble-text` span instead, which now exists specifically so
+   the wrapper's other children are never touched here.
+
+   V21 also delegates to orbit.js's orbitRenderGuideBubbleContent() when
+   available, which shows the full message unchanged on desktop and a
+   short, ~120-character mobile preview (plus a contextual action line)
+   on mobile — see orbit.js's MOBILE COMPACT PREVIEW section. The direct
+   fallback below only runs if orbit.js somehow hasn't loaded, which
+   doesn't happen on any real page in this project (every page that calls
+   initPage() also loads orbit.js). */
 function setGuideMessage(msg){
-  const b = document.getElementById('guide-bubble');
+  if(typeof orbitRenderGuideBubbleContent === 'function'){ orbitRenderGuideBubbleContent(msg); return; }
+  const b = document.getElementById('guide-bubble-text');
   if(b && msg) b.textContent = msg;
 }
 
@@ -2170,7 +2193,11 @@ function guideTip(){
   if(savedCount>0) dynamicPool.push(`You've got ${savedCount} Playbook${savedCount!==1?'s':''} saved for later — your Dashboard has them all 🔖`);
   if(s.completed.length>0) dynamicPool.push(`You've finished ${s.completed.length} Playbook${s.completed.length!==1?'s':''} so far. Every one adds up 🌱`);
   const pool = dynamicPool.length ? dynamicPool.concat(GUIDE_TIPS) : GUIDE_TIPS;
-  const b = document.getElementById('guide-bubble');
+  // V21 bugfix: same fix as setGuideMessage() above — this is currently
+  // unused/dead code (nothing calls guideTip() anywhere in the project),
+  // but corrected for consistency so it can't reintroduce the same bug if
+  // it's ever wired up later.
+  const b = document.getElementById('guide-bubble-text');
   if(b) b.textContent = pool[Math.floor(Math.random()*pool.length)];
 }
 
