@@ -122,7 +122,25 @@ function getCurrentUser(){
   return typeof wrldBuildUserFromCache === 'function' ? wrldBuildUserFromCache() : null;
 }
 
-function isAuthenticated(){ return !!getCurrentUser(); }
+/* ---------------------------------------------------------------------
+   V20.6.3 — isAuthenticated() no longer means "getCurrentUser() returned
+   something." That used to conflate "no session" with "a session exists
+   but the profiles-table read hasn't succeeded yet" — the exact live bug
+   this release fixes (a fresh signup's first profile request failing
+   with a 401 "JWT issued in future" was being read as "logged out" and
+   bounced to login.html). isAuthenticated() now asks supabase-client.js's
+   wrldGetAuthState() — set ONLY from Supabase's own session presence,
+   never from whether the profile fetch succeeded — so a signed-in user
+   whose profile is still loading (or temporarily failing to load) is
+   still, correctly, "authenticated." See CHANGES-V20.6.3.md for the full
+   root-cause trace. Falls back to the old getCurrentUser()-based check
+   only if supabase-client.js somehow hasn't loaded (shouldn't happen on
+   any page that includes the standard script set).
+   --------------------------------------------------------------------- */
+function isAuthenticated(){
+  if(typeof wrldGetAuthState === 'function') return wrldGetAuthState() === 'authenticated';
+  return !!getCurrentUser();
+}
 
 async function logOut(){
   await sbClient.auth.signOut();
@@ -220,8 +238,37 @@ async function signUp({name, email, password, captchaToken}){
   // login.html. `hasSession:true` tells signup.html which path to take;
   // `accountCreated:true` is kept on the returned object for any other
   // caller that only checks that flag.
-  if(data.session){
-    await wrldRefreshSessionCache(data.session);
+  //
+  // V20.6.3 — Required Session Confirmation After Signup: don't assume
+  // `data.session` is the only place a session could already be; fall
+  // back to a direct getSession() read (mirrors the pattern
+  // wrldRefreshSessionCache() already uses elsewhere) in the unlikely
+  // case supabase-js resolved the session internally without echoing it
+  // on this exact response. Then verify — rather than assume — that the
+  // session actually belongs to the account that was just created before
+  // ever using it to load a profile: this is the "confirm
+  // session.user.id === newly created user.id" check the root-cause
+  // audit specifically calls for. A mismatch here would mean a stale or
+  // foreign session is in play; refuse to continue with it rather than
+  // ever loading a different account's profile under the new account's
+  // name.
+  let session = data.session || null;
+  if(!session){
+    try{
+      const sessionResult = await sbClient.auth.getSession();
+      session = (sessionResult.data && sessionResult.data.session) || null;
+    }catch(e){ /* fall through to the needsEmailConfirmation branch below */ }
+  }
+
+  if(session){
+    const expectedUserId = (data.user && data.user.id) || session.user.id;
+    if(session.user.id !== expectedUserId){
+      wrldLogDiag && wrldLogDiag('signup_session_ownership_mismatch', {});
+      try{ await sbClient.auth.signOut(); }catch(e){ /* best-effort */ }
+      return {ok:false, error:'Something went wrong finishing your account setup. Please try logging in.'};
+    }
+    wrldLogDiag && wrldLogDiag('signup_session_established', { userIdSuffix: typeof wrldSafeIdSuffix==='function' ? wrldSafeIdSuffix(session.user.id) : null });
+    await wrldRefreshSessionCache(session);
     return {ok:true, user:getCurrentUser(), accountCreated:true, hasSession:true};
   }
   // Fallback path: only reached if a future project configuration change
@@ -582,9 +629,28 @@ function postAuthDestination(requestedNext, source){
   return (user && ROLE_DESTINATIONS[user.role]) || 'dashboard.html';
 }
 
+/* ---------------------------------------------------------------------
+   V20.6.3 — Critical Architectural Rule: "a profile-loading error is not
+   the same as an unauthenticated user." This function now ONLY redirects
+   to login.html when isAuthenticated() reports Supabase has definitively
+   confirmed there is no valid session — never because a profile fetch
+   hasn't resolved yet, and never because it failed (temporarily or
+   permanently). That distinction previously didn't exist here:
+   isAuthenticated() used to require a loaded profile, so the live "JWT
+   issued in future" 401 on a brand-new signup's first profile request
+   made this function conclude "not logged in" and bounce straight to
+   login.html mid-onboarding. See supabase-client.js's wrldGetAuthState()/
+   wrldGetProfileState() and CHANGES-V20.6.3.md for the full trace.
+
+   The onboarding-redirect branch below is unaffected by this change:
+   needsOnboarding() already returns false for a null user (profile not
+   yet loaded), so it was never at risk of firing a wrong redirect — it
+   simply stays a no-op until a real profile is available, exactly as
+   before. */
 function requireAuth(){
   if(!isAuthenticated()){
     const here = location.pathname.split('/').pop() + location.search;
+    wrldLogDiag && wrldLogDiag('require_auth_redirect', { reason:'no_session', to:'login.html', from: here });
     location.href = 'login.html?next=' + encodeURIComponent(here);
     return false;
   }
@@ -594,9 +660,16 @@ function requireAuth(){
   // page (bookmark, typed URL, closing the browser mid-onboarding and
   // coming straight back), not just the immediately-after-login case
   // postAuthDestination() already covers. Exempts the onboarding pages
-  // themselves so this can't loop.
+  // themselves so this can't loop. Guarded on a real, loaded user object
+  // — if the profile hasn't resolved yet (still retrying, or a
+  // recoverable failure the calling page is already showing its own
+  // state for), this deliberately does not guess whether onboarding is
+  // needed; it simply lets the visitor stay put; the page itself is
+  // responsible for showing loading/retry UI (see welcome.html).
   const here = location.pathname.split('/').pop();
-  if(!ONBOARDING_FLOW_PAGES.includes(here) && needsOnboarding(getCurrentUser())){
+  const user = getCurrentUser();
+  if(user && !ONBOARDING_FLOW_PAGES.includes(here) && needsOnboarding(user)){
+    wrldLogDiag && wrldLogDiag('require_auth_redirect', { reason:'needs_onboarding', to:'welcome.html', from: here });
     location.href = 'welcome.html?next=' + encodeURIComponent(here + location.search);
     return false;
   }
