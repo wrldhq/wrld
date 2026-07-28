@@ -308,8 +308,24 @@ function renderDashboard(){
 // renderDashboard() reads getCurrentUser() for the personalized greeting
 // — wait for the Supabase session cache to resolve first so a logged-in
 // learner's name shows immediately instead of the generic guest greeting.
+//
+// V20.5: dashboard.html doesn't gate access with requireAuth() (it's
+// meant to be viewable by guests too), so the first-time-onboarding
+// check that lives inside requireAuth() for pages like
+// volunteer-tracker.html never ran here — which is exactly how a
+// brand-new, not-yet-onboarded Explorer could land straight on this
+// page and see "Welcome back" before ever meeting Orbit or taking the
+// assessment. A signed-in Explorer who hasn't finished onboarding yet
+// is sent to welcome.html instead, before renderDashboard() ever runs;
+// a guest (no user) or anyone who has finished onboarding sees the
+// dashboard exactly as before.
 (async () => {
   await window.wrldAuthReady;
+  const dashUser = getCurrentUser();
+  if(typeof needsOnboarding==='function' && needsOnboarding(dashUser)){
+    location.href = 'welcome.html';
+    return;
+  }
   renderDashboard();
   initPage('dashboard');
 })();

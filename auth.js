@@ -498,10 +498,73 @@ function safeInternalNext(raw){
   return raw;
 }
 
+// V20.5 — first-time onboarding + unified post-auth routing.
+//
+// Pages that ARE the onboarding flow itself must never be redirected
+// back into onboarding (that would loop). Kept short and explicit
+// rather than inferring it from context.
+const ONBOARDING_FLOW_PAGES = ['welcome.html', 'assessment.html'];
+
+// Source of truth for "has this account finished first-time onboarding":
+// a completed Adulting Readiness Assessment, i.e. getState().assessment.
+// This already exists, is already synced to Supabase for any logged-in
+// user (pullLearnerStateFromSupabase()/pushLearnerStateFromSupabase() in
+// app.js, via the learner_state table — see supabase-client.js), and is
+// exactly the strongest existing signal available — no new field, no new
+// migration, no new table. Deliberately reused as-is rather than adding
+// a second, possibly-conflicting "onboarding_completed" flag.
+//
+// Scoped to Explorer only: Mentors/Administrators/Owners reach their
+// accounts through mentor-application approval or direct role
+// assignment, not the public Explorer signup form, and may never have
+// taken (or need to take) the Explorer assessment — forcing them through
+// it would be the exact "accidentally force Owner/Administrator/existing
+// Mentor through Explorer onboarding" mistake this release is required
+// to avoid.
+function needsOnboarding(user){
+  if(!user || user.role !== ROLES.EXPLORER) return false;
+  const s = typeof getState==='function' ? getState() : null;
+  return !(s && s.assessment);
+}
+
+// The one shared routing decision used after both login and assessment
+// completion, in this exact priority order:
+//   1. Onboarding incomplete (Explorer, no assessment yet) → welcome.html,
+//      carrying the original destination forward as its own `next=` so
+//      it isn't lost — resumed after the assessment instead of dropped.
+//   2. A validated, safe requested destination (e.g. a Volunteer Tracker
+//      link that triggered the login redirect) → that destination.
+//   3. No destination requested → the account's normal role dashboard.
+// Both login.html (after a successful login) and assessment.html's
+// beginJourney() (after a successful first-time assessment) call this
+// same function, so the priority order can't drift between the two
+// entry points.
+function postAuthDestination(requestedNext){
+  const user = getCurrentUser();
+  const safeNext = safeInternalNext(requestedNext);
+  if(needsOnboarding(user)){
+    return 'welcome.html' + (safeNext ? '?next=' + encodeURIComponent(safeNext) : '');
+  }
+  if(safeNext) return safeNext;
+  return (user && ROLE_DESTINATIONS[user.role]) || 'dashboard.html';
+}
+
 function requireAuth(){
   if(!isAuthenticated()){
     const here = location.pathname.split('/').pop() + location.search;
     location.href = 'login.html?next=' + encodeURIComponent(here);
+    return false;
+  }
+  // A signed-in Explorer who hasn't finished first-time onboarding yet
+  // must finish it before using another protected feature (e.g. the
+  // Volunteer Tracker) — this covers arriving directly at a protected
+  // page (bookmark, typed URL, closing the browser mid-onboarding and
+  // coming straight back), not just the immediately-after-login case
+  // postAuthDestination() already covers. Exempts the onboarding pages
+  // themselves so this can't loop.
+  const here = location.pathname.split('/').pop();
+  if(!ONBOARDING_FLOW_PAGES.includes(here) && needsOnboarding(getCurrentUser())){
+    location.href = 'welcome.html?next=' + encodeURIComponent(here + location.search);
     return false;
   }
   return true;

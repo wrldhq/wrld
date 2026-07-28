@@ -587,7 +587,25 @@ function beginJourney(){
     msgEl.style.opacity = 0;
     setTimeout(()=>{ msgEl.textContent = JOURNEY_MESSAGES[i]; msgEl.style.opacity = 1; }, 260);
   }, 700);
-  setTimeout(()=>{ clearInterval(interval); location.href = 'dashboard.html'; }, 3200);
+  setTimeout(()=>{
+    clearInterval(interval);
+    // V20.5: a logged-in user routes through postAuthDestination() —
+    // same shared priority order login.html uses (onboarding, now just
+    // completed, so this resolves to whatever was preserved as `next`
+    // when onboarding started, e.g. the Volunteer Tracker, or the
+    // account's normal role dashboard if nothing was pending). A
+    // logged-out visitor taking the assessment without an account keeps
+    // the exact previous behavior — sent to dashboard.html, which
+    // itself prompts sign-in as before; nothing about the anonymous
+    // assessment path changes.
+    const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+    if(user && typeof postAuthDestination==='function'){
+      const pendingNext = new URLSearchParams(location.search).get('next');
+      location.href = postAuthDestination(pendingNext);
+    } else {
+      location.href = 'dashboard.html';
+    }
+  }, 3200);
 }
 
 /* ===================================================================

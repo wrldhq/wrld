@@ -95,11 +95,17 @@ document.getElementById('login-form').addEventListener('submit', async (e)=>{
   // V20.1: validate `next` against the internal-routes allowlist before
   // ever using it as a redirect target — `next` comes straight from the
   // URL, which is attacker-controllable if someone shares a crafted
-  // login link (e.g. login.html?next=https://evil.example). Falls back
-  // to the normal role-based destination if it's missing or unsafe.
+  // login link (e.g. login.html?next=https://evil.example).
+  // V20.5: routing itself now goes through postAuthDestination() (see
+  // auth.js) — the single shared priority order (incomplete onboarding
+  // → requested destination → role dashboard) also used by
+  // assessment.html's beginJourney() after first-time onboarding
+  // completes, so a signed-in-but-not-yet-onboarded Explorer with a
+  // pending `next` (e.g. they tried the Volunteer Tracker before ever
+  // finishing onboarding) is sent to finish onboarding first, carrying
+  // that destination forward instead of losing it.
   const params = new URLSearchParams(location.search);
-  const safeNext = safeInternalNext(params.get('next'));
-  location.href = safeNext || ROLE_DESTINATIONS[result.user.role] || 'dashboard.html';
+  location.href = postAuthDestination(params.get('next'));
 });
 
 initPage(null);
