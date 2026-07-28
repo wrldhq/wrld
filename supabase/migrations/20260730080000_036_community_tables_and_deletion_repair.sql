@@ -1,4 +1,23 @@
 -- ============================================================
+-- ⚠️ V20 NOTE — DO NOT APPLY THIS FILE.
+-- This migration was written against a stale/parallel schema design
+-- (a separate public.community_replies table, free-text `category`,
+-- and post_status values that don't match the enum actually live on
+-- this project) and was NEVER applied to the live database — confirmed
+-- via list_migrations (live history jumps straight from 035 to 037).
+-- The real live public.community_posts table (self-referencing
+-- parent_id for replies, the post_category/post_status enums) already
+-- existed before this file was written and is what the client code and
+-- data.js's COMMONS_CATEGORIES are actually built against. Part A of
+-- delete_mentor_application() below was also superseded by 035/037.
+-- Kept in the repo only as a historical record — see
+-- supabase/migrations/037_v20_community_and_mentor_repair.sql for the
+-- real fix. Applying this file would create a disconnected, unused
+-- community_replies table and would error on moderation_set_community_
+-- status()'s text->enum cast the first time it's called.
+-- ============================================================
+
+-- ============================================================
 -- 036: V19.2 — backend repair pass
 --
 -- Part A: re-affirm delete_mentor_application() with an explicit

@@ -139,10 +139,45 @@ Deno.serve(async (req: Request) => {
     // orphan replies. Anonymize the author reference instead of removing
     // the content, per spec ("anonymize instead of retaining personally
     // identifying information" for preserved aggregate/shared content).
+    //
+    // V20 fix: this table/column list previously used `community_posts.
+    // user_id` and `moderation_log.target_user_id` — neither column
+    // exists on the live schema (the real columns are `author_id` and
+    // `actor_id`), so this whole step was silently failing the
+    // `.includes("does not exist")` check and treating it as "this
+    // table isn't provisioned yet," when the table WAS provisioned and
+    // the anonymization simply never ran. Two concrete, confirmed
+    // consequences on the live project:
+    //  1. `community_posts.author_id` has `ON DELETE CASCADE` to
+    //     auth.users — with the anonymize step silently failing, the
+    //     subsequent `auth.admin.deleteUser()` call below would cascade
+    //     -DELETE the user's posts/replies outright (and, transitively,
+    //     any replies to them via `parent_id`'s own cascade), the exact
+    //     opposite of the documented "anonymize, don't delete shared
+    //     conversation content" policy.
+    //  2. `moderation_log.actor_id`, `mentor_applications.reviewed_by`,
+    //     `mentor_application_status_history.reviewer_id`, and
+    //     `volunteer_entries.verified_by` are all `ON DELETE NO ACTION`
+    //     (RESTRICT-like) — deleting any Administrator/Owner who had
+    //     ever moderated a post, reviewed a mentor application, or
+    //     verified a volunteer entry would make `auth.admin.deleteUser()`
+    //     fail outright with an unhandled FK-violation, surfaced to the
+    //     Owner as a generic "Could not delete the account" 500.
+    // Every row below must be anonymized BEFORE the Auth delete call so
+    // neither failure mode above can happen.
     const anonymizeTables: [string, string][] = [
-      ["community_posts", "user_id"],
+      ["community_posts", "author_id"],
       ["community_reports", "reporter_id"],
-      ["moderation_log", "target_user_id"],
+      ["moderation_log", "actor_id"],
+      ["mentor_applications", "reviewed_by"],
+      ["mentor_application_status_history", "reviewer_id"],
+      ["volunteer_entries", "verified_by"],
+      ["featured_picks", "mentor_user_id"],
+      // Same "shared conversation, don't orphan other people's replies"
+      // reasoning as community_posts — playbook Q&A also cascades on
+      // author_id today; anonymizing first preserves the thread.
+      ["playbook_questions", "author_id"],
+      ["playbook_question_replies", "author_id"],
     ];
     for (const [table, column] of anonymizeTables) {
       const { error } = await adminClient.from(table).update({ [column]: null }).eq(column, targetUserId);
