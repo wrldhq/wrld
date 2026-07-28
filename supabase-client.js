@@ -237,7 +237,33 @@ async function wrldFetchProfileWithRetry(session){
 
       _wrldProfileState = 'loading';
       wrldLogDiag('profile_attempt', { attempt, userIdSuffix: wrldSafeIdSuffix(userId) });
-      const { data, error } = await wrldFetchProfileOnce(userId);
+      // V22.3 — ROOT-CAUSE FIX: wrldFetchProfileOnce() was called with no
+      // try/catch here. supabase-js normally converts a failed request into
+      // a returned {error} object, never a thrown exception — but that
+      // assumption silently broke in production: an incompatible/stale
+      // cached build of the Supabase JS SDK (loaded from an unpinned
+      // `@supabase/supabase-js@2` CDN tag — see each page's <script> tag)
+      // logged "Unrecognized Supabase API key format" for this project's
+      // sb_publishable_ key and, in that degraded path, threw instead of
+      // resolving to {data:null, error} for at least one authenticated
+      // REST call. Because this call was unguarded, that throw escaped
+      // this whole retry loop, rejected wrldFetchProfileWithRetry()'s
+      // promise, and (see wrldRefreshSessionCache() below, also unguarded
+      // until this release) rejected window.wrldAuthReady itself — which
+      // every page's initPage() and welcome.html's own entry point await.
+      // A rejected window.wrldAuthReady with no catch anywhere in that
+      // chain is exactly what leaves Orbit's loading card bobbing forever
+      // with no error UI. Catching here restores the original contract:
+      // any failure to fetch the profile — returned error OR thrown
+      // exception — is treated as one classified, bounded-retry-eligible
+      // outcome, never an unhandled rejection.
+      let data = null, error = null;
+      try{
+        ({ data, error } = await wrldFetchProfileOnce(userId));
+      }catch(e){
+        error = { message: (e && e.message) || 'Profile request threw an exception', status: e && e.status };
+        wrldLogDiag('profile_fetch_threw', { attempt, message: error.message });
+      }
 
       if(data && !error){
         if(data.id !== userId){
@@ -355,7 +381,21 @@ async function wrldRefreshSessionCache(session){
     _wrldProfileState = 'not_requested';
   }
 
-  const profile = await wrldFetchProfileWithRetry(session);
+  // V22.3 — second, outer layer of the same fix: even with
+  // wrldFetchProfileOnce()'s call now guarded above, this call itself was
+  // still unguarded, so any other unexpected throw here (present or
+  // future) could still reject wrldRefreshSessionCache()'s promise —
+  // i.e. reject window.wrldAuthReady — with nothing downstream able to
+  // catch it into a recoverable state. Defense in depth: never let this
+  // specific call be the reason onboarding (or any page's header/Orbit
+  // init) hangs forever.
+  let profile = null;
+  try{
+    profile = await wrldFetchProfileWithRetry(session);
+  }catch(e){
+    wrldLogDiag('profile_fetch_with_retry_threw', { message: e && e.message });
+    _wrldProfileState = 'permanent_error';
+  }
 
   if(gen !== _wrldSessionRefreshGen){
     // A newer auth event (another onAuthStateChange firing, or another
