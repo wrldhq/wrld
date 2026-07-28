@@ -541,14 +541,157 @@ async function setAdministratorStatus(userId, makeAdmin){
 // is ever allowed — no scheme, no protocol-relative `//`, no backslash,
 // no path traversal. Anything else is rejected and the caller falls
 // back to the normal role-based destination.
+//
+// V22.2 — ROOT-CAUSE FIX for the production "welcome.html?next=welcome
+// %3Fnext%3D..." infinite self-redirect: two hardening rules added.
+//   1. A `next` value is stripped at its first nested `next=` — a safe
+//      `next` is always a bare internal path, never a value that
+//      itself already carries another `next` chain. This is what
+//      actually stops the value from ever growing again, independent
+//      of the route-comparison fix below.
+//   2. `welcome.html` (in any of its forms) is never accepted as a
+//      `next` destination — it's the onboarding gate itself, never a
+//      legitimate final destination to be carried "next" to.
+// See wrldNormalizeRoute()/wrldSafeRedirect() below for the second,
+// independent half of this fix (the actual redirect comparison).
 function safeInternalNext(raw){
   if(!raw || typeof raw !== 'string') return null;
-  if(raw.length > 200) return null;
-  if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(raw)) return null; // has a scheme (http:, javascript:, etc)
-  if(raw.startsWith('//')) return null; // protocol-relative
-  if(raw.includes('\\')) return null;
-  if(!/^[a-zA-Z0-9_-]+\.html(\?[^\s]*)?$/.test(raw)) return null; // bare filename[.html][?query] only
-  return raw;
+  let value = raw;
+  const nestedIdx = value.search(/[?&]next=/i);
+  if(nestedIdx !== -1) value = value.slice(0, nestedIdx);
+  if(!value) return null;
+  if(value.length > 200) return null;
+  if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)) return null; // has a scheme (http:, javascript:, etc)
+  if(value.startsWith('//')) return null; // protocol-relative
+  if(value.includes('\\')) return null;
+  if(!/^[a-zA-Z0-9_-]+\.html(\?[^\s]*)?$/.test(value)) return null; // bare filename[.html][?query] only
+  if(wrldNormalizeRoute(value) === 'welcome') return null; // never a valid *destination*
+  return value;
+}
+
+/* ---------------------------------------------------------------------
+   V22.2 — ROUTE NORMALIZATION
+   Root cause of the production self-redirect loop: requireAuth()'s
+   onboarding-page exemption compared location.pathname.split('/').pop()
+   (e.g. "welcome" on hosting that serves this page at a clean,
+   extension-less URL) against a hardcoded, extension-ONLY list
+   (['welcome.html', 'assessment.html']) — "welcome" never equals
+   "welcome.html", so the exemption silently failed to match, and the
+   guard tried to redirect welcome → welcome.html, forever, each time
+   re-encoding the previous (already-encoded) `next` value into the
+   next one.
+
+   wrldNormalizeRoute() reduces ANY of: a bare name ('welcome'), a
+   filename ('welcome.html'), a path ('/welcome', '/welcome.html'), a
+   path with a query or hash, or a full URL whose pathname resolves to
+   one of those, down to the same bare, lowercase, extension-free route
+   name ('welcome'). Every redirect decision below is compared through
+   this one function so this exact mismatch can't recur, on this page
+   or any other.
+   --------------------------------------------------------------------- */
+function wrldNormalizeRoute(input){
+  if(!input) return 'index';
+  let s = String(input).trim();
+  if(!s) return 'index';
+  // A full/absolute URL (or protocol-relative one) — reduce to its
+  // pathname only; anything malformed just falls through to the plain
+  // string handling below rather than throwing.
+  if(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(s) || s.startsWith('//')){
+    try{ s = new URL(s, (typeof location!=='undefined'?location.origin:'https://ourwrld.org')).pathname; }
+    catch(e){ /* not a parseable URL — sanitize the raw string below instead */ }
+  }
+  s = s.split('#')[0].split('?')[0];               // strip hash, then query
+  const segments = s.split('/').filter(Boolean);
+  s = segments.length ? segments[segments.length-1] : '';
+  s = s.toLowerCase();
+  if(s.endsWith('.html')) s = s.slice(0, -5);
+  return s || 'index';
+}
+
+function wrldCurrentRoute(){
+  return wrldNormalizeRoute(typeof location!=='undefined' ? location.pathname : '');
+}
+
+/* Every internal page this project actually serves. Used only to
+   validate a `next` destination — the sanitizer's allowlist, not a
+   general-purpose route table. */
+const WRLD_KNOWN_ROUTES = [
+  'index','about','account-settings','administrator-dashboard','assessment',
+  'become-mentor','check-your-email','community','community-guidelines',
+  'dashboard','downloads','email-verified','events','forgot-password',
+  'journey-passport','learning-paths','login','mentor-studio',
+  'moderation-dashboard','owner-dashboard','owner-setup','playbook',
+  'playbooks','program','programs','reset-password','signup','tools',
+  'volunteer-tracker','welcome','worksheet',
+];
+const WRLD_SAFE_NEXT_DEFAULT = 'dashboard.html';
+
+/* Second-layer sanitizer, used specifically wherever a `next` value is
+   about to be freshly BUILT from the current location (as opposed to
+   safeInternalNext(), which validates a `next` value already arriving
+   from a URL). Applies the same nested-next-stripping and welcome-
+   rejection rules, plus an allowlist check against WRLD_KNOWN_ROUTES,
+   and never returns anything the current page didn't already have a
+   legitimate reason to carry forward. */
+function wrldSanitizeNextParam(raw){
+  const value = safeInternalNext(raw);
+  if(!value) return null;
+  const route = wrldNormalizeRoute(value);
+  if(!WRLD_KNOWN_ROUTES.includes(route)) return null;
+  return value;
+}
+
+/* ---------------------------------------------------------------------
+   V22.2 — SAFE REDIRECT
+   Every redirect this file performs now goes through this one function
+   instead of an inline `location.href = ...`, so the two required
+   protections can never be accidentally bypassed by a future call site:
+     1. Self-redirect skip — if the normalized destination equals the
+        normalized route we're already on, do NOT navigate (no
+        location.href/location.replace), log `self_redirect_skipped`,
+        and let the caller continue initializing the current page.
+     2. Redirect-loop guard — a lightweight sessionStorage record of the
+        last (from → to, reason) redirect and when it fired. If the
+        EXACT same redirect is attempted again within a few seconds
+        (e.g. some other, not-yet-discovered condition ever causes two
+        different pages to bounce to each other), it's blocked and
+        logged as `redirect_loop_blocked` rather than executed — a
+        second, independent safety net beyond the normalization above.
+   Returns true if it actually navigated (caller should stop / treat the
+   page as unloading), false if it did not (caller should proceed with
+   its own normal initialization — the visitor is already exactly where
+   this redirect would have sent them, or an identical redirect just
+   fired and executing it again would only resume a loop).
+   --------------------------------------------------------------------- */
+const WRLD_REDIRECT_GUARD_KEY = 'wrld_redirect_guard_v1';
+const WRLD_REDIRECT_GUARD_WINDOW_MS = 4000;
+
+function wrldSafeRedirect(destinationUrl, reason){
+  const fromRoute = wrldCurrentRoute();
+  const toRoute = wrldNormalizeRoute(destinationUrl);
+  wrldLogDiag && wrldLogDiag('redirect_check', {
+    rawUrl: location.href, fromRoute, toRoute, reason,
+  });
+
+  if(fromRoute === toRoute){
+    wrldLogDiag && wrldLogDiag('self_redirect_skipped', { route: fromRoute, reason });
+    return false;
+  }
+
+  try{
+    const raw = sessionStorage.getItem(WRLD_REDIRECT_GUARD_KEY);
+    const record = raw ? JSON.parse(raw) : null;
+    const signature = fromRoute + '->' + toRoute + '#' + reason;
+    const now = Date.now();
+    if(record && record.signature === signature && (now - record.at) < WRLD_REDIRECT_GUARD_WINDOW_MS){
+      wrldLogDiag && wrldLogDiag('redirect_loop_blocked', { fromRoute, toRoute, reason });
+      return false;
+    }
+    sessionStorage.setItem(WRLD_REDIRECT_GUARD_KEY, JSON.stringify({ signature, at: now }));
+  }catch(e){ /* sessionStorage unavailable (private browsing, etc.) — the normalization check above is the primary guard regardless */ }
+
+  location.href = destinationUrl;
+  return true;
 }
 
 // V20.5 — first-time onboarding + unified post-auth routing.
@@ -556,7 +699,12 @@ function safeInternalNext(raw){
 // Pages that ARE the onboarding flow itself must never be redirected
 // back into onboarding (that would loop). Kept short and explicit
 // rather than inferring it from context.
-const ONBOARDING_FLOW_PAGES = ['welcome.html', 'assessment.html'];
+//
+// V22.2: compared via wrldNormalizeRoute() now, not a raw filename
+// string — see that function's comment for the exact production bug
+// this fixes (a clean, extension-less "/welcome" URL never matched the
+// old hardcoded 'welcome.html' entry).
+const ONBOARDING_FLOW_ROUTES = ['welcome', 'assessment'];
 
 // Source of truth for "has this account finished first-time onboarding":
 // a completed Adulting Readiness Assessment, i.e. getState().assessment.
@@ -642,16 +790,34 @@ function postAuthDestination(requestedNext, source){
    login.html mid-onboarding. See supabase-client.js's wrldGetAuthState()/
    wrldGetProfileState() and CHANGES-V20.6.3.md for the full trace.
 
-   The onboarding-redirect branch below is unaffected by this change:
+   The onboarding-redirect branch below is unaffected by that change:
    needsOnboarding() already returns false for a null user (profile not
    yet loaded), so it was never at risk of firing a wrong redirect — it
    simply stays a no-op until a real profile is available, exactly as
-   before. */
+   before.
+
+   V22.2 — every redirect below now goes through wrldSafeRedirect()
+   (self-redirect skip + loop guard) and every `next` value built here
+   is sanitized before being embedded, per the ROUTE NORMALIZATION and
+   SAFE REDIRECT sections above. When the onboarding branch's redirect
+   is skipped because we're already on the (normalized) destination —
+   the exact production scenario this release fixes — this now returns
+   `true`: the visitor IS authenticated, onboarding IS what they need,
+   and welcome.html IS already the page rendering it, so the calling
+   page should simply continue initializing rather than treat this as
+   "access denied." */
 function requireAuth(){
   if(!isAuthenticated()){
-    const here = location.pathname.split('/').pop() + location.search;
-    wrldLogDiag && wrldLogDiag('require_auth_redirect', { reason:'no_session', to:'login.html', from: here });
-    location.href = 'login.html?next=' + encodeURIComponent(here);
+    const hereRoute = wrldCurrentRoute();
+    const rawNext = location.pathname.split('/').pop() + location.search;
+    wrldLogDiag && wrldLogDiag('require_auth_redirect', { reason:'no_session', to:'login.html', from: hereRoute, rawUrl: location.href });
+    if(hereRoute === 'login'){
+      wrldLogDiag && wrldLogDiag('self_redirect_skipped', { route: hereRoute, reason:'no_session' });
+      return false; // still genuinely unauthenticated — just don't re-navigate to the page we're already on
+    }
+    const sanitizedNext = wrldSanitizeNextParam(rawNext);
+    const dest = 'login.html' + (sanitizedNext ? '?next=' + encodeURIComponent(sanitizedNext) : '');
+    wrldSafeRedirect(dest, 'no_session');
     return false;
   }
   // A signed-in Explorer who hasn't finished first-time onboarding yet
@@ -666,12 +832,16 @@ function requireAuth(){
   // state for), this deliberately does not guess whether onboarding is
   // needed; it simply lets the visitor stay put; the page itself is
   // responsible for showing loading/retry UI (see welcome.html).
-  const here = location.pathname.split('/').pop();
+  const hereRoute = wrldCurrentRoute();
   const user = getCurrentUser();
-  if(user && !ONBOARDING_FLOW_PAGES.includes(here) && needsOnboarding(user)){
-    wrldLogDiag && wrldLogDiag('require_auth_redirect', { reason:'needs_onboarding', to:'welcome.html', from: here });
-    location.href = 'welcome.html?next=' + encodeURIComponent(here + location.search);
-    return false;
+  if(user && !ONBOARDING_FLOW_ROUTES.includes(hereRoute) && needsOnboarding(user)){
+    const rawNext = location.pathname.split('/').pop() + location.search;
+    const sanitizedNext = wrldSanitizeNextParam(rawNext);
+    const dest = 'welcome.html' + (sanitizedNext ? '?next=' + encodeURIComponent(sanitizedNext) : '');
+    wrldLogDiag && wrldLogDiag('require_auth_redirect', { reason:'needs_onboarding', to:'welcome.html', from: hereRoute, rawUrl: location.href });
+    const navigated = wrldSafeRedirect(dest, 'needs_onboarding');
+    if(navigated) return false; // actually leaving this page — caller should stop
+    return true; // already on welcome/assessment, or an identical redirect just fired — continue right here
   }
   return true;
 }
