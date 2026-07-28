@@ -25,21 +25,45 @@
     <div class="card auth-card" style="max-width:560px; text-align:center; padding:48px 40px;">
       <svg class="welcome-avatar" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
       <div id="welcome-lines"></div>
-      <button class="btn btn-primary btn-lg" id="welcome-cta" onclick="location.href='assessment.html'">Let's Get Started →</button>
+      <button class="btn btn-primary btn-lg" id="welcome-cta">Let's Get Started →</button>
     </div>
   </section>
 </main>
 <div id="site-footer"></div>
+<!-- V20.5: this page was missing the Supabase SDK, supabase-config.js,
+     and supabase-client.js — the same three scripts every other
+     authenticated page loads before data.js. Without them,
+     window.wrldAuthReady was never assigned, so requireAuth() below
+     (called synchronously, before any session had a chance to restore)
+     always concluded "not logged in" and bounced straight back to
+     login.html — the same class of bug fixed on volunteer-tracker.html
+     in V20.3 and worksheet.html in V20.4. This is also why the first-
+     time welcome experience effectively stopped being reachable: even a
+     genuinely just-signed-up, just-logged-in user landing here got
+     redirected away instead of ever seeing it. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js?v=20.6.3"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js"></script>
-<script src="app.js"></script>
+<script src="auth.js?v=20.6.3"></script>
+<script src="app.js?v=20.6.2"></script>
 <script src="orbit.js"></script>
 <script>
-if(requireAuth()){
-  const user = getCurrentUser();
-  const firstName = user ? user.name.split(' ')[0] : 'there';
-
+// V20.6.3 — see supabase-client.js/auth.js for the full root-cause fix.
+// requireAuth() below now redirects to login.html ONLY when Supabase has
+// definitively confirmed there is no session (wrldGetAuthState() ===
+// 'unauthenticated') — never merely because the profile fetch above is
+// still retrying or has failed. A brand-new signup's session is already
+// confirmed valid by the time this page's own window.wrldAuthReady
+// resolves (auth.js's signUp() verified session ownership before this
+// page was ever navigated to); what CAN still be true here is that the
+// profiles-table read hit the live "JWT issued in future" timing window
+// and used up its bounded retries (WRLD_PROFILE_MAX_ATTEMPTS=3,
+// WRLD_PROFILE_MAX_FORCED_REFRESH=1, both in supabase-client.js) without
+// succeeding yet. That is handled below as a recoverable state, on this
+// same onboarding page — never a redirect to login.html.
+function wrldRenderWelcomeGreeting(firstName){
   const lines = [
     `👋 Welcome to WRLD, ${firstName}.`,
     `I'm Orbit — I'll be your guide throughout your journey here.`,
@@ -54,12 +78,71 @@ if(requireAuth()){
   lineEls.forEach((el,i)=>{
     setTimeout(()=>el.classList.add('in'), 350 + i*750);
   });
-  setTimeout(()=>{
-    document.getElementById('welcome-cta').classList.add('in');
-  }, 350 + lineEls.length*750 + 300);
+
+  const cta = document.getElementById('welcome-cta');
+  cta.textContent = "Let's Get Started →";
+  setTimeout(()=>{ cta.classList.add('in'); }, 350 + lineEls.length*750 + 300);
+
+  // V20.5: carry any pending destination (e.g. the Volunteer Tracker,
+  // if that's what originally triggered login) forward to the
+  // assessment — assessment.html's beginJourney() reads this same
+  // `next` and passes it through postAuthDestination() once the
+  // assessment is done, so the originally-requested page is still
+  // reached afterward instead of being lost.
+  const pendingNext = new URLSearchParams(location.search).get('next');
+  cta.onclick = () => {
+    location.href = 'assessment.html' + (pendingNext ? '?next=' + encodeURIComponent(pendingNext) : '');
+  };
 
   initPage(null, `Welcome, ${firstName}! Let's find your starting point together. 🌱`);
 }
+
+// V20.6.3 — Permanent/not-found profile state: remain on this onboarding
+// page (never redirect to login.html), show a plain-language recoverable
+// message reusing this page's existing markup/classes (no new styling),
+// and offer a bounded, user-initiated Retry. Never exposes raw JWT/error
+// wording to the visitor.
+let wrldWelcomeRetryInFlight = false;
+function wrldRenderProfileRecovery(){
+  const wrap = document.getElementById('welcome-lines');
+  wrap.innerHTML = `<p>WRLD is finishing your account setup. Please try again in a moment.</p>`;
+  wrap.querySelectorAll('p').forEach(el=>el.classList.add('in'));
+
+  const cta = document.getElementById('welcome-cta');
+  cta.textContent = 'Retry';
+  cta.classList.add('in');
+  cta.onclick = async () => {
+    if(wrldWelcomeRetryInFlight) return;
+    wrldWelcomeRetryInFlight = true;
+    cta.disabled = true; cta.textContent = 'Retrying…';
+    const session = typeof wrldGetSession === 'function' ? wrldGetSession() : null;
+    if(session){ await wrldRefreshSessionCache(session); }
+    wrldWelcomeRetryInFlight = false;
+    cta.disabled = false;
+    wrldRunWelcomeEntry();
+  };
+
+  initPage(null, "Give me just a moment to finish setting things up. 🌱");
+}
+
+async function wrldRunWelcomeEntry(){
+  if(!requireAuth()) return;
+
+  const profileState = typeof wrldGetProfileState === 'function' ? wrldGetProfileState() : 'loaded';
+  if(profileState === 'permanent_error' || profileState === 'not_found'){
+    wrldRenderProfileRecovery();
+    return;
+  }
+
+  const user = getCurrentUser();
+  const firstName = user ? user.name.split(' ')[0] : 'there';
+  wrldRenderWelcomeGreeting(firstName);
+}
+
+(async () => {
+  await window.wrldAuthReady;
+  await wrldRunWelcomeEntry();
+})();
 </script>
 </body>
 </html>

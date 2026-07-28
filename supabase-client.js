@@ -76,6 +76,95 @@ const sbClient = supabase.createClient(WRLD_SUPABASE_URL, WRLD_SUPABASE_PUBLISHA
 let _wrldSessionCache = null;  // Supabase Session object, or null if signed out
 let _wrldProfileCache = null;  // matching row from public.profiles, or null
 
+/* ---------------------------------------------------------------------
+   V20.6.3 — AUTH STATE / PROFILE STATE SEPARATION
+   Root cause of the live "JWT issued in future" → wrongly-redirected-to-
+   login bug: wrldBuildUserFromCache() (below) has always required BOTH
+   _wrldSessionCache AND _wrldProfileCache to be non-null before it will
+   hand back a user object, and auth.js's isAuthenticated()/requireAuth()
+   used to treat "getCurrentUser() returned null" as the ONE and ONLY
+   signal for "this visitor is logged out." That conflates two genuinely
+   different situations: (1) there really is no Supabase session, and (2)
+   there IS a real, valid session, but the one profiles-table read that
+   fills _wrldProfileCache happened to fail — which is exactly what a
+   freshly-issued access token can do for a few hundred milliseconds
+   immediately after signUp()/signInWithPassword() resolve, if this
+   browser's clock (or simple request timing) puts the token's `iat`
+   at or fractionally ahead of the moment PostgREST validates it,
+   producing a 401 "JWT issued in future." Reproducing on a Windows
+   laptop, a MacBook, AND an iPhone (per the reported bug) rules out one
+   misconfigured device clock — this is a timing race between "a session
+   object exists in memory" and "the very first authenticated request
+   using that session's token is accepted," not a per-device clock skew
+   bug the user could fix themselves.
+
+   Two independent, explicit state machines now exist so a profile
+   failure can never again be misread as "logged out":
+     _wrldAuthState:    'loading' | 'authenticated' | 'unauthenticated'
+                        — reflects ONLY whether Supabase confirms a
+                        session exists. Never set based on whether the
+                        profile fetch succeeded.
+     _wrldProfileState: 'not_requested' | 'loading' | 'loaded' |
+                        'not_found' | 'temporary_error' | 'permanent_error'
+                        — reflects ONLY the outcome of the profiles-table
+                        read for the current session's user id.
+   auth.js's isAuthenticated()/requireAuth() now read _wrldAuthState (via
+   wrldGetAuthState()) to decide "redirect to login," never
+   _wrldProfileCache/getCurrentUser(). See CHANGES-V20.6.3.md for the
+   full root-cause trace and the bounded retry strategy below.
+   --------------------------------------------------------------------- */
+let _wrldAuthState = 'loading';
+let _wrldProfileState = 'not_requested';
+function wrldGetAuthState(){ return _wrldAuthState; }
+function wrldGetProfileState(){ return _wrldProfileState; }
+function wrldGetSession(){ return _wrldSessionCache; }
+
+// Dev-safe diagnostic logging (V20.6.3) — never logs a token, password, or
+// full profile row; only a redacted last-6-characters id suffix, event
+// names, attempt counters, and response status/error text. Left enabled
+// (console.debug is inert in production unless a developer has verbose
+// logging switched on) specifically so this exact class of bug — a live,
+// intermittent, multi-device auth timing race — can be diagnosed from a
+// real user's browser console if it ever recurs, per this release's
+// "Required Logging for Diagnosis" spec.
+function wrldSafeIdSuffix(id){
+  if(!id || typeof id !== 'string') return null;
+  return id.slice(-6);
+}
+function wrldLogDiag(event, details){
+  try{ console.debug('[WRLD auth-diag]', event, details || {}); }catch(e){}
+}
+
+/* Bounded retry strategy for a profile fetch that fails with a plausibly
+   TEMPORARY error (JWT timing, a profile row that hasn't landed yet
+   immediately after signup, or a transient network failure) — never for
+   every error, and never without a limit (no retry storm). See
+   CHANGES-V20.6.3.md's "Retry Rules" section. */
+const WRLD_PROFILE_MAX_ATTEMPTS = 3;
+const WRLD_PROFILE_MAX_FORCED_REFRESH = 1;
+const WRLD_PROFILE_RETRY_BASE_DELAY_MS = 550;
+
+function wrldSleep(ms){ return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+/* Classifies a profiles-table read error as plausibly temporary (worth a
+   bounded retry) vs. something else entirely (e.g. an RLS permission
+   error unrelated to timing) that retrying can never fix. `PGRST116`
+   ("no rows") is handled as its own `not_found` case by the caller, not
+   here, since a missing row immediately after signup is a normal,
+   expected race with the profile-creation trigger, not exactly the same
+   thing as a fetch that errored out. */
+function wrldIsTemporaryProfileError(error){
+  if(!error) return false;
+  const msg = (error.message || '').toLowerCase();
+  const status = error.status || error.code;
+  if(/jwt issued in future/.test(msg)) return true;
+  if(/jwt/.test(msg) && /(future|not.{0,5}yet.{0,5}valid|nbf)/.test(msg)) return true;
+  if(status === 401) return true; // a 401 immediately after a fresh sign-in/signup is exactly the transient window this release fixes — bounded retries below make retrying it safe even though a 401 can, in other contexts, mean something permanent.
+  if(/failed to fetch|networkerror|load failed|network request failed/.test(msg)) return true;
+  if(status === 0) return true;
+  return false;
+}
+
 /* Normalizes {session, profile} into the same shape auth.js's old
    localStorage user objects had, so every existing `user.name`,
    `user.role`, `user.id` call site across the app keeps working as-is. */
@@ -104,15 +193,206 @@ function wrldBuildUserFromCache(){
   };
 }
 
-async function wrldFetchProfile(userId){
+async function wrldFetchProfileOnce(userId){
   const { data, error } = await sbClient.from('profiles').select('*').eq('id', userId).single();
-  if(error){ console.warn('WRLD: could not load profile', error.message); return null; }
-  return data;
+  return { data: data || null, error: error || null };
 }
 
+// De-dupes concurrent profile fetches for the SAME user id. Root-cause
+// audit finding: on signup.html, sbClient.auth.signUp() itself fires a
+// SIGNED_IN event through the onAuthStateChange listener below AT THE
+// SAME TIME auth.js's signUp() also explicitly awaits
+// wrldRefreshSessionCache(data.session) — two independent call sites,
+// same brand-new session, both wanting this account's profile at once.
+// Without this, that's two concurrent profiles reads (and, since the
+// same JWT-timing race can hit either one, two independent retry loops)
+// for the exact same account. Sharing one in-flight promise per user id
+// means both callers get the same, single, correctly-retried result.
+let _wrldInFlightProfileFetch = null; // { userId, promise } | null
+
+async function wrldFetchProfileWithRetry(session){
+  const userId = session.user.id;
+
+  if(_wrldInFlightProfileFetch && _wrldInFlightProfileFetch.userId === userId){
+    wrldLogDiag('profile_fetch_deduped', { userIdSuffix: wrldSafeIdSuffix(userId) });
+    return _wrldInFlightProfileFetch.promise;
+  }
+
+  const promise = (async () => {
+    let refreshesUsed = 0;
+    for(let attempt = 1; attempt <= WRLD_PROFILE_MAX_ATTEMPTS; attempt++){
+      // Session ownership check (required by this release's audit) —
+      // never fetch/accept a profile for anyone other than the account
+      // this exact session belongs to, and never proceed with a session
+      // that has, mid-retry, stopped matching who we started this call
+      // for (e.g. a same-browser account switch firing SIGNED_OUT then a
+      // new SIGNED_IN while a retry loop from the previous account was
+      // still in flight).
+      const liveSession = _wrldSessionCache;
+      if(!liveSession || liveSession.user.id !== userId){
+        wrldLogDiag('profile_fetch_aborted_session_changed', { expected: wrldSafeIdSuffix(userId), current: wrldSafeIdSuffix(liveSession && liveSession.user && liveSession.user.id) });
+        _wrldProfileState = 'not_requested';
+        return null;
+      }
+
+      _wrldProfileState = 'loading';
+      wrldLogDiag('profile_attempt', { attempt, userIdSuffix: wrldSafeIdSuffix(userId) });
+      const { data, error } = await wrldFetchProfileOnce(userId);
+
+      if(data && !error){
+        if(data.id !== userId){
+          // Structurally shouldn't happen (query is filtered by id), but
+          // the audit explicitly calls for verifying ownership rather
+          // than assuming it — refuse a mismatched row outright.
+          wrldLogDiag('profile_ownership_mismatch', { expected: wrldSafeIdSuffix(userId), got: wrldSafeIdSuffix(data.id) });
+          _wrldProfileState = 'permanent_error';
+          return null;
+        }
+        _wrldProfileState = 'loaded';
+        wrldLogDiag('profile_result', { attempt, status: 'ok' });
+        return data;
+      }
+
+      const status = error && (error.status || error.code);
+      wrldLogDiag('profile_result', { attempt, status: status || 'error', message: error && error.message });
+
+      if(error && (error.code === 'PGRST116' || /0 rows|no rows/i.test(error.message || ''))){
+        // No profiles row yet — either the signup trigger that creates it
+        // hasn't committed/replicated yet, or (far less likely) it will
+        // never exist. Bounded retry covers the normal "hasn't landed
+        // yet" case; if it still isn't there after WRLD_PROFILE_MAX_ATTEMPTS,
+        // that's reported as not_found, not silently retried forever.
+        _wrldProfileState = 'not_found';
+      } else if(wrldIsTemporaryProfileError(error)){
+        _wrldProfileState = 'temporary_error';
+      } else {
+        _wrldProfileState = 'permanent_error';
+        break; // not a plausibly-temporary error — retrying can't help.
+      }
+
+      if(attempt >= WRLD_PROFILE_MAX_ATTEMPTS) break;
+
+      await wrldSleep(WRLD_PROFILE_RETRY_BASE_DELAY_MS * attempt);
+
+      // Re-confirm (and, once, forcibly refresh) the session before
+      // retrying — a stale or about-to-expire access token is exactly
+      // the kind of thing a JWT-timing 401 can be caused by, and this is
+      // the one bounded chance to correct it (WRLD_PROFILE_MAX_FORCED_REFRESH
+      // = 1 — never an unbounded refresh loop).
+      if(refreshesUsed < WRLD_PROFILE_MAX_FORCED_REFRESH){
+        refreshesUsed++;
+        try{
+          const { data: refreshed, error: refreshError } = await sbClient.auth.refreshSession();
+          wrldLogDiag('session_refresh_attempt', { ok: !refreshError });
+          if(!refreshError && refreshed && refreshed.session){
+            _wrldSessionCache = refreshed.session;
+            if(refreshed.session.user.id !== userId){
+              wrldLogDiag('session_ownership_mismatch_after_refresh', {});
+              _wrldProfileState = 'permanent_error';
+              return null;
+            }
+          }
+        }catch(e){ wrldLogDiag('session_refresh_threw', { message: e && e.message }); }
+      } else {
+        try{ const { data: current } = await sbClient.auth.getSession(); if(current && current.session) _wrldSessionCache = current.session; }catch(e){}
+      }
+    }
+    // Retry budget exhausted without success. `not_found` is left as its
+    // own distinct, honest state (the profiles row genuinely never
+    // showed up within the bounded window); a `temporary_error` that
+    // never resolved, by definition, is no longer "temporary" from this
+    // call's point of view — it's escalated to `permanent_error` so the
+    // calling page (welcome.html) knows to stop silently waiting and
+    // show its own recoverable Retry state instead. Never redirects to
+    // login on its own — that decision is never made here.
+    if(_wrldProfileState === 'temporary_error') _wrldProfileState = 'permanent_error';
+    wrldLogDiag('profile_retry_exhausted', { finalState: _wrldProfileState });
+    return null;
+  })();
+
+  _wrldInFlightProfileFetch = { userId, promise };
+  try{
+    return await promise;
+  } finally {
+    if(_wrldInFlightProfileFetch && _wrldInFlightProfileFetch.promise === promise){
+      _wrldInFlightProfileFetch = null;
+    }
+  }
+}
+
+// Monotonic generation counter — guards against a slower, OLDER
+// wrldRefreshSessionCache() call (e.g. one still working through its
+// bounded profile retries) overwriting the cache with stale results
+// after a NEWER call (a subsequent auth event) has already resolved.
+// Part of this release's "must not let a stale session captured before
+// signup clobber a newer one" audit requirement.
+let _wrldSessionRefreshGen = 0;
+
 async function wrldRefreshSessionCache(session){
+  const gen = ++_wrldSessionRefreshGen;
+  const previousUserId = _wrldSessionCache && _wrldSessionCache.user ? _wrldSessionCache.user.id : null;
+
   _wrldSessionCache = session || null;
-  _wrldProfileCache = session ? await wrldFetchProfile(session.user.id) : null;
+  _wrldAuthState = session ? 'authenticated' : 'unauthenticated';
+  wrldLogDiag('auth_state_change', { authState: _wrldAuthState, userIdSuffix: wrldSafeIdSuffix(session && session.user && session.user.id) });
+
+  if(!session){
+    _wrldProfileCache = null;
+    _wrldProfileState = 'not_requested';
+    if(gen === _wrldSessionRefreshGen && typeof wrldSetActiveStateOwner === 'function'){
+      wrldSetActiveStateOwner(null);
+    }
+    return;
+  }
+
+  // A different account just became active in this browser (same-tab
+  // account switch) — drop any previous account's cached profile
+  // immediately rather than letting it linger as "the current profile"
+  // for even one extra render while the new account's own fetch is in
+  // flight.
+  if(previousUserId && previousUserId !== session.user.id){
+    _wrldProfileCache = null;
+    _wrldProfileState = 'not_requested';
+  }
+
+  const profile = await wrldFetchProfileWithRetry(session);
+
+  if(gen !== _wrldSessionRefreshGen){
+    // A newer auth event (another onAuthStateChange firing, or another
+    // explicit caller) has already superseded this call while it was
+    // retrying — discard these results instead of clobbering whatever
+    // the newer call already resolved. See the generation-counter
+    // comment above.
+    wrldLogDiag('stale_refresh_discarded', { gen, current: _wrldSessionRefreshGen });
+    return;
+  }
+
+  _wrldProfileCache = profile;
+
+  // V20.6.2 — the single authoritative moment this browser learns (or
+  // re-confirms) which account, if any, is actually signed in. Stamps
+  // the durable wrld_state_owner_v2 pointer app.js's getState()/setState()/
+  // getVolunteerEntries()/etc. read to pick the correct namespaced
+  // localStorage bucket — including on a page that reads progress before
+  // ITS OWN window.wrldAuthReady has resolved, since the pointer already
+  // reflects the last confirmed sign-in from this or an earlier page.
+  // Explicitly set to '' (guest) on sign-out, never left stale. See
+  // app.js's LOCAL STATE section and CHANGES-V20.6.2.md for the full
+  // design.
+  //
+  // V20.6.3 fix: this used to pass `_wrldProfileCache ? _wrldProfileCache.id
+  // : null` — meaning a temporarily-failed profile fetch (this release's
+  // whole bug) stamped the pointer to '' (guest) even though a real,
+  // confirmed session existed the entire time. That's a second symptom
+  // of the same root cause: a page reading progress during the failure
+  // window would briefly read the GUEST bucket instead of this account's
+  // own. The session's own user id is already the authoritative account
+  // id (public.profiles.id === auth.users.id by design — see
+  // supabase/migrations/001) regardless of whether the profile ROW has
+  // loaded yet, so that id is used directly here.
+  if(typeof wrldSetActiveStateOwner === 'function'){
+    wrldSetActiveStateOwner(session.user.id);
+  }
   // Pull this account's learner progress down from Supabase right after
   // the session/profile resolve, so every page that awaits
   // window.wrldAuthReady automatically gets synced progress with no
@@ -121,10 +401,10 @@ async function wrldRefreshSessionCache(session){
   // synchronously, before this promise callback can ever run) by the
   // time this executes — see app.js's setState()/pullLearnerStateFromSupabase()
   // comment for the full read/write-through design.
-  if(session && typeof pullLearnerStateFromSupabase === 'function'){
+  if(typeof pullLearnerStateFromSupabase === 'function'){
     await pullLearnerStateFromSupabase();
   }
-  if(session && typeof pullVolunteerEntriesFromSupabase === 'function'){
+  if(typeof pullVolunteerEntriesFromSupabase === 'function'){
     await pullVolunteerEntriesFromSupabase();
   }
 }
@@ -136,6 +416,38 @@ async function wrldRefreshSessionCache(session){
 // "logged out, then logged in" flash once initPage() awaits it.
 window.wrldAuthReady = sbClient.auth.getSession().then(({ data }) => wrldRefreshSessionCache(data.session));
 
+/* V20.6 — defensive re-render on a LATE auth-state resolution.
+   supabase-js can fire onAuthStateChange more than once around page load
+   (an initial-session event, then a token refresh, etc.), and on a slow
+   connection or a browser with unusual storage-restore timing (the
+   "Safari session restoration" case called out in this release's audit)
+   a later event can resolve its cache update AFTER initPage() already
+   awaited an earlier window.wrldAuthReady and rendered the header once.
+   Without this, that first render — possibly a stale/incomplete one —
+   would be the only one the page ever shows, on any page, for the rest
+   of that page view. app.js's initPage() now records the activeKey it
+   last rendered with (window.__wrldLastNavKey) specifically so this can
+   safely re-render the exact same header again with the corrected/now-
+   current session state. A no-op on the very first resolution (nothing
+   has rendered yet, so __wrldLastNavKey is still undefined) and cheap on
+   every later one — renderHeader() only rewrites the #site-header DOM. */
 sbClient.auth.onAuthStateChange((_event, session) => {
-  window.wrldAuthReady = wrldRefreshSessionCache(session);
+  // V20.6.3 — logged per this release's "Required Logging for Diagnosis"
+  // spec: event name + whether a session came with it + a redacted user
+  // id suffix, nothing more. This listener itself still never redirects
+  // and never signs anyone out on its own — it only refreshes the cache
+  // (through the same ownership-checked, bounded-retry path every other
+  // caller uses) and re-renders the header. Audited for this release:
+  // INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED, and
+  // SIGNED_OUT all funnel through this one call with no special-casing,
+  // so none of them can independently trigger a "returning user" route or
+  // a login redirect — that decision is made exactly once, by
+  // requireAuth() (auth.js), and only from a definitively confirmed
+  // absence of a session.
+  wrldLogDiag('auth_event', { event: _event, hasSession: !!session, userIdSuffix: wrldSafeIdSuffix(session && session.user && session.user.id) });
+  window.wrldAuthReady = wrldRefreshSessionCache(session).then(() => {
+    if(typeof window.__wrldLastNavKey !== 'undefined' && typeof renderHeader === 'function'){
+      renderHeader(window.__wrldLastNavKey);
+    }
+  });
 });

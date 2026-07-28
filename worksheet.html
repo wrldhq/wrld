@@ -24,6 +24,25 @@
   <section class="section-sm no-print" id="ws-next-section" style="max-width:720px; margin:0 auto;"></section>
 </main>
 <div class="no-print" id="site-footer"></div>
+<!-- V20.4: this page was missing the Supabase SDK, supabase-config.js,
+     and supabase-client.js — the same three scripts every other page
+     loads before data.js. Without them, `window.wrldAuthReady` was
+     never assigned (stays `undefined`), which made initPage()'s guard
+     `if(typeof window.wrldAuthReady !== 'undefined') await ...` skip
+     the wait entirely and render the header immediately from
+     getCurrentUser() — which also silently returned null, since the
+     cache-building function it depends on (wrldBuildUserFromCache)
+     lives in supabase-client.js and didn't exist on this page either.
+     The header therefore always rendered as logged-out here, regardless
+     of the visitor's real session, which is why a signed-in user saw
+     "Log In / Sign Up" on a document preview and their real signed-in
+     header again the moment they returned to downloads.html (a page
+     that already loads these three correctly). See CHANGES-V20.4.md
+     for the full trace — this is the same class of bug fixed on
+     volunteer-tracker.html in V20.3, on a different page. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js?v=20.6.3"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
 <script>
@@ -89,6 +108,11 @@ const WORKSHEET_SPECS = {
   'emergency-fund-calculator':{subtitle:'Work out a realistic first savings goal.', sections:[
     {kind:'table', label:'Essential Monthly Expenses', columns:['Expense','Amount'], rows:6},
     {kind:'fields', label:'Your Numbers', fields:['Total monthly essential expenses','Your first goal (start with $300–500)','Current savings','Gap to close','Amount to save per paycheque to reach goal in 3 months']},
+  ]},
+  'credit-building-tracker':{subtitle:'Check in on these every few months as you build your credit.', sections:[
+    {kind:'fields', label:'Starting Point', fields:['Current credit score (if known)','Starting option — secured card or authorized user']},
+    {kind:'table', label:'Score Check-Ins', columns:['Date','Score','Utilization %','Notes'], rows:6},
+    {kind:'checklist', label:'Good Credit Habits', items:['Pay the full statement balance on autopay, every month','Keep utilization under 30% of your limit','Check your credit report for free at least once a year','Never treat available credit as spendable income','Avoid opening several new cards in a short window']},
   ]},
   'tax-checklist':{subtitle:'Gather these before you sit down to file.', sections:[
     {kind:'checklist', label:'Documents to Gather', items:['Wage statement(s) from every employer (W-2, T4, or equivalent)','Records of any freelance/gig income','Interest or investment income statements','Tuition or education receipts (if applicable)','Receipts for any eligible deductions','Last year\'s tax return (if available)','Banking info for direct deposit of any refund','Your filing deadline, noted somewhere visible']},
@@ -186,7 +210,12 @@ function loadWorksheet(){
 }
 
 function renderNextStep(meta){
-  const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="48" fill="var(--blue-15)"/><circle cx="50" cy="50" r="30" fill="var(--blue)"/><circle cx="41" cy="46" r="5" fill="white"/><circle cx="59" cy="46" r="5" fill="white"/><path d="M38 60 Q50 70 62 60" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+  // V20.1: was a generic blue-circle smiley placeholder that didn't match
+  // Orbit's actual character design (see favicon.svg / assessment.html /
+  // dashboard.html / playbook.html for the canonical mark). Swapped in the
+  // real Orbit SVG so this page's recommendation panel matches the rest of
+  // the site — same asset, no new art generated.
+  const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
   const next = getDownloadNextStep(meta.type);
   const wrap = document.getElementById('ws-next-section');
   if(next){
@@ -207,8 +236,8 @@ function renderNextStep(meta){
 }
 loadWorksheet();
 </script>
-<script src="auth.js"></script>
-<script src="app.js"></script>
+<script src="auth.js?v=20.6.3"></script>
+<script src="app.js?v=20.6.2"></script>
 <script src="orbit.js"></script>
 <script>initPage('downloads');</script>
 </body>

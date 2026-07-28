@@ -11,6 +11,33 @@
 <body>
 <div id="site-header"></div>
 <main id="main">
+  <!-- V20.1: shown while window.wrldAuthReady resolves, so a logged-in
+       user with a valid session never sees an empty/half-built page (or
+       a wrongful redirect) flash before their real data loads.
+       V20.3: also doubles as the genuine-auth-error state (session
+       restore itself failing, as opposed to simply "not logged in") —
+       see the inline script's try/catch around window.wrldAuthReady. -->
+  <section class="section-sm surface-sky" id="vt-loading">
+    <div class="container">
+      <p style="font-size:14px; color:var(--ink-faint);" id="vt-loading-text">Loading your volunteer tracker…</p>
+      <button class="btn btn-primary btn-sm mt-16 hidden" id="vt-retry-btn" onclick="location.reload()">Try Again</button>
+    </div>
+  </section>
+  <div id="vt-content" class="hidden">
+  <!-- V20.6: shown only when authentication succeeded but the volunteer_entries
+       read itself failed (window.__wrldVolunteerLoadFailed, set by
+       pullVolunteerEntriesFromSupabase() in app.js) — a real, narrower
+       condition than "not logged in." The user stays on this page and
+       keeps full access to whatever's already cached locally; Retry just
+       re-runs the same pull and re-renders. -->
+  <section class="section-xs surface-sky hidden" id="vt-data-error">
+    <div class="container">
+      <div class="form-error show" style="margin-bottom:0; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <span style="flex:1; min-width:200px;">We couldn't load your latest volunteer data from the server. You're still signed in — showing what's saved on this device for now.</span>
+        <button class="btn btn-outline btn-sm" id="vt-data-retry-btn" onclick="retryVolunteerDataLoad()">Retry</button>
+      </div>
+    </div>
+  </section>
   <section class="section-sm surface-sky">
     <div class="container">
       <p class="mb-16" style="font-size:13px;"><a href="dashboard.html" style="color:var(--blue-dark); font-weight:600;">← Dashboard</a></p>
@@ -103,16 +130,93 @@
       </div>
     </div>
   </section>
+  </div>
 </main>
 <div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-client.js?v=20.6.3"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js"></script>
-<script src="app.js"></script>
+<script src="auth.js?v=20.6.3"></script>
+<script src="app.js?v=20.6.2"></script>
 <script src="orbit.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
+// V20.3 fix — the ACTUAL root cause of "signed-in users still see a
+// login prompt," found by tracing the full auth path rather than
+// re-patching the symptom again:
+//
+// This page never loaded the Supabase SDK, supabase-config.js, or
+// supabase-client.js at all — only data.js, orbit-knowledge.js, auth.js,
+// app.js, and orbit.js. Every OTHER gated page (account-settings.html,
+// mentor-studio.html, owner-dashboard.html, etc.) loads those three
+// first, in that order, before anything else. Without them:
+//   - `sbClient` (the shared Supabase client) never existed on this page.
+//   - `window.wrldAuthReady` was never assigned, so the V20.1 fix's
+//     `await window.wrldAuthReady` was awaiting `undefined` — which
+//     resolves immediately and waits for nothing. It looked like a fix
+//     (no crash, no hang) but never actually restored a session.
+//   - `wrldBuildUserFromCache()` (defined in supabase-client.js) didn't
+//     exist, so `getCurrentUser()`'s `typeof wrldBuildUserFromCache ===
+//     'function'` guard silently fell through to `null` — meaning
+//     `isAuthenticated()` was `false` and `requireAuth()` redirected to
+//     login EVERY time, for EVERY user, unconditionally. Not a race
+//     condition — a guaranteed failure, because the mechanism it depends
+//     on was structurally absent from this page.
+//
+// The fix is exactly the three missing <script> tags above, in the same
+// order every other authenticated page already uses. Nothing about the
+// auth *logic* below needed to change — `window.wrldAuthReady` (from
+// supabase-client.js) already implements the required loading →
+// authenticated → unauthenticated model correctly: it resolves only
+// after BOTH the session AND the matching public.profiles row have
+// loaded (see supabase-client.js's wrldRefreshSessionCache), so
+// `getCurrentUser()` never returns a half-loaded user — a signed-in
+// user with a still-loading profile is covered by the same await, not
+// treated as logged out. It also already pulls this account's volunteer
+// entries from Supabase (pullVolunteerEntriesFromSupabase(), called
+// automatically inside that same promise) before this page's own script
+// resumes, and login.html?next=volunteer-tracker.html already returns
+// here after login via the existing safeInternalNext() allowlist (see
+// auth.js) — none of that needed to change either. Every function below
+// called from an inline onclick="" is already assigned via
+// `window.fnName = function(){...}`, not a bare function declaration,
+// so wrapping this in an async IIFE remains safe.
+(async () => {
+// V20.3: a real failure restoring the session (as opposed to simply
+// finding no session) is now distinguished from "not logged in" —
+// requireAuth() below still correctly redirects a genuinely logged-out
+// visitor to login, but if window.wrldAuthReady itself rejects, that's
+// a session-verification error, not a "please log in" situation, so it
+// gets its own message instead of a wrongful redirect.
+try{
+  await window.wrldAuthReady;
+}catch(err){
+  console.warn('WRLD: volunteer tracker could not verify the session', err);
+  document.getElementById('vt-loading-text').textContent = 'WRLD could not verify your session. Please try again.';
+  document.getElementById('vt-retry-btn').classList.remove('hidden');
+  return;
+}
 if(requireAuth()){
+  document.getElementById('vt-loading')?.classList.add('hidden');
+  document.getElementById('vt-content')?.classList.remove('hidden');
+
+  // V20.6: authentication already succeeded (requireAuth() passed) — this
+  // only reflects whether the volunteer_entries read itself failed (set
+  // by pullVolunteerEntriesFromSupabase() in app.js, awaited as part of
+  // window.wrldAuthReady above). Never a reason to redirect away.
+  document.getElementById('vt-data-error')?.classList.toggle('hidden', !window.__wrldVolunteerLoadFailed);
+
+  window.retryVolunteerDataLoad = async function(){
+    const btn = document.getElementById('vt-data-retry-btn');
+    if(btn){ btn.disabled = true; btn.textContent = 'Retrying…'; }
+    if(typeof pullVolunteerEntriesFromSupabase === 'function') await pullVolunteerEntriesFromSupabase();
+    if(btn){ btn.disabled = false; btn.textContent = 'Retry'; }
+    document.getElementById('vt-data-error')?.classList.toggle('hidden', !window.__wrldVolunteerLoadFailed);
+    renderVolunteerTracker();
+    if(!window.__wrldVolunteerLoadFailed) showToast('✅ Volunteer data loaded');
+  };
 
   let volSearch = '';
   let volSort = 'recent';
@@ -422,6 +526,7 @@ if(requireAuth()){
   renderVolunteerTracker();
   initPage(null, "Every hour you log here is real — nothing here is invented or estimated.");
 }
+})();
 </script>
 </body>
 </html>
