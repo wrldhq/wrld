@@ -26,11 +26,11 @@
 
   <section class="section" style="padding-bottom:0;" id="recommended-sessions-section">
     <div class="container">
-      <div class="section-head reveal" style="margin-bottom:20px;">
+      <div class="section-head center reveal" style="margin-bottom:20px;">
         <div class="eyebrow blue">🎯 Recommended Sessions</div>
         <h3 style="margin:0;" id="recommended-sessions-heading">Based on your interests</h3>
       </div>
-      <div class="assess-orbit-line reveal" id="sessions-orbit-line" style="max-width:640px;"></div>
+      <div class="assess-orbit-line reveal" id="sessions-orbit-line" style="max-width:640px; margin:0 auto 24px;"></div>
       <div id="recommended-sessions-list"></div>
     </div>
   </section>
@@ -76,7 +76,12 @@
 <script src="orbit.js?v=16"></script>
 <script>
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
-const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="48" fill="var(--blue-15)"/><circle cx="50" cy="50" r="30" fill="var(--blue)"/><circle cx="41" cy="46" r="5" fill="white"/><circle cx="59" cy="46" r="5" fill="white"/><path d="M38 60 Q50 70 62 60" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+// V20.1: was a generic blue-circle smiley placeholder that didn't match
+// Orbit's actual character design (see favicon.svg / assessment.html /
+// dashboard.html / playbook.html for the canonical mark). Swapped in the
+// real Orbit SVG so this page's recommendation panel matches the rest of
+// the site — same asset, no new art generated.
+const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
 
 // --- Recommended Sessions: interest-driven, honest empty state ---
 function interestProgramIds(){

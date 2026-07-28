@@ -723,27 +723,35 @@ function recordCommunityAction(kind, wasApproved){
 }
 
 /* ---------------------------------------------------------------------
-   POSTS + REPLIES (V19.2 — real, shared, Supabase-backed)
+   POSTS + REPLIES (V19.2/V20 — real, shared, Supabase-backed)
    Previously this whole store was `localStorage` only
    (`wrld_community_posts_v1`) — genuinely per-browser, never visible to
    another user or device, which was the exact bug reported. Now backed
-   by public.community_posts / public.community_replies (see
-   supabase/migrations/036) with real RLS: anyone (including logged-out
-   visitors via the anon key) can read approved content; only an
-   authenticated author can insert as themselves; only the author or an
-   Administrator/Owner can delete. Every function here is now async —
-   callers (community.html, owner-dashboard.html, administrator-
-   dashboard.html, moderation-dashboard.html) await and re-render, the
-   same pattern already established for Playbook Q&A
-   (getPlaybookQuestions() etc, just above app.js's Playbook Questions
-   section) and for the Owner Dashboard's admin_user_list() etc.
+   by the REAL live public.community_posts table — a single table where
+   a reply is just a row with `parent_id` set to its parent post's id
+   (there is no separate replies table; migration 036, which assumed a
+   separate public.community_replies table, was written against a stale
+   design and was never applied to the live project — see
+   supabase/migrations/037 for the real repair). RLS: anyone (including
+   logged-out visitors via the anon key) can read approved content; only
+   an authenticated author can insert as themselves; only the author or
+   an Administrator/Owner can delete (and deleting a top-level post
+   cascades to delete all of its replies via a real `on delete cascade`
+   FK on parent_id). Every function here is async — callers
+   (community.html, owner-dashboard.html, administrator-dashboard.html,
+   moderation-dashboard.html) await and re-render, the same pattern
+   already established for Playbook Q&A (getPlaybookQuestions() etc,
+   just below) and for the Owner Dashboard's admin_user_list() etc.
    Client-side moderateContent() still runs before every insert (a
    courtesy check); RLS + moderation_set_community_status()/
-   report_community_content() (both security definer) are the real
-   security boundary, not this file.
+   report_community_content() (both security definer, migration 037)
+   are the real security boundary, not this file — a row can never
+   self-approve past `held` on insert if the client's own flags are
+   non-empty, and can never change its own moderation state on a later
+   update (see guard_community_post_updates() in migration 037).
    --------------------------------------------------------------------- */
 async function getCommunityPosts(category){
-  let query = sbClient.from('community_posts').select('*').order('created_at', {ascending:false});
+  let query = sbClient.from('community_posts').select('*').is('parent_id', null).order('created_at', {ascending:false});
   if(category) query = query.eq('category', category);
   const { data, error } = await query;
   if(error){ console.warn('WRLD: could not load community posts', error.message); return []; }
@@ -751,31 +759,29 @@ async function getCommunityPosts(category){
   if(!posts.length) return [];
 
   const { data: replies, error: repliesError } = await sbClient
-    .from('community_replies').select('*').in('post_id', posts.map(p=>p.id)).order('created_at', {ascending:true});
+    .from('community_posts').select('*').in('parent_id', posts.map(p=>p.id)).order('created_at', {ascending:true});
   if(repliesError) console.warn('WRLD: could not load community replies', repliesError.message);
 
   const repliesByPost = {};
-  (replies||[]).forEach(r=>{ (repliesByPost[r.post_id] = repliesByPost[r.post_id]||[]).push(communityReplyFromRow(r)); });
+  (replies||[]).forEach(r=>{ (repliesByPost[r.parent_id] = repliesByPost[r.parent_id]||[]).push(communityPostFromRow(r, [])); });
   return posts.map(p=>communityPostFromRow(p, repliesByPost[p.id]||[]));
 }
 
-// Normalizes a raw Supabase row into the same shape the UI (community.html,
-// dashboards) already expects (authorId/authorName/createdAt/reportCount),
-// resolving the display name live from the profiles relationship per the
-// V19.2 spec's "prefer the live profile name" choice — see
-// V19.2-BACKEND-SETUP.md's "Display names" section for why.
+// Normalizes a raw Supabase row (a top-level post OR a reply — both live
+// in community_posts, distinguished only by whether parent_id is set)
+// into the shape the UI (community.html, dashboards) already expects
+// (authorId/authorName/createdAt/reportCount/replies). Display name uses
+// the name captured at posting time (author_name, stored on the row) per
+// the documented product decision (CHANGES-V19.2.md "Display names") —
+// this is what remains visible if the author's account is later
+// deleted, at which point author_id is anonymized to null by delete-user
+// but this stored name and the content itself are preserved.
 function communityPostFromRow(row, replies){
   return {
-    id: row.id, authorId: row.author_id, authorName: row.author_name || 'A WRLD member',
+    id: row.id, parentId: row.parent_id||null, authorId: row.author_id, authorName: row.author_name || 'A WRLD member',
     category: row.category, body: row.body, createdAt: row.created_at,
     status: row.status, flags: row.flags||[], reportCount: row.report_count||0,
     replies: replies||[],
-  };
-}
-function communityReplyFromRow(row){
-  return {
-    id: row.id, postId: row.post_id, authorId: row.author_id, authorName: row.author_name || 'A WRLD member',
-    body: row.body, createdAt: row.created_at, status: row.status, flags: row.flags||[], reportCount: row.report_count||0,
   };
 }
 
@@ -796,14 +802,16 @@ async function createCommunityPost({category, body}){
     return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
   }
 
-  // author_name is resolved live from the profiles relationship by
-  // default throughout the UI (see communityPostFromRow) — this column
-  // is stored alongside it only so a post still shows *something*
-  // sensible if the author's account is later deleted (their profile
-  // row anonymizes author_id to null — see delete-user's cleanup step —
-  // at which point this stored name is what's left to show).
+  // author_name is stored at post time (see communityPostFromRow) so a
+  // post still shows something sensible if the author's account is
+  // later deleted (their profile link is anonymized to null — see
+  // delete-user's cleanup step — at which point this stored name is
+  // what's left to show). The client-sent status/flags are a courtesy
+  // hint only; guard_community_post_updates() (migration 037) is the
+  // real enforcement of "no self-approval," independent of what's sent
+  // here.
   const { data, error } = await sbClient.from('community_posts').insert({
-    author_id: user.id, author_name: user.name, category: category||null,
+    author_id: user.id, author_name: user.name, category: category||'general',
     body: body.trim(), status: mod.status==='held' ? 'held' : 'approved', flags: mod.flags||[],
   }).select().single();
   if(error){ console.warn('WRLD: could not post to community', error.message); return {ok:false, error:'Something went wrong posting that — try again.'}; }
@@ -826,29 +834,40 @@ async function addCommunityReply(postId, body){
     return {ok:false, error:"This can't be posted — it looks like it may include unsafe content. If you're struggling, please reach out to a crisis line or someone you trust."};
   }
 
-  const { data, error } = await sbClient.from('community_replies').insert({
-    post_id: postId, author_id: user.id, author_name: user.name,
+  // A reply is a community_posts row with parent_id set — category is
+  // NOT NULL live, so a reply inherits its parent post's category.
+  let parentCategory = 'general';
+  try{
+    const { data: parentRow } = await sbClient.from('community_posts').select('category').eq('id', postId).single();
+    if(parentRow && parentRow.category) parentCategory = parentRow.category;
+  }catch(e){ /* fall back to 'general' */ }
+
+  const { data, error } = await sbClient.from('community_posts').insert({
+    parent_id: postId, author_id: user.id, author_name: user.name, category: parentCategory,
     body: body.trim(), status: mod.status==='held' ? 'held' : 'approved', flags: mod.flags||[],
   }).select().single();
   if(error){ console.warn('WRLD: could not post reply', error.message); return {ok:false, error:'Something went wrong posting that reply — try again.'}; }
 
   recordCommunityAction('reply', data.status==='approved');
   if(data.status==='held') recordViolationAndMaybeEscalate(user.id, mod.flags);
-  return {ok:true, reply: communityReplyFromRow(data)};
+  return {ok:true, reply: communityPostFromRow(data, [])};
 }
 
 // Author-or-Administrator deletion — enforced by RLS
-// (community_posts_delete_own_or_admin / community_replies_delete_own_or_admin
-// in migration 036), not just by which button the UI shows. A plain
-// DELETE call is all that's needed; if the caller isn't the author or an
-// Administrator+, RLS silently matches zero rows and `error` stays null
-// but no row is removed — checked via the returned count.
+// (posts_delete_own_or_mod, live on community_posts), not just by which
+// button the UI shows. A plain DELETE call is all that's needed; if the
+// caller isn't the author or an Administrator+, RLS silently matches
+// zero rows and `error` stays null but no row is removed — checked via
+// the returned count. Deleting a top-level post cascades (real FK
+// `on delete cascade` on parent_id) to delete all of its replies too.
 async function deleteOwnCommunityPost(postId){
   const { error, count } = await sbClient.from('community_posts').delete({count:'exact'}).eq('id', postId);
   return !error && count>0;
 }
 async function deleteOwnCommunityReply(replyId){
-  const { error, count } = await sbClient.from('community_replies').delete({count:'exact'}).eq('id', replyId);
+  // A reply is just a community_posts row (parent_id set) — same table,
+  // same delete policy as a top-level post.
+  const { error, count } = await sbClient.from('community_posts').delete({count:'exact'}).eq('id', replyId);
   return !error && count>0;
 }
 
@@ -890,12 +909,14 @@ async function getReportedItems(){
   return items.sort((a,b)=>(b.item.reportCount||0)-(a.item.reportCount||0));
 }
 
-// Admin+ only — enforced by moderation_set_community_status()'s own
-// role_at_least('admin') check (migration 036), not just by which
-// dashboard shows the button.
+// Admin+ only — enforced by RLS (posts_update_own_or_mod, live on
+// community_posts, admin branch) and, redundantly, by
+// moderation_set_community_status()'s own role_at_least('admin') check
+// for status changes (migration 037) — not just by which dashboard shows
+// the button. A reply is a community_posts row too (parent_id set), so
+// both posts and replies live in the same table/column.
 async function moderationClearReports(postId, replyId){
-  const table = replyId ? 'community_replies' : 'community_posts';
-  const { error } = await sbClient.from(table).update({report_count:0}).eq('id', replyId||postId);
+  const { error } = await sbClient.from('community_posts').update({report_count:0}).eq('id', replyId||postId);
   if(!error) logModerationEvent('reports-cleared', replyId||postId, []);
   return !error;
 }
@@ -1305,9 +1326,28 @@ function saveMentorProfile(userId, profile){
    secure file storage requires backend infrastructure not built yet.
    --------------------------------------------------------------------- */
 const MENTOR_APPLICATIONS_KEY = 'wrld_mentor_applications_v1';
-function getMentorApplications(){
-  try{ return JSON.parse(localStorage.getItem(MENTOR_APPLICATIONS_KEY)) || []; }
-  catch(e){ return []; }
+// V20 fix: this used to read/write a localStorage-only store, which is
+// stale legacy code from before mentor applications became a real,
+// shared public.mentor_applications table (migration 032) — the actual
+// apply/review/delete flow (become-mentor.html's submit_mentor_application
+// RPC, owner-dashboard.html's Mentors tab, set_mentor_application_status(),
+// delete_mentor_application()) has been Supabase-backed for a while, but
+// this function — used by the Owner Dashboard's Overview/Analytics
+// metrics and the Recent Activity Feed/System Alerts — was still reading
+// an empty/stale local key, so those numbers never reflected real
+// applications. Now reads the real table directly (Administrator+ RLS
+// already permits this; a lower-role caller simply gets an empty array
+// back rather than an error, which is fine for a stats helper).
+async function getMentorApplications(){
+  const { data, error } = await sbClient.from('mentor_applications').select('*').order('created_at', {ascending:false});
+  if(error){ console.warn('WRLD: could not load mentor applications', error.message); return []; }
+  return (data||[]).map(row=>({
+    id: row.id, userId: row.user_id, name: row.name, email: row.email,
+    occupation: row.occupation, education: row.education, expertise: row.expertise,
+    languages: row.languages, bio: row.bio, why: row.why, experience: row.experience,
+    availability: row.availability, linkedin: row.linkedin, portfolio: row.portfolio,
+    status: row.status, submittedAt: row.created_at,
+  }));
 }
 function saveMentorApplications(apps){
   localStorage.setItem(MENTOR_APPLICATIONS_KEY, JSON.stringify(apps));
@@ -1398,7 +1438,7 @@ async function getPlatformOverview(){
   const posts = await getCommunityPosts();
   const communityActivity = posts.length + posts.reduce((sum,p)=>sum+(p.replies||[]).length, 0);
   const volSummary = getVolunteerSummary();
-  const mentorApps = getMentorApplications();
+  const mentorApps = await getMentorApplications();
   return {
     newExplorers,
     activeUsers,
@@ -1408,9 +1448,9 @@ async function getPlatformOverview(){
     liveSessions: getLiveSessions().length,
     certificatesEarned: 0, // Certificates are honestly labeled Coming Soon — never fabricated.
     mentorApplications: mentorApps.length,
-    pendingMentorApplications: mentorApps.filter(a=>a.status==='pending').length,
+    pendingMentorApplications: mentorApps.filter(a=>a.status==='submitted'||a.status==='under_review').length,
     pendingAIReviews: getVolunteerEntries().filter(e=>e.verification && e.verification.confidence==='medium' && e.verification.status==='pending_review').length,
-    flaggedPosts: getModerationQueue().length,
+    flaggedPosts: (await getModerationQueue()).length,
   };
 }
 
@@ -1472,7 +1512,7 @@ async function getRecentActivityFeed(limit){
   limit = limit || 20;
   const events = [];
   getModerationLog().forEach(e=>events.push({at:e.at, icon:'🛡️', text:`Moderation: ${e.action.replace(/-/g,' ')}`}));
-  getMentorApplications().forEach(a=>events.push({at:a.submittedAt, icon:'🤝', text:`New mentor application from ${a.name}`}));
+  (await getMentorApplications()).forEach(a=>events.push({at:a.submittedAt, icon:'🤝', text:`New mentor application from ${a.name}`}));
   getVolunteerEntries().forEach(v=>events.push({at:v.loggedAt, icon:'🌍', text:`${v.organization||'A learner'} — ${v.hours} volunteer hour${v.hours!==1?'s':''} logged`}));
   (await getCommunityPosts()).forEach(p=>events.push({at:p.createdAt, icon:'💬', text:`New Community Commons post from ${p.authorName}`}));
   getUsers().forEach(u=>events.push({at:u.createdAt, icon:'🌱', text:`${u.name} joined WRLD as an Explorer`}));
@@ -1481,7 +1521,7 @@ async function getRecentActivityFeed(limit){
 
 async function getSystemAlerts(){
   const alerts = [];
-  const pendingApps = getMentorApplications().filter(a=>a.status==='pending').length;
+  const pendingApps = (await getMentorApplications()).filter(a=>a.status==='submitted'||a.status==='under_review').length;
   if(pendingApps>0) alerts.push({level:'info', icon:'🤝', text:`${pendingApps} mentor application${pendingApps!==1?'s':''} awaiting review`});
   const flagged = (await getModerationQueue()).length;
   if(flagged>0) alerts.push({level:'warn', icon:'🛡️', text:`${flagged} post${flagged!==1?'s':''} in the AI moderation queue`});
@@ -1713,10 +1753,23 @@ function renderChecklist(containerId, items, storageKey, onComplete){
     <div class="checklist-progress-bar"><div class="checklist-progress-fill" id="${containerId}-fill"></div></div>
     <div id="${containerId}-items"></div>`;
   const itemsEl = el.querySelector(`#${containerId}-items`);
-  itemsEl.innerHTML = items.map((txt,i)=>`
+  // V20 fix: practiceExercises items come in two valid shapes in data.js —
+  // a plain string (older Playbooks: resume, cover-letter, budgeting, etc)
+  // or a richer {title, body} object (newer Playbooks: bank-accounts,
+  // taxes, emergency-funds, investing-basics, financial-planning,
+  // time-management, study-skills, mental-wellness, internships,
+  // graduation-planning). This previously always did `${txt}` assuming a
+  // string, so the object shape rendered as the literal text
+  // "[object Object]" for every item in those 10 Playbooks' Practice
+  // Exercises section. checklist items (the separate Action Checklist
+  // field) are always plain strings and are unaffected either way.
+  itemsEl.innerHTML = items.map((txt,i)=>{
+    const label = (txt && typeof txt==='object') ? `<strong>${txt.title}:</strong> ${txt.body}` : txt;
+    return `
     <div class="checklist-item ${saved.includes(i)?'checked':''}" data-i="${i}" tabindex="0" role="checkbox" aria-checked="${saved.includes(i)}">
-      <div class="checklist-box">${saved.includes(i)?'✓':''}</div><span class="txt">${txt}</span>
-    </div>`).join('');
+      <div class="checklist-box">${saved.includes(i)?'✓':''}</div><span class="txt">${label}</span>
+    </div>`;
+  }).join('');
   function updateFill(){
     const state = getState();
     const checked = (state.checklists[storageKey]||[]).length;

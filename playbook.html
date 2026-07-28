@@ -453,15 +453,35 @@ function loadPlaybook(){
   });
   heroIllEl.appendChild(heroImg);
 
+  // V20 fix: `mini` appears in data.js in two different, both-valid shapes —
+  // (1) `mini:true` on a section that has no h/p of its own and IS the
+  // mini-check (q/options/correct/explain live directly on the section,
+  // used by resume/cover-letter/interview-skills/etc), and (2) `mini:{...}`
+  // as a nested object attached to a full h/p/callout section that also
+  // has its own real lesson content (used by bank-accounts, taxes,
+  // emergency-funds, investing-basics, financial-planning, time-management,
+  // study-skills, mental-wellness, internships, graduation-planning).
+  // This previously only handled shape (1) — `renderMiniCheck(s)` on a
+  // shape-(2) section read `s.q`/`s.options` (undefined, since they live
+  // under `s.mini`), and `m.options.map(...)` threw a TypeError. Because
+  // that throw happened inside this very `.map()` callback, it aborted
+  // `loadPlaybook()` entirely at this line — silently skipping every
+  // container rendered after it (Practice Exercises, Action Checklist,
+  // Reflection Questions, Quick Quiz, FAQ, Key Takeaways all stayed
+  // empty), even though the data for those sections was fully populated.
+  // This was the actual root cause of "empty containers" on 10 of the 23
+  // Playbooks — not missing content, a rendering crash.
   document.getElementById('sections-container').innerHTML = p.sections.map(s=>{
-    if(s.mini) return renderMiniCheck(s);
+    if(s.mini===true) return renderMiniCheck(s);
+    const miniHtml = (s.mini && typeof s.mini==='object') ? renderMiniCheck(s.mini) : '';
     return `
-    <h3>${s.h}</h3>
-    ${s.p.map(par=>`<p>${par}</p>`).join('')}
+    ${s.h?`<h3>${s.h}</h3>`:''}
+    ${s.p?s.p.map(par=>`<p>${par}</p>`).join(''):''}
     ${s.list?`<ul>${s.list.map(li=>`<li>${li}</li>`).join('')}</ul>`:''}
     ${s.table?renderLessonTable(s.table):''}
     ${s.timeline?renderLessonTimeline(s.timeline):''}
     ${s.callout?`<div class="callout ${calloutClass(s.callout.type)}"><div class="ic">${calloutIcon(s.callout.type)}</div><div><h5>${s.callout.title||calloutTitle(s.callout.type)}</h5><p>${s.callout.text}</p></div></div>`:''}
+    ${miniHtml}
   `;
   }).join('');
 

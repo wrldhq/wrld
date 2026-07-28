@@ -175,7 +175,14 @@ button{cursor:pointer; border:none; background:none;}
 .btn-lg{padding:19px 36px; font-size:var(--fs-base);}
 .btn-block{width:100%;}
 .btn[disabled]{opacity:.5; pointer-events:none;}
-.btn-icon{width:44px; height:44px; padding:0; border-radius:50%; background:var(--gray); flex-shrink:0;}
+/* V20.2: added display:inline-flex + centering — the emoji glyph inside
+   (e.g. the 👁️ preview icon on downloads.html, the ←/→ calendar arrows
+   in app.js) was previously laid out as ordinary inline text, so its
+   position depended on font line-height/baseline rather than the
+   circle's actual center, leaving it visibly off-center. inline-flex +
+   align-items/justify-content centers it exactly regardless of glyph
+   metrics, on every page that uses this shared class. */
+.btn-icon{display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0; border-radius:50%; background:var(--gray); flex-shrink:0; line-height:1; font-size:16px; text-decoration:none;}
 .btn-icon:hover{background:var(--blue-15);}
 
 /* ===== Nav (V15 — deep navy toolbar, applied site-wide via app.js's
@@ -443,6 +450,37 @@ header{position:sticky; top:0; z-index:200; background:var(--wrld-navy); border-
 .hero h1{font-size:clamp(2.3rem, 5.6vw, 4rem);}
 .hero .sub{font-size:var(--fs-md); color:var(--ink-soft); max-width:640px; margin:22px auto 40px;}
 .divider-curve{display:block; width:100%; margin-top:-2px;}
+/* V20.2: replaces the V20.1 Safari-only `margin-top` nudge, which turned
+   out not to fully close the seam (still visible in the V20.2 bug
+   report's screenshots). Root cause, confirmed by inspecting the actual
+   markup: `.divider-curve` has no explicit `width`/`height` attributes —
+   only `viewBox="0 0 1440 100"` — so its rendered pixel height is
+   derived by each browser from `width:100%` and the intrinsic 1440:100
+   aspect ratio, then rounded to a device pixel. That rounding is not
+   guaranteed to match `.home-hero`'s own box height to the sub-pixel,
+   in ANY browser (Safari most visibly, but the same class of rounding
+   error is possible anywhere depending on viewport width and device
+   pixel ratio) — whenever the SVG's rendered box falls a fraction of a
+   pixel short of the section's true bottom edge, a hairline of
+   `.home-hero`'s own blue gradient shows through directly above the
+   cream section, reading as a thin blue-grey line. Nudging the SVG's
+   own margin can happen to hide this at one specific viewport/DPR
+   combination while leaving it exposed at another — it was patching the
+   symptom, not the cause.
+   Fix: `.home-hero::after` below paints a solid cream safety strip
+   directly behind the SVG, pinned to the exact bottom edge of the
+   section. Everywhere the curve's own cream fill reaches (which is
+   effectively the entire bottom edge — even the highest point of the
+   wave path stays well above the very bottom few pixels of the SVG's
+   box), this strip is invisible, fully covered by the SVG's own
+   painted curve. In the sub-pixel sliver where the SVG's rendered
+   height falls short, this strip is what actually gets exposed instead
+   of raw hero background — and it's already the exact cream colour the
+   next section uses, so there is nothing left that can render as a
+   visible line, in any browser, at any viewport width or zoom level.
+   This does not change the curve shape, hero height, or section
+   spacing — it only guarantees what colour sits behind the curve's own
+   edge. */
 
 /* ===== Homepage hero (V15 redesign) =====
    Background colour is sampled directly from the supplied hero island
@@ -459,6 +497,15 @@ header{position:sticky; top:0; z-index:200; background:var(--wrld-navy); border-
    behind the image column, so the picture still blends in with zero
    visible edge while the text stays accessible. */
 .home-hero{position:relative; background:linear-gradient(100deg, #0274A4 0%, #0274A4 42%, var(--wrld-hero-blue) 62%, var(--wrld-hero-blue) 100%); padding:64px 0 0; overflow:hidden;}
+/* V20.2: cream safety strip — see the long comment above `.divider-curve`
+   for the full root-cause explanation. Sits at the exact bottom edge of
+   the hero, beneath the curve SVG (z-index:0 vs the SVG's inline
+   z-index:1), painted the same cream as the next section so that any
+   sub-pixel shortfall in the SVG's own rendered height exposes this
+   strip instead of the hero's blue background. 8px is comfortably more
+   than any realistic sub-pixel rounding error while still being fully
+   hidden under the curve's own cream fill everywhere across its width. */
+.home-hero::after{content:""; position:absolute; left:0; right:0; bottom:0; height:8px; background:var(--cream); z-index:0; pointer-events:none;}
 .home-hero-decorations{position:absolute; inset:0; overflow:hidden; z-index:0; pointer-events:none;}
 .home-hero-cloud-1{position:absolute; top:24px; left:4%; opacity:.9;}
 .home-hero-cloud-2{position:absolute; top:64px; right:4%; opacity:.85;}
@@ -553,6 +600,25 @@ header{position:sticky; top:0; z-index:200; background:var(--wrld-navy); border-
 .filter-chip.active, .filter-chip:hover{border-color:var(--blue); background:var(--blue-05); color:var(--blue-dark);}
 
 .pb-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:24px;}
+/* V20.2: for recommendation-style grids specifically (as opposed to full
+   catalogue/library grids, which intentionally stay fixed-column and
+   fill the row edge-to-edge). Recommendation grids often render just
+   one, two, or a partial final row of cards depending on the learner's
+   own data, and a fixed multi-column CSS grid leaves a lone/leftover
+   card pinned to column 1 (the left) with empty, un-collapsed grid
+   cells beside it — CSS Grid shares one column template across every
+   row, so a short last row doesn't re-center itself even with
+   `auto-fit`. Flexbox does not have that limitation: each wrapped row
+   is its own independent flex line, so `justify-content:center`
+   centers a full row, a partial row, AND a single leftover card,
+   correctly, on every row, with no per-item JS logic needed. Cards
+   grow from a 260px basis up to a 340px cap, matching the previous
+   grid's card proportions. Inherently responsive — at phone widths
+   only one 340px-max card fits per line, so it naturally becomes the
+   same single-column stack the rest of the site already uses on
+   mobile, with no separate breakpoint required. */
+.grid-recommend{display:flex; flex-wrap:wrap; justify-content:center; gap:24px;}
+.grid-recommend > *{flex:1 1 260px; max-width:340px;}
 .pb-card{overflow:hidden; display:flex; flex-direction:column;}
 /* 16:9, native aspect ratio — scales with card width at every breakpoint
    instead of a fixed height, so card art is never cropped or zoomed. */

@@ -158,16 +158,26 @@ if(requireCapability(canAccessAdministratorDashboard)){
     setTimeout(initReveal, 20);
   }
 
-  /* ---------------- MENTOR OPERATIONS (no permanent deletion) ---------------- */
+  /* ---------------- MENTOR OPERATIONS ----------------
+     V20.2: permanent deletion is Owner-only again — the delete-
+     mentor-application Edge Function enforces this server-side
+     regardless of what the client shows, but the Delete button itself
+     is only rendered when `me.role === 'owner'` (see renderMentorOps
+     below) so Administrators — who can also reach this dashboard via
+     canAccessAdministratorDashboard()'s Admin-or-Owner check — never
+     see a button that would be rejected anyway. Approve / Decline /
+     Mark Under Review remain available to Administrators as before. */
+  let adMentorAppsCache = [];
   async function renderMentorOps(){
     document.getElementById('ad-panels').innerHTML = panelShell(`<h3 class="mb-16">Mentor Operations</h3><p style="font-size:13px; color:var(--ink-faint);">Loading applications…</p>`);
     const { data: apps, error } = await sbClient.from('mentor_applications').select('*').order('created_at', {ascending:false});
     if(error){ document.getElementById('ad-panels').innerHTML = panelShell(`<h3 class="mb-16">Mentor Operations</h3><div class="empty-state"><div class="ic">⚠️</div><h4>Couldn't load applications</h4></div>`); return; }
     const rows = apps || [];
+    adMentorAppsCache = rows;
     const approvedMentors = getUsers().filter(u=>u.role===ROLES.MENTOR);
     document.getElementById('ad-panels').innerHTML = panelShell(`
       <h3 class="mb-16">Mentor Operations</h3>
-      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:16px;">Review and move applications through the workflow. Permanent application deletion is Owner-only.</p>
+      <p style="font-size:12px; color:var(--ink-faint); margin-bottom:16px;">Review and move applications through the workflow, or permanently delete a submitted application.</p>
       <div>${rows.length ? rows.map(a=>`
         <div class="card owner-row mb-12" style="flex-direction:column; align-items:stretch;">
           <div class="flex justify-between items-start" style="flex-wrap:wrap; gap:12px;">
@@ -178,6 +188,7 @@ if(requireCapability(canAccessAdministratorDashboard)){
             <div class="flex gap-8" style="flex-wrap:wrap;">
               ${a.status==='submitted'||a.status==='under_review' ? `<button class="btn btn-primary btn-sm" onclick="adMentorStatus('${a.id}','approved')">✅ Approve</button><button class="btn btn-outline btn-sm" onclick="adMentorStatus('${a.id}','declined')">Decline</button>` : ''}
               <button class="btn btn-outline btn-sm" onclick="adMentorStatus('${a.id}','under_review')">Mark Under Review</button>
+              ${me.role==='owner' ? `<button class="btn btn-outline btn-sm" style="border-color:#F5C6C2; color:#B3403A;" onclick="adDeleteMentorApp('${a.id}')">🗑️ Delete</button>` : ''}
             </div>
           </div>
         </div>`).join('') : `<div class="empty-state"><div class="ic">✅</div><h4>No applications</h4></div>`}</div>
@@ -192,6 +203,38 @@ if(requireCapability(canAccessAdministratorDashboard)){
     showToast('✅ Status updated');
     if(status==='approved') await refreshUsersCache();
     renderMentorOps();
+  };
+  window.adDeleteMentorApp = (id)=>{
+    const a = adMentorAppsCache.find(x=>x.id===id);
+    if(!a) return;
+    const fileCount = (a.resume_file_path?1:0) + (a.certs_path?1:0);
+    showConfirmModal({
+      title: '🗑️ Delete this mentor application?',
+      detailsHtml: `
+        <div><strong>Applicant:</strong> ${escapeHtml(a.name)}</div>
+        <div><strong>Email:</strong> ${escapeHtml(a.email)}</div>
+        <div><strong>Status:</strong> ${(a.status||'').replace(/_/g,' ')}</div>
+        <div><strong>Submitted:</strong> ${new Date(a.created_at).toLocaleDateString()}</div>
+        <div><strong>Attached files:</strong> ${fileCount}</div>`,
+      warning: "This will permanently remove the submitted application and its associated application files. The applicant's WRLD account and current role will not be deleted.",
+      confirmLabel: 'Delete Application',
+      onConfirm: async (closeModal)=>{
+        // V20.2: see owner-dashboard.html's odDeleteMentorApp for the
+        // full explanation — the old RPC tried to delete directly from
+        // storage.objects, which Supabase rejects. This button also
+        // only renders for `me.role==='owner'` now (see renderMentorOps
+        // above), but the Edge Function itself independently re-checks
+        // the caller's role server-side regardless.
+        const { data, error } = await sbClient.functions.invoke('delete-mentor-application', { body: { applicationId: id } });
+        if(error || !data?.ok){
+          showToast('❌ ' + friendlyBackendError((data && data.error) ? {message:data.error} : error));
+          return;
+        }
+        closeModal();
+        showToast('✅ Mentor application deleted successfully.');
+        await renderMentorOps();
+      },
+    });
   };
 
   /* ---------------- VOLUNTEER OPERATIONS ---------------- */

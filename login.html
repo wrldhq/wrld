@@ -92,8 +92,14 @@ document.getElementById('login-form').addEventListener('submit', async (e)=>{
     return;
   }
 
+  // V20.1: validate `next` against the internal-routes allowlist before
+  // ever using it as a redirect target — `next` comes straight from the
+  // URL, which is attacker-controllable if someone shares a crafted
+  // login link (e.g. login.html?next=https://evil.example). Falls back
+  // to the normal role-based destination if it's missing or unsafe.
   const params = new URLSearchParams(location.search);
-  location.href = params.get('next') || ROLE_DESTINATIONS[result.user.role] || 'dashboard.html';
+  const safeNext = safeInternalNext(params.get('next'));
+  location.href = safeNext || ROLE_DESTINATIONS[result.user.role] || 'dashboard.html';
 });
 
 initPage(null);

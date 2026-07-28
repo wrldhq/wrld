@@ -563,9 +563,16 @@ if(requireCapability(canAccessOwnerDashboard)){
       warning: "This will permanently remove the submitted application and its associated application files. The applicant's WRLD account and current role will not be deleted.",
       confirmLabel: 'Delete Application',
       onConfirm: async (closeModal)=>{
-        const { error } = await sbClient.rpc('delete_mentor_application', { p_application_id: id });
-        if(error){
-          showToast('❌ ' + friendlyBackendError(error));
+        // V20.2: was sbClient.rpc('delete_mentor_application', ...) — that
+        // RPC tried to delete straight from storage.objects in SQL, which
+        // Supabase rejects ("Direct deletion from storage tables is not
+        // allowed. Use the Storage API instead."). Deletion now goes
+        // through the delete-mentor-application Edge Function, which uses
+        // the real Storage API to remove attachments before deleting the
+        // application row, under a server-side Owner-only check.
+        const { data, error } = await sbClient.functions.invoke('delete-mentor-application', { body: { applicationId: id } });
+        if(error || !data?.ok){
+          showToast('❌ ' + friendlyBackendError((data && data.error) ? {message:data.error} : error));
           return; // modal stays open, record stays visible — no false success
         }
         closeModal();
@@ -836,7 +843,7 @@ if(requireCapability(canAccessOwnerDashboard)){
     const allItems = posts.length + posts.reduce((s,p)=>s+(p.replies||[]).length,0);
     const heldItems = posts.filter(p=>p.status==='held').length + posts.reduce((s,p)=>s+(p.replies||[]).filter(r=>r.status==='held').length,0);
     const approvalRate = allItems ? Math.round(((allItems-heldItems)/allItems)*100) : 100;
-    const apps = getMentorApplications();
+    const apps = await getMentorApplications();
     document.getElementById('od-panels').innerHTML = panelShell(`
       <h3 class="mb-16">Analytics</h3>
       <h4 class="mb-12">👥 Users by Role</h4>
@@ -854,9 +861,9 @@ if(requireCapability(canAccessOwnerDashboard)){
       <h4 class="mb-12">🤝 Mentor Application Funnel</h4>
       <div class="owner-metric-row">
         ${metricCard(apps.length, 'Submitted')}
-        ${metricCard(apps.filter(a=>a.status==='pending').length, 'Pending')}
+        ${metricCard(apps.filter(a=>a.status==='submitted'||a.status==='under_review').length, 'Pending')}
         ${metricCard(apps.filter(a=>a.status==='approved').length, 'Approved')}
-        ${metricCard(apps.filter(a=>a.status==='rejected').length, 'Declined')}
+        ${metricCard(apps.filter(a=>a.status==='declined').length, 'Declined')}
       </div>
     `);
     setTimeout(initReveal, 20);

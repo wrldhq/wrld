@@ -479,6 +479,25 @@ async function setAdministratorStatus(userId, makeAdmin){
    window.wrldAuthReady; ... })()` for exactly this reason — see e.g.
    dashboard.html, account-settings.html, owner-dashboard.html).
    --------------------------------------------------------------------- */
+// V20.1: shared allowlist check for the `?next=` redirect-back param —
+// used both here (harmless, since `here` is always built from
+// location.pathname, never user input) and by login.html when it
+// actually *consumes* a `next` value from the URL, which IS
+// attacker-controllable if someone shares a crafted login link. Only a
+// bare same-page WRLD filename (optionally with its own query string)
+// is ever allowed — no scheme, no protocol-relative `//`, no backslash,
+// no path traversal. Anything else is rejected and the caller falls
+// back to the normal role-based destination.
+function safeInternalNext(raw){
+  if(!raw || typeof raw !== 'string') return null;
+  if(raw.length > 200) return null;
+  if(/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(raw)) return null; // has a scheme (http:, javascript:, etc)
+  if(raw.startsWith('//')) return null; // protocol-relative
+  if(raw.includes('\\')) return null;
+  if(!/^[a-zA-Z0-9_-]+\.html(\?[^\s]*)?$/.test(raw)) return null; // bare filename[.html][?query] only
+  return raw;
+}
+
 function requireAuth(){
   if(!isAuthenticated()){
     const here = location.pathname.split('/').pop() + location.search;

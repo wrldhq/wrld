@@ -282,7 +282,12 @@ async function renderMentorsList(){
 }
 renderMentorsList();
 
-const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="48" fill="var(--blue-15)"/><circle cx="50" cy="50" r="30" fill="var(--blue)"/><circle cx="41" cy="46" r="5" fill="white"/><circle cx="59" cy="46" r="5" fill="white"/><path d="M38 60 Q50 70 62 60" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+// V20.1: was a generic blue-circle smiley placeholder that didn't match
+// Orbit's actual character design (see favicon.svg / assessment.html /
+// dashboard.html / playbook.html for the canonical mark). Swapped in the
+// real Orbit SVG so this page's recommendation panel matches the rest of
+// the site — same asset, no new art generated.
+const ORBIT_AVATAR_SVG_SM = `<svg width="36" height="36" viewBox="0 0 100 100" style="flex-shrink:0;"><circle cx="50" cy="50" r="46" fill="#2EA8C7"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
 
 /* --- Community Commons: real, category-based, gated, moderated --- */
 let activeCommonsCategory = COMMONS_CATEGORIES[0].key;
@@ -353,7 +358,7 @@ function commonsThreadCard(post, me, canModerate){
   const canDeletePost = me && (me.id===post.authorId || canModerate);
   return `<div class="thread-item">
     <div class="flex gap-10 items-center justify-between mb-6">
-      <div class="flex gap-10 items-center"><span style="font-size:16px;">🧑</span><span style="font-weight:700; font-size:13px; color:var(--navy);">${escapeHtml(post.authorName)}</span><span style="font-size:11px; color:var(--ink-faint);">${timeAgo(post.createdAt)}</span></div>
+      <div class="flex gap-10 items-center"><span style="font-weight:700; font-size:13px; color:var(--navy);">${escapeHtml(post.authorName)}</span><span style="font-size:11px; color:var(--ink-faint);">${timeAgo(post.createdAt)}</span></div>
       ${canDeletePost ? `<button class="thread-action muted" onclick="confirmDeleteCommonsPost('${post.id}')" aria-label="Delete post">⋯ Delete</button>` : ''}
     </div>
     <p style="margin:0 0 8px; font-size:14px;">${escapeHtml(post.body)}</p>
