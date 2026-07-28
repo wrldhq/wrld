@@ -401,12 +401,38 @@ async function wrldRefreshSessionCache(session){
   // synchronously, before this promise callback can ever run) by the
   // time this executes — see app.js's setState()/pullLearnerStateFromSupabase()
   // comment for the full read/write-through design.
-  if(typeof pullLearnerStateFromSupabase === 'function'){
-    await pullLearnerStateFromSupabase();
-  }
-  if(typeof pullVolunteerEntriesFromSupabase === 'function'){
-    await pullVolunteerEntriesFromSupabase();
-  }
+  // V22.1 — ROOT CAUSE FIX for the "onboarding never finishes loading"
+  // bug: this call, and the volunteer-entries pull right after it, used
+  // to run with no try/catch. A brand-new account's FIRST sync ever
+  // takes the "no server row yet — push local state up" branch inside
+  // pullLearnerStateFromSupabase()/pullVolunteerEntriesFromSupabase(),
+  // which makes an additional Supabase write these two functions don't
+  // make on any later, returning-user sync. If that write (or the read
+  // before it) ever throws — a timing hiccup on a row created moments
+  // ago by the signup trigger, a transient network error, anything —
+  // the exception used to propagate straight out of this function and
+  // reject the wrldRefreshSessionCache() promise itself, i.e. reject
+  // window.wrldAuthReady. Every page's initPage() (app.js) awaits that
+  // promise with no catch, and welcome.html's own onboarding entry does
+  // too — so a single failed background sync could silently stop
+  // EVERYTHING on the page (header, footer, Orbit, and on welcome.html
+  // specifically, the entire onboarding UI) from ever finishing its
+  // first render, with no error shown to the visitor. Session and
+  // profile are already fully, correctly resolved by the time this
+  // runs regardless of whether this best-effort sync succeeds, so a
+  // failure here must never again be able to affect anyone else
+  // awaiting this promise. This is the ONLY change in this function —
+  // the auth/profile resolution above it is untouched.
+  try{
+    if(typeof pullLearnerStateFromSupabase === 'function'){
+      await pullLearnerStateFromSupabase();
+    }
+  }catch(e){ wrldLogDiag('pull_learner_state_threw', { message: e && e.message }); }
+  try{
+    if(typeof pullVolunteerEntriesFromSupabase === 'function'){
+      await pullVolunteerEntriesFromSupabase();
+    }
+  }catch(e){ wrldLogDiag('pull_volunteer_entries_threw', { message: e && e.message }); }
 }
 
 // Kicks off immediately when this script loads (before DOMContentLoaded on

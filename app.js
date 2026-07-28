@@ -2220,7 +2220,16 @@ async function initPage(activeKey, customGuideMsg){
   // supabase-client.js's top comment. Every page still calls this the
   // same fire-and-forget way it always did (`initPage('dashboard')`),
   // so making this async required no changes to any of the 28 callers.
-  if(typeof window.wrldAuthReady !== 'undefined') await window.wrldAuthReady;
+  // V22.1 — defense in depth. window.wrldAuthReady should now always
+  // resolve (see supabase-client.js's V22.1 fix to wrldRefreshSessionCache()),
+  // but initPage() runs on every single page, so it never assumes that —
+  // an unexpected rejection here (from this or any future change) must
+  // never again be able to silently stop the header, footer, streak, and
+  // Orbit init below from ever running on ANY page.
+  if(typeof window.wrldAuthReady !== 'undefined'){
+    try{ await window.wrldAuthReady; }
+    catch(e){ if(typeof wrldLogDiag==='function') wrldLogDiag('init_page_auth_ready_threw', { message: e && e.message }); }
+  }
   // V20.6: remembered so supabase-client.js can re-render the header if a
   // LATER auth-state event (a delayed session-restore resolution, a token
   // refresh, a sign-out in another tab) resolves after this first render —

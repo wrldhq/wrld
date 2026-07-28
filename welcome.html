@@ -43,11 +43,11 @@
      redirected away instead of ever seeing it. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js"></script>
-<script src="supabase-client.js?v=20.6.3"></script>
+<script src="supabase-client.js?v=22.1"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
 <script src="auth.js?v=20.6.3"></script>
-<script src="app.js?v=21"></script>
+<script src="app.js?v=22.1"></script>
 <script src="orbit.js?v=22"></script>
 <script>
 // V20.6.3 — see supabase-client.js/auth.js for the full root-cause fix.
@@ -122,6 +122,21 @@ function wrldRenderProfileRecovery(){
     wrldRunWelcomeEntry();
   };
 
+  // V22.1 — required safeguard: never leave the visitor with only a
+  // Retry option on this screen. Reuses the existing .btn/.btn-outline/
+  // .btn-sm classes already defined in styles.css — no new styling
+  // added anywhere. Guarded by id so a second failed retry doesn't
+  // insert it twice.
+  if(!document.getElementById('welcome-return-home')){
+    const returnLink = document.createElement('a');
+    returnLink.id = 'welcome-return-home';
+    returnLink.href = 'index.html';
+    returnLink.className = 'btn btn-outline btn-sm mt-16';
+    returnLink.style.display = 'inline-block';
+    returnLink.textContent = 'Return to Homepage';
+    cta.insertAdjacentElement('afterend', returnLink);
+  }
+
   initPage(null, "Give me just a moment to finish setting things up. 🌱");
 }
 
@@ -139,9 +154,38 @@ async function wrldRunWelcomeEntry(){
   wrldRenderWelcomeGreeting(firstName);
 }
 
+// V22.1 — REQUIRED SAFEGUARD: this page must never remain in an
+// infinite loading state. Two independent protections, on top of the
+// actual root-cause fix in supabase-client.js (a failed background sync
+// can no longer reject window.wrldAuthReady in the first place):
+//   1. Any error that still reaches this entry point (an actual
+//      exception, not just a slow network) is caught and shown as the
+//      existing recoverable Retry/Return-Home screen instead of an
+//      unhandled rejection that leaves the page silently stuck.
+//   2. A bounded 10-second watchdog: if initialization simply hasn't
+//      finished by then for any reason at all, the same recoverable
+//      screen is shown proactively rather than waiting forever. If the
+//      real initialization does finish shortly after (slow network,
+//      not a real failure), it's a no-op — wrldWelcomeInitDone is
+//      already true by the time the timer would have fired.
+let wrldWelcomeInitDone = false;
 (async () => {
-  await window.wrldAuthReady;
-  await wrldRunWelcomeEntry();
+  const watchdog = setTimeout(() => {
+    if(wrldWelcomeInitDone) return;
+    wrldLogDiag && wrldLogDiag('welcome_init_timeout', {});
+    wrldRenderProfileRecovery();
+  }, 10000);
+  try{
+    await window.wrldAuthReady;
+    await wrldRunWelcomeEntry();
+    wrldWelcomeInitDone = true;
+    clearTimeout(watchdog);
+  }catch(e){
+    wrldWelcomeInitDone = true;
+    clearTimeout(watchdog);
+    wrldLogDiag && wrldLogDiag('welcome_init_failed', { message: e && e.message });
+    wrldRenderProfileRecovery();
+  }
 })();
 </script>
 </body>
