@@ -259,9 +259,16 @@ function dismissOrbitPanel(){
 // current page's filename, not activeKey, so it works even on pages
 // that aren't in top nav (login/signup/forgot-password/reset-password/
 // owner-setup aren't NAV_GROUPS items).
+// V22: assessment.html added. The assessment already has its own
+// dedicated, permanent Orbit presence built into the page itself (the
+// intro's and each question's `.assess-orbit-line`) — a second, separate
+// floating preview auto-showing on top of that on mobile would be a
+// duplicate Orbit and, on the intro view especially, can sit over the
+// "Start My Journey" control. The circular launcher stays available for
+// a manual tap, same as every other excluded page below.
 const ORBIT_AUTO_SHOW_EXCLUDED_PAGES = [
   'signup.html','login.html','forgot-password.html','reset-password.html',
-  'welcome.html','owner-setup.html',
+  'welcome.html','owner-setup.html','assessment.html',
 ];
 function orbitCurrentPageExcludedFromAutoShow(){
   const page = location.pathname.split('/').pop() || 'index.html';

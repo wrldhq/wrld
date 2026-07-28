@@ -1014,6 +1014,31 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
      touch targets, no label clipping, comfortable spacing. */
   .owner-nav-group-head{padding:14px 16px; min-height:44px;}
   .owner-nav-group-body{padding:0 12px 14px;}
+
+  /* V22 — Tools page (Interview Simulator): .flip-card rotates a real
+     3D-transformed child (perspective + preserve-3d + rotateY(180deg)
+     on .flip-back). The flip itself looks correct, but on mobile
+     browsers a 3D-transformed element can still register a bounding
+     box for scroll-width purposes beyond its own visual box, letting
+     the whole page be dragged horizontally into blank space even
+     though nothing is visibly out of place. Containing the transform
+     to its own component fixes the scrollable area without touching
+     html/body overflow or the card's own layout/animation. */
+  .flip-card-scene{overflow:hidden; max-width:100%;}
+
+  /* V22 — Program detail pages (program.html): the header row (title/
+     intro column + enrolment card) is a flex-wrap row with inline
+     min-width floors (300px / 280px) sized for desktop/tablet. At
+     phone widths those floors don't leave enough combined room to
+     wrap cleanly, so the title/intro column gets compressed into a
+     narrow strip beside the enrolment card instead of the two
+     stacking. Force a true single-column stack here — the enrolment
+     card already sits second in the DOM, so this preserves the
+     required mobile order (header → badges → title → intro → details
+     → enrolment card) with no HTML reordering. Scoped to these two
+     classes only; no other flex row on the site is affected. */
+  .prog-hero-row{flex-direction:column; align-items:stretch;}
+  .prog-enroll-card{width:100%; max-width:100%; min-width:0;}
 }
 
 /* ---- About page: "Meet the Founder" section ----
@@ -1096,102 +1121,4 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
 @media(max-width:560px){
   .wrld-modal{padding:22px 20px; max-height:calc(100dvh - 24px);}
   .wrld-modal-overlay{padding:12px;}
-}
-
-/* =====================================================================
-   V21.1 — FIX 1: Tools page mobile horizontal overflow
-   Root cause: the site-wide `.btn` rule sets `white-space:nowrap` (needed
-   so nav/CTA buttons never break mid-label). Inside the Tools page result
-   panels, a couple of generated CTAs — e.g. "⬇️ Generate My Downloadable
-   Budget Plan" — are long enough that, left unwrapped, they render wider
-   than a phone viewport. No ancestor between the button and <body> clips
-   overflow, so the button's box silently extends past the right edge —
-   invisible on load, revealed only when the page is dragged horizontally.
-   Scoped to `.tool-panel` only (the 5 Tools cards), so no button on any
-   other page is affected. `.card` padding is also nudged down to match
-   the same 720px treatment already used for `.pillar/.value-card/.diff-
-   card` elsewhere in this file, giving long labels more room to wrap.
-   ===================================================================== */
-@media(max-width:720px){
-  .tool-panel .card{padding:28px 22px;}
-  .tool-panel .btn{white-space:normal; text-align:center; max-width:100%;}
-}
-
-/* =====================================================================
-   V21.2 — root-cause fix for the mobile signup blank-page regression
-   The line above this comment used to read `html{overflow-x:hidden;}`,
-   added in V21.1 as a "belt-and-suspenders" safeguard against the Tools
-   page drag-reveal bug. It was the ONLY unscoped, page-wide rule V21.1
-   introduced (every other V21.1 rule is scoped to `.tool-panel` or the
-   new `.prog-hero-*` classes, neither of which exist on signup.html).
-
-   Root cause: `<body>` already carried `overflow-x:hidden` (line ~98,
-   present since V21, unchanged). Per the CSS Overflow spec, when the
-   root `<html>` element has NO overflow of its own (the default), the
-   browser propagates `<body>`'s overflow-x up to the actual viewport —
-   this is how `body{overflow-x:hidden}` was working correctly in V21/
-   V21.1 for every normal page. Adding an explicit `overflow-x` on
-   `<html>` as well disables that propagation entirely, so `<html>` and
-   `<body>` each start managing overflow independently instead. That's a
-   well-documented source of mobile Safari bugs around `100vh`-based
-   sizing and `position:sticky` — exactly the ingredients `.auth-shell`
-   uses (`min-height:calc(100vh - 400px)` + a `position:sticky` header),
-   which lines up with signup being the page that broke.
-   Fix: removed the `html{overflow-x:hidden;}` rule so `<html>` goes back
-   to its default (identical to original V21), restoring standard body→
-   viewport propagation. `overscroll-behavior-x` is the property actually
-   designed to stop the horizontal drag/bounce-reveal gesture Fix 1 was
-   guarding against, without touching `overflow` at all — so it replaces
-   the old safeguard on both `html` and `body` with zero risk of the same
-   propagation issue. The Tools page's real overflow source (the long
-   nowrap CTA button) was already fixed at its source in V21.1 and is
-   untouched here, so this change carries no risk of reopening Fix 1. */
-html, body{overscroll-behavior-x:none;}
-
-/* =====================================================================
-   V21.2 — Signup page: normal document flow on mobile
-   Second, more direct layer on top of the html/body fix above. Even with
-   overflow propagation restored, `.auth-shell`'s `min-height:calc(100vh -
-   400px)` + `display:flex; align-items:center; justify-content:center`
-   vertically centers the card inside a viewport-height-based box — a
-   desktop nicety that has no benefit on a narrow phone and is exactly the
-   kind of `100vh` arithmetic mobile Safari's dynamic toolbar can get
-   wrong. The required mobile layout is simple top-down document flow
-   (header → heading → form → submit → login link), so on mobile this
-   drops the vh-based centering entirely in favor of that.
-   Scoped to a new `.signup-shell` class added only to signup.html's
-   `<section class="auth-shell">` — `.auth-shell` itself (shared by
-   login.html, forgot-password.html, reset-password.html and become-
-   mentor.html) is untouched, so none of those pages' mobile layouts
-   change. `.auth-card`'s own padding/width and all field markup are
-   untouched — only the outer centering wrapper's behavior changes. */
-@media(max-width:720px){
-  .signup-shell{min-height:0; display:block;}
-}
-
-/* =====================================================================
-   V21.1 — FIX 2: Individual program detail pages, mobile layout
-   Root cause: the hero row (badges/title/tagline + the enrolment card)
-   is a `.flex` row with `min-width:300px` on the main column and
-   `min-width:280px; max-width:320px` on the enrolment card. The existing
-   V21 rule `[style*="min-width:"]{min-width:0 !important;}` (in the
-   720px block above) correctly removes the min-width floor so text can
-   shrink instead of forcing real overflow — but with both floors gone,
-   flex-wrap no longer has a reason to trigger, so the browser keeps both
-   columns side-by-side and just keeps shrinking them, squeezing the main
-   content into a narrow strip and shrinking the enrolment card down over
-   it instead of stacking. `.prog-hero-row/.prog-hero-main/.prog-hero-
-   enroll` are new classes added only to program.html's hero markup, so
-   this fix cannot affect any other page's `.flex.justify-between` row
-   (several other pages use that same generic combo for unrelated UI).
-   `!important` is required to win over the inline styles on these same
-   elements, matching the pattern already used elsewhere in this file. */
-@media(max-width:720px){
-  .prog-hero-row{flex-direction:column !important; align-items:stretch !important; gap:24px !important;}
-  .prog-hero-main{width:100% !important; max-width:100% !important; flex:none !important;}
-  .prog-hero-enroll{width:100% !important; max-width:100% !important; margin:0 !important;}
-  /* Enrolment card buttons ("✓ Enrolled — View Dashboard" etc.) can be
-     longer than "Enroll for Free" — let them wrap instead of relying on
-     the site-wide .btn nowrap, same reasoning as the Tools fix above. */
-  .prog-hero-enroll .btn{white-space:normal; text-align:center;}
 }
