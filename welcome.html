@@ -111,15 +111,50 @@ function wrldRenderProfileRecovery(){
   const cta = document.getElementById('welcome-cta');
   cta.textContent = 'Retry';
   cta.classList.add('in');
+  // V22.4 — the background-sync fix in supabase-client.js means
+  // wrldRefreshSessionCache() should no longer hang, but the Retry
+  // handler itself is now wrapped in try/catch/finally so an unexpected
+  // error here (of any kind) can never leave this button permanently
+  // disabled — it always re-enables, and the existing recovery message
+  // stays visible if the retry doesn't succeed. No raw error text is
+  // ever shown to the visitor.
   cta.onclick = async () => {
     if(wrldWelcomeRetryInFlight) return;
+
     wrldWelcomeRetryInFlight = true;
-    cta.disabled = true; cta.textContent = 'Retrying…';
-    const session = typeof wrldGetSession === 'function' ? wrldGetSession() : null;
-    if(session){ await wrldRefreshSessionCache(session); }
-    wrldWelcomeRetryInFlight = false;
-    cta.disabled = false;
-    wrldRunWelcomeEntry();
+    cta.disabled = true;
+    cta.textContent = 'Retrying…';
+
+    // `reachedEntry` tracks whether wrldRunWelcomeEntry() ran to
+    // completion. If it did, it already re-rendered this button itself
+    // (either to the greeting's "Let's Get Started →" on success, or
+    // back to its own 'Retry' label via wrldRenderProfileRecovery() if
+    // the profile is still unavailable) — so `finally` below only needs
+    // to restore this exact 'Retry' label itself when that did NOT
+    // happen (i.e. an exception was thrown), never overwriting whatever
+    // wrldRunWelcomeEntry() already rendered. The button is always
+    // re-enabled either way, so it can never remain stuck disabled.
+    let reachedEntry = false;
+    try{
+      const session = typeof wrldGetSession === 'function' ? wrldGetSession() : null;
+
+      if(session && typeof wrldRefreshSessionCache === 'function'){
+        await wrldRefreshSessionCache(session);
+      }
+
+      await wrldRunWelcomeEntry();
+      reachedEntry = true;
+    }catch(error){
+      if(typeof wrldLogDiag === 'function'){
+        wrldLogDiag('welcome_retry_failed', { message: error && error.message });
+      }
+    }finally{
+      wrldWelcomeRetryInFlight = false;
+      cta.disabled = false;
+      if(!reachedEntry){
+        cta.textContent = 'Retry';
+      }
+    }
   };
 
   // V22.1 — required safeguard: never leave the visitor with only a
@@ -172,7 +207,17 @@ let wrldWelcomeInitDone = false;
 (async () => {
   const watchdog = setTimeout(() => {
     if(wrldWelcomeInitDone) return;
-    wrldLogDiag && wrldLogDiag('welcome_init_timeout', {});
+    // V22.4 — `wrldLogDiag &&` referenced the identifier directly, which
+    // throws a ReferenceError if wrldLogDiag is unavailable for any
+    // reason (e.g. supabase-client.js failed to load). That throw would
+    // happen INSIDE this setTimeout callback, before
+    // wrldRenderProfileRecovery() below ever ran — leaving the visitor on
+    // the loading card with no recovery message. A `typeof` guard never
+    // throws, so the recovery UI always renders regardless of whether
+    // diagnostic logging is available.
+    if(typeof wrldLogDiag === 'function'){
+      wrldLogDiag('welcome_init_timeout', {});
+    }
     wrldRenderProfileRecovery();
   }, 10000);
   try{
@@ -183,7 +228,9 @@ let wrldWelcomeInitDone = false;
   }catch(e){
     wrldWelcomeInitDone = true;
     clearTimeout(watchdog);
-    wrldLogDiag && wrldLogDiag('welcome_init_failed', { message: e && e.message });
+    if(typeof wrldLogDiag === 'function'){
+      wrldLogDiag('welcome_init_failed', { message: e && e.message });
+    }
     wrldRenderProfileRecovery();
   }
 })();
