@@ -1117,13 +1117,57 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   .tool-panel .btn{white-space:normal; text-align:center; max-width:100%;}
 }
 
-/* Belt-and-suspenders containment: `body` already has `overflow-x:hidden`
-   (line ~98), which stops the *visible* render from showing a horizontal
-   scrollbar, but on iOS Safari a descendant that overflows can still be
-   revealed by the elastic drag/bounce unless `html` is also clipped. This
-   has zero visual effect on any page unless something overflows — it only
-   closes the gap iOS leaves open when just `body` is clipped. */
-html{overflow-x:hidden;}
+/* =====================================================================
+   V21.2 — root-cause fix for the mobile signup blank-page regression
+   The line above this comment used to read `html{overflow-x:hidden;}`,
+   added in V21.1 as a "belt-and-suspenders" safeguard against the Tools
+   page drag-reveal bug. It was the ONLY unscoped, page-wide rule V21.1
+   introduced (every other V21.1 rule is scoped to `.tool-panel` or the
+   new `.prog-hero-*` classes, neither of which exist on signup.html).
+
+   Root cause: `<body>` already carried `overflow-x:hidden` (line ~98,
+   present since V21, unchanged). Per the CSS Overflow spec, when the
+   root `<html>` element has NO overflow of its own (the default), the
+   browser propagates `<body>`'s overflow-x up to the actual viewport —
+   this is how `body{overflow-x:hidden}` was working correctly in V21/
+   V21.1 for every normal page. Adding an explicit `overflow-x` on
+   `<html>` as well disables that propagation entirely, so `<html>` and
+   `<body>` each start managing overflow independently instead. That's a
+   well-documented source of mobile Safari bugs around `100vh`-based
+   sizing and `position:sticky` — exactly the ingredients `.auth-shell`
+   uses (`min-height:calc(100vh - 400px)` + a `position:sticky` header),
+   which lines up with signup being the page that broke.
+   Fix: removed the `html{overflow-x:hidden;}` rule so `<html>` goes back
+   to its default (identical to original V21), restoring standard body→
+   viewport propagation. `overscroll-behavior-x` is the property actually
+   designed to stop the horizontal drag/bounce-reveal gesture Fix 1 was
+   guarding against, without touching `overflow` at all — so it replaces
+   the old safeguard on both `html` and `body` with zero risk of the same
+   propagation issue. The Tools page's real overflow source (the long
+   nowrap CTA button) was already fixed at its source in V21.1 and is
+   untouched here, so this change carries no risk of reopening Fix 1. */
+html, body{overscroll-behavior-x:none;}
+
+/* =====================================================================
+   V21.2 — Signup page: normal document flow on mobile
+   Second, more direct layer on top of the html/body fix above. Even with
+   overflow propagation restored, `.auth-shell`'s `min-height:calc(100vh -
+   400px)` + `display:flex; align-items:center; justify-content:center`
+   vertically centers the card inside a viewport-height-based box — a
+   desktop nicety that has no benefit on a narrow phone and is exactly the
+   kind of `100vh` arithmetic mobile Safari's dynamic toolbar can get
+   wrong. The required mobile layout is simple top-down document flow
+   (header → heading → form → submit → login link), so on mobile this
+   drops the vh-based centering entirely in favor of that.
+   Scoped to a new `.signup-shell` class added only to signup.html's
+   `<section class="auth-shell">` — `.auth-shell` itself (shared by
+   login.html, forgot-password.html, reset-password.html and become-
+   mentor.html) is untouched, so none of those pages' mobile layouts
+   change. `.auth-card`'s own padding/width and all field markup are
+   untouched — only the outer centering wrapper's behavior changes. */
+@media(max-width:720px){
+  .signup-shell{min-height:0; display:block;}
+}
 
 /* =====================================================================
    V21.1 — FIX 2: Individual program detail pages, mobile layout

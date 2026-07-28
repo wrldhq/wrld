@@ -15,12 +15,13 @@ right edge: invisible on load, only revealed when the page was dragged horizonta
 - `.tool-panel .card` padding reduced slightly on mobile (matches the same treatment
   already used for `.pillar`/`.value-card`/`.diff-card` elsewhere in the file), giving
   wrapped labels more room.
-- Added `overflow-x:hidden` to `html` (in addition to the existing rule on `body`) as a
-  containment safeguard — iOS Safari can still reveal an overflowing descendant via
-  elastic drag even when only `body` is clipped. This has no visual effect on any page
-  unless something overflows.
 
 No other page uses `.tool-panel`, so no other button on the site is affected.
+
+(V21.2 note: an additional `html{overflow-x:hidden}` safeguard was added here in
+V21.1's first release and later removed in V21.2 after it was found to cause a mobile
+signup layout regression — see CHANGES-V21.2.md. The fix above, which addresses the
+actual overflow source, is unaffected.)
 
 ## Fix 2: Individual program detail pages — mobile layout
 
