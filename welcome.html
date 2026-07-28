@@ -6,7 +6,7 @@
 <title>Welcome to WRLD.</title>
 <meta name="description" content="Welcome to WRLD — meet Orbit, your guide.">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="styles.css?v=21">
+<link rel="stylesheet" href="styles.css?v=21.3">
 <style>
   #welcome-lines p{opacity:0; transform:translateY(14px); transition:opacity .6s var(--ease), transform .6s var(--ease); font-size:16px; color:var(--navy); margin-bottom:14px; line-height:1.6;}
   #welcome-lines p.in{opacity:1; transform:translateY(0);}
@@ -21,7 +21,7 @@
 <body>
 <div id="site-header"></div>
 <main id="main">
-  <section class="auth-shell">
+  <section class="auth-shell welcome-shell">
     <div class="card auth-card" style="max-width:560px; text-align:center; padding:48px 40px;">
       <svg class="welcome-avatar" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
       <div id="welcome-lines"></div>
@@ -48,7 +48,7 @@
 <script src="orbit-knowledge.js"></script>
 <script src="auth.js?v=20.6.3"></script>
 <script src="app.js?v=21"></script>
-<script src="orbit.js?v=21"></script>
+<script src="orbit.js?v=21.3"></script>
 <script>
 // V20.6.3 — see supabase-client.js/auth.js for the full root-cause fix.
 // requireAuth() below now redirects to login.html ONLY when Supabase has

@@ -262,6 +262,16 @@ function dismissOrbitPanel(){
 const ORBIT_AUTO_SHOW_EXCLUDED_PAGES = [
   'signup.html','login.html','forgot-password.html','reset-password.html',
   'welcome.html','owner-setup.html',
+  // V21.3: the initial (first-time) Adulting Readiness Assessment is the
+  // last leg of the new-user route, right after Orbit welcome. Its own
+  // "Continue →" button sits at the bottom-right of the question card —
+  // the same corner the floating Orbit launcher docks in on mobile — so
+  // the separate floating preview/launcher is suppressed here too, the
+  // same way it already was on signup.html and welcome.html, to keep it
+  // from ever sitting on top of that control. This dedicated onboarding
+  // Orbit content (the small inline Orbit avatar/quote on each question)
+  // is untouched — only the floating mobile preview is excluded.
+  'assessment.html',
 ];
 function orbitCurrentPageExcludedFromAutoShow(){
   const page = location.pathname.split('/').pop() || 'index.html';

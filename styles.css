@@ -1170,6 +1170,34 @@ html, body{overscroll-behavior-x:none;}
 }
 
 /* =====================================================================
+   V21.3 — Orbit welcome page: same mobile fix as signup, never applied
+   Root cause of the broken mobile new-user route: `welcome.html` (the
+   dedicated first-time-user "Orbit welcome" onboarding page) shares the
+   exact same `.auth-shell` wrapper as signup.html — `min-height:calc(
+   100vh - 400px)` + `display:flex; align-items:center; justify-content:
+   center`. V21.2 fixed this centering bug for signup via a new
+   `.signup-shell` override but, since that request was scoped to signup
+   only, welcome.html kept the original vh-centered behavior. On mobile
+   this vertically centers the (fairly tall — avatar + 4 fading-in lines
+   of greeting text + a CTA button) welcome card inside an oversized,
+   `100vh`-based box: the card's top portion (avatar) can render inside
+   the initial viewport while the greeting text and the "Let's Get
+   Started →" button — the only way to continue to the assessment — end
+   up centered further down, out of the initial viewport, reproducing
+   the same "big white card, nothing usable below it" symptom reported
+   for the new-user route. This is the actual place the mobile journey
+   got stuck: not a duplicated floating Orbit, but the dedicated Orbit
+   welcome page itself, using the pre-V21.2 `.auth-shell` behavior.
+   Fix: identical pattern to `.signup-shell` — a new `.welcome-shell`
+   class added only to welcome.html's `<section class="auth-shell">`,
+   dropping the vh-based centering for normal top-down document flow on
+   mobile. `.auth-shell` itself (login/forgot-password/reset-password/
+   become-mentor) and `.signup-shell` are both untouched. */
+@media(max-width:720px){
+  .welcome-shell{min-height:0; display:block;}
+}
+
+/* =====================================================================
    V21.1 — FIX 2: Individual program detail pages, mobile layout
    Root cause: the hero row (badges/title/tagline + the enrolment card)
    is a `.flex` row with `min-width:300px` on the main column and
