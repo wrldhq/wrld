@@ -44,10 +44,10 @@
 <div id="site-footer"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.107.0/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js?v=2"></script>
-<script src="supabase-client.js?v=22.6"></script>
+<script src="supabase-client.js?v=23"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js?v=22.6"></script>
+<script src="auth.js?v=23"></script>
 <script src="app.js?v=22.1"></script>
 <script src="orbit.js?v=22"></script>
 <script>
@@ -96,19 +96,16 @@ document.getElementById('login-form').addEventListener('submit', async (e)=>{
   // ever using it as a redirect target — `next` comes straight from the
   // URL, which is attacker-controllable if someone shares a crafted
   // login link (e.g. login.html?next=https://evil.example).
-  // V20.6.2: routes with source:'login' explicitly — Log In is a
-  // returning-user pathway, separate from Create Account's, and never
-  // infers "does this account need onboarding" from cached local state
-  // here (see auth.js's postAuthDestination()). This always sends a
-  // successful login straight to its requested destination or role
-  // dashboard. A genuinely onboarding-incomplete returning account (e.g.
-  // they created an account, closed the browser before finishing the
-  // assessment, and came back to log in normally) is still caught —
-  // correctly, from this account's own real data — by requireAuth()'s
-  // independent guard the instant the destination page loads, which
-  // also preserves any pending `next` (e.g. the Volunteer Tracker)
-  // forward through onboarding exactly as before; this routing step
-  // itself just never makes that inference.
+  // V23 — this is now THE single moment a first-time vs. returning
+  // account is decided, for every account: Create Account (signup.html)
+  // no longer keeps a session or makes this decision itself — every
+  // brand-new signup ends here, at a real login, exactly like every
+  // returning account. postAuthDestination() (auth.js) checks real
+  // onboarding-completion data from this account's own profile/assessment
+  // state exactly once and sends an incomplete Explorer to welcome.html
+  // (carrying any pending `next`, e.g. the Volunteer Tracker, forward
+  // through onboarding) or a completed/returning account straight to its
+  // requested destination or role dashboard. See AUTH-REGRESSION-ANALYSIS.md.
   const params = new URLSearchParams(location.search);
   location.href = postAuthDestination(params.get('next'), 'login');
 });

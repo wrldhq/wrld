@@ -43,10 +43,10 @@
      redirected away instead of ever seeing it. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.107.0/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js"></script>
-<script src="supabase-client.js?v=22.6"></script>
+<script src="supabase-client.js?v=23"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js?v=22.6"></script>
+<script src="auth.js?v=23"></script>
 <script src="app.js?v=22.1"></script>
 <script src="orbit.js?v=22"></script>
 <script>
@@ -111,10 +111,15 @@ function wrldRenderEmergencyRecovery(){
 // requireAuth() below now redirects to login.html ONLY when Supabase has
 // definitively confirmed there is no session (wrldGetAuthState() ===
 // 'unauthenticated') — never merely because the profile fetch above is
-// still retrying or has failed. A brand-new signup's session is already
-// confirmed valid by the time this page's own window.wrldAuthReady
-// resolves (auth.js's signUp() verified session ownership before this
-// page was ever navigated to); what CAN still be true here is that the
+// still retrying or has failed.
+// V23 — this page is now reached exclusively through a real, completed
+// login (postAuthDestination(), called from login.html's submit handler
+// once logIn() itself has resolved) or a direct/bookmarked navigation by
+// an already-authenticated visitor — never immediately after signUp()
+// anymore (signup.html always ends at login.html; see auth.js's signUp()
+// and AUTH-REGRESSION-ANALYSIS.md for why). By the time either of those
+// paths reaches this page, the session this browser holds is already a
+// settled, real one — what CAN still be true here is that the
 // profiles-table read hit the live "JWT issued in future" timing window
 // and used up its bounded retries (WRLD_PROFILE_MAX_ATTEMPTS=3,
 // WRLD_PROFILE_MAX_FORCED_REFRESH=1, both in supabase-client.js) without

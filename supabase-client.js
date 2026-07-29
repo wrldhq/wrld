@@ -69,7 +69,7 @@ function wrldSiteUrl(){
 // fixed supabase-client.js is what actually loaded, not a cached V22.5
 // copy. Safe to remove in a later release once this is no longer needed
 // for verification.
-console.info('[WRLD BUILD]', 'V22.6');
+console.info('[WRLD BUILD]', 'V23');
 
 const sbClient = supabase.createClient(WRLD_SUPABASE_URL, WRLD_SUPABASE_PUBLISHABLE_KEY, {
   auth: {

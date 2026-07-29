@@ -216,42 +216,33 @@ async function signUp({name, email, password, captchaToken}){
 
   if(error) return {ok:false, error: friendlyAuthError(error)};
 
-  // V20.6 (was V15.1): email verification is no longer required on this
-  // project (the Supabase dashboard's Auth → Providers → Email →
-  // "Confirm email" toggle has been switched off — see the
-  // "No-Verification Signup Flow" note near the top of this file). With
-  // that setting off, signUp() returns an active session immediately.
+  // V23 — ROOT-CAUSE FIX: restores the V19.2/V20.3-proven login-first
+  // architecture (see AUTH-REGRESSION-ANALYSIS.md for the full version
+  // comparison). V20.6 changed this function to keep the freshly-issued
+  // session and route the browser straight into welcome.html via
+  // postAuthDestination() — confirmed (by direct comparison against the
+  // uploaded V19.2/V20.3 source) to be the exact change that first made
+  // supabase-client.js's window.wrldAuthReady dual-authority race
+  // reachable for brand-new signups. That race itself is NOT new — it is
+  // present, byte-for-byte, in V19.2 and V20.3's supabase-client.js too
+  // (both assign window.wrldAuthReady from an explicit getSession() call
+  // AND independently from onAuthStateChange's own initial event) — but
+  // it was harmless there because signup never auto-entered an
+  // authenticated, auto-routing page immediately afterward; it always
+  // sent the person to login.html, a static form page with no auth-gated
+  // routing logic of its own. V20.6 removed that buffer, so an
+  // authenticated-page auto-routing decision (requireAuth() on
+  // welcome.html) started running immediately after an async signUp()
+  // call — exactly the narrow timing window the race is most likely to
+  // hit. Restoring the buffer (signup always ends at login.html, never at
+  // an auth-gated page) closes this exposure at its source, independent
+  // of and in addition to the separate window.wrldAuthReady hardening
+  // already applied in supabase-client.js this release.
   //
-  // V15.1 used to sign that session back out here and send the new user
-  // to login.html to sign back in by hand — which is exactly the
-  // "new account created, then treated like a returning user, shown
-  // 'Welcome back,' and forced to log in manually before ever meeting
-  // Orbit or taking the Adulting Readiness Assessment" bug this release
-  // (V20.6) is required to fix. A valid Supabase session already exists
-  // the instant signUp() returns one — there is no reason to discard it
-  // and ask the person to re-prove a password they just chose seconds
-  // ago. The session is now kept, the in-memory cache is refreshed so
-  // getCurrentUser() reflects the new account immediately, and the
-  // caller (signup.html) routes the now-authenticated, onboarding-
-  // incomplete Explorer straight into the first-time welcome/Orbit/
-  // Assessment flow via postAuthDestination() — never through
-  // login.html. `hasSession:true` tells signup.html which path to take;
-  // `accountCreated:true` is kept on the returned object for any other
-  // caller that only checks that flag.
-  //
-  // V20.6.3 — Required Session Confirmation After Signup: don't assume
-  // `data.session` is the only place a session could already be; fall
-  // back to a direct getSession() read (mirrors the pattern
-  // wrldRefreshSessionCache() already uses elsewhere) in the unlikely
-  // case supabase-js resolved the session internally without echoing it
-  // on this exact response. Then verify — rather than assume — that the
-  // session actually belongs to the account that was just created before
-  // ever using it to load a profile: this is the "confirm
-  // session.user.id === newly created user.id" check the root-cause
-  // audit specifically calls for. A mismatch here would mean a stale or
-  // foreign session is in play; refuse to continue with it rather than
-  // ever loading a different account's profile under the new account's
-  // name.
+  // V20.6.3's session-ownership verification is preserved below even
+  // though the session is discarded either way — a mismatched/foreign
+  // session must never be treated as this account's, even momentarily,
+  // before being signed back out.
   let session = data.session || null;
   if(!session){
     try{
@@ -267,9 +258,18 @@ async function signUp({name, email, password, captchaToken}){
       try{ await sbClient.auth.signOut(); }catch(e){ /* best-effort */ }
       return {ok:false, error:'Something went wrong finishing your account setup. Please try logging in.'};
     }
-    wrldLogDiag && wrldLogDiag('signup_session_established', { userIdSuffix: typeof wrldSafeIdSuffix==='function' ? wrldSafeIdSuffix(session.user.id) : null });
-    await wrldRefreshSessionCache(session);
-    return {ok:true, user:getCurrentUser(), accountCreated:true, hasSession:true};
+    // The account, its auth.users row, and its public.profiles row
+    // (created by the existing handle_new_user() trigger) are all real
+    // and already persisted at this point — signing out only clears the
+    // *client-side* session token, it does not undo account creation.
+    // signup.html sends the person to login.html next; postAuthDestination()
+    // (invoked from THAT page's submit handler) is the one, single
+    // routing authority that decides where a first-time vs. returning
+    // account goes after a real, completed login.
+    wrldLogDiag && wrldLogDiag('signup_session_established_then_signed_out', { userIdSuffix: typeof wrldSafeIdSuffix==='function' ? wrldSafeIdSuffix(session.user.id) : null });
+    await sbClient.auth.signOut();
+    await wrldRefreshSessionCache(null);
+    return {ok:true, user:null, accountCreated:true};
   }
   // Fallback path: only reached if a future project configuration change
   // re-enables "Confirm email" — kept intact so signup.html's existing
@@ -554,6 +554,15 @@ async function setAdministratorStatus(userId, makeAdmin){
 //      legitimate final destination to be carried "next" to.
 // See wrldNormalizeRoute()/wrldSafeRedirect() below for the second,
 // independent half of this fix (the actual redirect comparison).
+//
+// V23 — widened from just `welcome` to every authentication-flow route.
+// A `next` value that itself resolves to any of these is never a
+// legitimate final destination — they're the auth flow's own pages, not
+// somewhere a completed login should ever be sent "back" to.
+const WRLD_AUTH_FLOW_ROUTES = [
+  'login', 'signup', 'welcome', 'assessment', 'check-your-email',
+  'email-verified', 'forgot-password', 'reset-password',
+];
 function safeInternalNext(raw){
   if(!raw || typeof raw !== 'string') return null;
   let value = raw;
@@ -565,7 +574,7 @@ function safeInternalNext(raw){
   if(value.startsWith('//')) return null; // protocol-relative
   if(value.includes('\\')) return null;
   if(!/^[a-zA-Z0-9_-]+\.html(\?[^\s]*)?$/.test(value)) return null; // bare filename[.html][?query] only
-  if(wrldNormalizeRoute(value) === 'welcome') return null; // never a valid *destination*
+  if(WRLD_AUTH_FLOW_ROUTES.includes(wrldNormalizeRoute(value))) return null; // never a valid *destination*
   return value;
 }
 
@@ -746,48 +755,30 @@ function needsOnboarding(user){
   return !(s && s.assessment);
 }
 
-// V20.6.2 — Create Account and Log In are two separate journeys and must
-// never share a routing decision that's INFERRED from cached/local state
-// (assessment completion, browser history, account age, etc.) — only the
-// explicit action the person actually took (which form they submitted)
-// decides which journey runs. `source` makes that explicit:
-//   source === 'signup' → this IS a brand-new account's first authenticated
-//     moment. Always the first-time onboarding flow (Orbit welcome → the
-//     Adulting Readiness Assessment), unconditionally — never inferred
-//     from getState(), never "welcome back," never a dashboard skip based
-//     on anything that happens to be cached in this browser.
-//   source === 'login' → this IS a returning user's deliberate log-in.
-//     Always their requested destination or role dashboard, directly —
-//     never re-triggers onboarding or the Orbit welcome from this
-//     function. (A genuinely onboarding-incomplete returning account is
-//     still caught — correctly, from real account data, not inferred
-//     here — by requireAuth()'s own independent guard on whichever
-//     protected page loads next; see that function below. This routing
-//     step itself just never makes that call.)
-//   source omitted → legacy/shared priority order, used by
-//     assessment.html's beginJourney() right after a first-time
-//     assessment completes, where checking "is onboarding needed now" is
-//     exactly correct (it just became false) rather than an inference
-//     about which journey the person is on.
+// V23 — SINGLE ROUTING AUTHORITY (see AUTH-REGRESSION-ANALYSIS.md). This
+// is now the one function that decides where the browser goes after any
+// authenticated moment — signup no longer calls it at all (Create
+// Account always ends at login.html; see signUp() above and
+// signup.html), so `source` no longer needs to special-case 'signup' vs
+// 'login' with two different rule sets. Every caller — login.html's
+// submit handler, assessment.html's beginJourney() right after a
+// first-time assessment completes, and email-verified.html's dormant
+// email-confirmation path — now gets the exact same priority order,
+// checked exactly once, from real account data:
+//   1. Onboarding incomplete (Explorer, no assessment yet) → welcome.html,
+//      carrying the original destination forward as its own `next=` so
+//      it isn't lost — resumed after the assessment instead of dropped.
+//   2. A validated, safe requested destination (e.g. a Volunteer Tracker
+//      link that triggered the login redirect) → that destination.
+//   3. No destination requested → the account's normal role dashboard.
+// `source` is kept as a parameter (unused by the rule itself now) only
+// so any future caller that genuinely needs to distinguish journeys has
+// a place to do it without touching every call site again — it must
+// never again grow into two different, silently-diverging rule sets.
 function postAuthDestination(requestedNext, source){
   const user = getCurrentUser();
   const safeNext = safeInternalNext(requestedNext);
 
-  if(source === 'signup'){
-    return 'welcome.html' + (safeNext ? '?next=' + encodeURIComponent(safeNext) : '');
-  }
-  if(source === 'login'){
-    if(safeNext) return safeNext;
-    return (user && ROLE_DESTINATIONS[user.role]) || 'dashboard.html';
-  }
-
-  // Legacy/default priority order:
-  //   1. Onboarding incomplete (Explorer, no assessment yet) → welcome.html,
-  //      carrying the original destination forward as its own `next=` so
-  //      it isn't lost — resumed after the assessment instead of dropped.
-  //   2. A validated, safe requested destination (e.g. a Volunteer Tracker
-  //      link that triggered the login redirect) → that destination.
-  //   3. No destination requested → the account's normal role dashboard.
   if(needsOnboarding(user)){
     return 'welcome.html' + (safeNext ? '?next=' + encodeURIComponent(safeNext) : '');
   }
