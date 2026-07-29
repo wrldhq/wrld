@@ -43,13 +43,70 @@
      redirected away instead of ever seeing it. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.107.0/dist/umd/supabase.min.js"></script>
 <script src="supabase-config.js"></script>
-<script src="supabase-client.js?v=22.3"></script>
+<script src="supabase-client.js?v=22.6"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js?v=22.2"></script>
+<script src="auth.js?v=22.6"></script>
 <script src="app.js?v=22.1"></script>
 <script src="orbit.js?v=22"></script>
 <script>
+// V22.6 — TEMPORARY EMERGENCY LOOP BREAKER (see WELCOME-RELOAD-ROOT-CAUSE.md
+// and WELCOME-RELOAD-VALIDATION.md). This is a safety net, not the actual
+// fix (the fix is the single-authority window.wrldAuthReady change in
+// supabase-client.js) — it exists so this page can never again drive the
+// browser into a crash-inducing navigation cycle, from ANY cause, known
+// or not-yet-discovered. Runs before anything else on this page: if this
+// tab has already loaded welcome.html more than 3 times within the last
+// 10 seconds, every further automatic step (the auth check, the
+// watchdog, Orbit's init) is skipped outright and the recovery screen
+// below is shown immediately — no location.reload(), no further
+// location.href assignment of any kind.
+const WRLD_WELCOME_LOOP_KEY = 'wrld_welcome_nav_count_v1';
+const WRLD_WELCOME_LOOP_WINDOW_KEY = 'wrld_welcome_nav_window_start_v1';
+const WRLD_WELCOME_LOOP_WINDOW_MS = 10000;
+const WRLD_WELCOME_LOOP_MAX_LOADS = 3;
+let wrldWelcomeLoopBroken = false;
+try{
+  const now = Date.now();
+  let windowStart = Number(sessionStorage.getItem(WRLD_WELCOME_LOOP_WINDOW_KEY) || '0');
+  if(!windowStart || (now - windowStart) > WRLD_WELCOME_LOOP_WINDOW_MS){
+    windowStart = now;
+    sessionStorage.setItem(WRLD_WELCOME_LOOP_WINDOW_KEY, String(windowStart));
+    sessionStorage.setItem(WRLD_WELCOME_LOOP_KEY, '0');
+  }
+  const count = Number(sessionStorage.getItem(WRLD_WELCOME_LOOP_KEY) || '0') + 1;
+  sessionStorage.setItem(WRLD_WELCOME_LOOP_KEY, String(count));
+  console.error('[WRLD WELCOME LOAD]', { count, url: location.href, timestamp: now });
+  wrldWelcomeLoopBroken = count > WRLD_WELCOME_LOOP_MAX_LOADS;
+}catch(e){ /* sessionStorage unavailable — the loop breaker can't run, but it also can't be the reason the page loops (see root-cause doc: it isn't) */ }
+
+function wrldRenderEmergencyRecovery(){
+  const wrap = document.getElementById('welcome-lines');
+  if(wrap){
+    wrap.innerHTML = `<p>We could not finish setting up your account automatically.</p><p>Your account has been created. Please return to login and try again.</p>`;
+    wrap.querySelectorAll('p').forEach(el=>el.classList.add('in'));
+  }
+  const cta = document.getElementById('welcome-cta');
+  if(cta){
+    cta.textContent = 'Return to Login';
+    cta.classList.add('in');
+    cta.disabled = false;
+    cta.onclick = () => { location.href = 'login.html'; };
+  }
+  if(cta && !document.getElementById('welcome-return-home')){
+    const returnLink = document.createElement('a');
+    returnLink.id = 'welcome-return-home';
+    returnLink.href = 'index.html';
+    returnLink.className = 'btn btn-outline btn-sm mt-16';
+    returnLink.style.display = 'inline-block';
+    returnLink.textContent = 'Return to Homepage';
+    cta.insertAdjacentElement('afterend', returnLink);
+  }
+  if(typeof initPage === 'function'){
+    initPage(null, "Let's get you back on track. 🌱");
+  }
+}
+
 // V20.6.3 — see supabase-client.js/auth.js for the full root-cause fix.
 // requireAuth() below now redirects to login.html ONLY when Supabase has
 // definitively confirmed there is no session (wrldGetAuthState() ===
@@ -176,6 +233,21 @@ function wrldRenderProfileRecovery(){
 }
 
 async function wrldRunWelcomeEntry(){
+  // V22.6 — temporary diagnostic instrumentation: the one requireAuth()
+  // call site on this page, logged before and after so a real navigation
+  // (wrldSafeRedirect's own '[WRLD NAV TRACE]' log, in auth.js) can be
+  // matched up against exactly which call produced it.
+  console.error('[WRLD NAV TRACE]', {
+    timestamp: Date.now(),
+    currentUrl: location.href,
+    sourceFunction: 'wrldRunWelcomeEntry',
+    reason: 'calling requireAuth()',
+    destination: '(pending — see requireAuth/wrldSafeRedirect)',
+    authState: typeof wrldGetAuthState === 'function' ? wrldGetAuthState() : 'unknown',
+    hasSession: typeof wrldGetSession === 'function' ? !!wrldGetSession() : 'unknown',
+    profileState: typeof wrldGetProfileState === 'function' ? wrldGetProfileState() : 'unknown',
+    stack: new Error().stack,
+  });
   if(!requireAuth()){
     // V22.5 — ROOT-CAUSE FIX (see ROOT-CAUSE-ANALYSIS.md for the full
     // execution trace). This used to be a bare `return;`. requireAuth()
@@ -230,6 +302,23 @@ async function wrldRunWelcomeEntry(){
 //      already true by the time the timer would have fired.
 let wrldWelcomeInitDone = false;
 (async () => {
+  // V22.6 — emergency loop breaker check (see top of this script). If
+  // this tab has already loaded welcome.html more than 3 times in the
+  // last 10 seconds, stop here — no auth check, no watchdog, no further
+  // automatic navigation of any kind. This is independent of, and runs
+  // before, the actual root-cause fix's own code path.
+  if(wrldWelcomeLoopBroken){
+    console.error('[WRLD NAV TRACE]', {
+      timestamp: Date.now(), currentUrl: location.href,
+      sourceFunction: 'wrldWelcomeLoopBreaker', reason: 'load_count_exceeded_in_window',
+      destination: '(none — automatic navigation halted)',
+      authState: 'not_checked', hasSession: 'not_checked', profileState: 'not_checked',
+      stack: new Error().stack,
+    });
+    wrldWelcomeInitDone = true;
+    wrldRenderEmergencyRecovery();
+    return;
+  }
   const watchdog = setTimeout(() => {
     if(wrldWelcomeInitDone) return;
     // V22.4 — `wrldLogDiag &&` referenced the identifier directly, which

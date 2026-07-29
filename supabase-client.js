@@ -64,6 +64,13 @@ function wrldSiteUrl(){
   return wrldIsLocalEnv() ? location.origin : WRLD_PRODUCTION_URL;
 }
 
+// V22.6 — temporary, visible build marker (per this release's cache-
+// busting requirement) so a production browser can directly confirm the
+// fixed supabase-client.js is what actually loaded, not a cached V22.5
+// copy. Safe to remove in a later release once this is no longer needed
+// for verification.
+console.info('[WRLD BUILD]', 'V22.6');
+
 const sbClient = supabase.createClient(WRLD_SUPABASE_URL, WRLD_SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     persistSession: true,      // "Remember Me" — session survives browser close
@@ -481,12 +488,76 @@ async function wrldRefreshSessionCache(session){
   }
 }
 
+// V22.6 — ROOT-CAUSE FIX for the welcome.html reload/self-redirect loop
+// (see WELCOME-RELOAD-ROOT-CAUSE.md for the full proof). window.wrldAuthReady
+// used to be assigned from TWO independent sources that raced each other:
+// the getSession() call directly below, and the onAuthStateChange
+// listener's own initial event further below — each one independently
+// (re)assigned window.wrldAuthReady, and whichever one a given page's
+// single `await window.wrldAuthReady` statement happened to have captured
+// is what that page's requireAuth() decision was based on, decided purely
+// by network/storage timing, never by which one actually had the correct
+// answer. A visitor who really is signed in (this browser's storage
+// really does hold a valid session, e.g. the instant after a brand-new
+// signUp()) could still have getSession() resolve with NO session on a
+// slow/first read — the "Safari session restoration" case this file
+// already anticipated in comments below, but never actually closed the
+// gap for — while the onAuthStateChange channel had, or was about to
+// have, the correct one (or vice versa). Whichever channel settled first
+// and reported "no session" won: requireAuth() concluded the visitor was
+// logged out and welcome.html redirected to login.html for a genuinely
+// just-signed-up account. Confirmed via a standalone execution trace
+// (WELCOME-RELOAD-ROOT-CAUSE.md, reproduction case E) using this exact
+// file's logic — this is not a theoretical race.
+//
+// Fix: window.wrldAuthReady now resolves exactly once, from exactly one
+// authority, only after BOTH independent reads (getSession() and the
+// first onAuthStateChange event) have reported in — and if EITHER one
+// found a real session, that session wins. Supabase never fabricates a
+// session that doesn't exist, so a session reported by either channel is
+// real; a lone "no session" from ONE channel while the OTHER channel
+// found one is exactly the timing glitch being fixed here, never a
+// legitimate signal to treat the visitor as logged out. Only when BOTH
+// channels agree there is no session does window.wrldAuthReady resolve to
+// "unauthenticated" — see wrldGetAuthState()/requireAuth() (auth.js).
+// Every later auth event (token refresh, sign-out, another tab) still
+// reassigns window.wrldAuthReady exactly as before; this change only
+// affects how the FIRST resolution is decided, so there is exactly one
+// authority for the page's initial auth readiness, per this release's
+// single-navigation-authority requirement.
+let _wrldGetSessionResult;    // undefined until reported; then {session}
+let _wrldInitialEventResult;  // undefined until reported; then {session}
+let _wrldInitialAuthSettled = false;
+let _wrldResolveAuthReady = null;
+window.wrldAuthReady = new Promise((resolve) => { _wrldResolveAuthReady = resolve; });
+
+function _wrldSettleInitialAuthIfReady(){
+  if(_wrldInitialAuthSettled) return;
+  if(_wrldGetSessionResult === undefined || _wrldInitialEventResult === undefined) return;
+  _wrldInitialAuthSettled = true;
+  const session = _wrldGetSessionResult.session || _wrldInitialEventResult.session || null;
+  wrldLogDiag('auth_ready_initial_resolved', {
+    fromGetSession: !!_wrldGetSessionResult.session,
+    fromInitialEvent: !!_wrldInitialEventResult.session,
+  });
+  const applied = wrldRefreshSessionCache(session);
+  window.wrldAuthReady = applied;
+  const resolveOnce = _wrldResolveAuthReady;
+  _wrldResolveAuthReady = null;
+  resolveOnce(applied);
+}
+
 // Kicks off immediately when this script loads (before DOMContentLoaded on
 // every page) — getSession() reads the persisted session from local
 // storage first and only hits the network if the token needs refreshing,
 // so this resolves fast enough in the common case to avoid any visible
-// "logged out, then logged in" flash once initPage() awaits it.
-window.wrldAuthReady = sbClient.auth.getSession().then(({ data }) => wrldRefreshSessionCache(data.session));
+// "logged out, then logged in" flash once initPage() awaits it. Its
+// result is now only ONE of the two required reports — see
+// _wrldSettleInitialAuthIfReady() above.
+sbClient.auth.getSession().then(({ data }) => {
+  _wrldGetSessionResult = { session: (data && data.session) || null };
+  _wrldSettleInitialAuthIfReady();
+});
 
 /* V20.6 — defensive re-render on a LATE auth-state resolution.
    supabase-js can fire onAuthStateChange more than once around page load
@@ -517,6 +588,19 @@ sbClient.auth.onAuthStateChange((_event, session) => {
   // requireAuth() (auth.js), and only from a definitively confirmed
   // absence of a session.
   wrldLogDiag('auth_event', { event: _event, hasSession: !!session, userIdSuffix: wrldSafeIdSuffix(session && session.user && session.user.id) });
+
+  // V22.6 — the FIRST onAuthStateChange event is one of the two required
+  // reports _wrldSettleInitialAuthIfReady() above is waiting for; it must
+  // never independently reassign window.wrldAuthReady ahead of that
+  // reconciliation — doing so is exactly the race this release fixes, so
+  // this event is fully handled by the shared reconciliation path instead
+  // of falling through to the general re-render path below.
+  if(_wrldInitialEventResult === undefined){
+    _wrldInitialEventResult = { session: session || null };
+    _wrldSettleInitialAuthIfReady();
+    return;
+  }
+
   window.wrldAuthReady = wrldRefreshSessionCache(session).then(() => {
     if(typeof window.__wrldLastNavKey !== 'undefined' && typeof renderHeader === 'function'){
       renderHeader(window.__wrldLastNavKey);

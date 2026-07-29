@@ -690,6 +690,24 @@ function wrldSafeRedirect(destinationUrl, reason){
     sessionStorage.setItem(WRLD_REDIRECT_GUARD_KEY, JSON.stringify({ signature, at: now }));
   }catch(e){ /* sessionStorage unavailable (private browsing, etc.) — the normalization check above is the primary guard regardless */ }
 
+  // V22.6 — temporary diagnostic instrumentation (see debugging brief).
+  // wrldSafeRedirect() is the ONE function that ever assigns
+  // location.href for an auth-driven navigation (requireAuth()'s two
+  // branches both funnel through it exclusively) — logging here covers
+  // every such navigation attempt without needing to instrument each
+  // call site separately.
+  console.error('[WRLD NAV TRACE]', {
+    timestamp: Date.now(),
+    currentUrl: location.href,
+    sourceFunction: 'wrldSafeRedirect',
+    reason: reason,
+    destination: destinationUrl,
+    authState: typeof wrldGetAuthState === 'function' ? wrldGetAuthState() : 'unknown',
+    hasSession: typeof wrldGetSession === 'function' ? !!wrldGetSession() : 'unknown',
+    profileState: typeof wrldGetProfileState === 'function' ? wrldGetProfileState() : 'unknown',
+    stack: new Error().stack,
+  });
+
   location.href = destinationUrl;
   return true;
 }
