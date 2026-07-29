@@ -176,7 +176,32 @@ function wrldRenderProfileRecovery(){
 }
 
 async function wrldRunWelcomeEntry(){
-  if(!requireAuth()) return;
+  if(!requireAuth()){
+    // V22.5 — ROOT-CAUSE FIX (see ROOT-CAUSE-ANALYSIS.md for the full
+    // execution trace). This used to be a bare `return;`. requireAuth()
+    // returning false does NOT always mean this page is already
+    // navigating away: auth.js's wrldSafeRedirect() can legitimately
+    // decline to actually redirect (its redirect-loop guard — the exact
+    // production trigger — or the self_redirect_skipped case) while
+    // requireAuth() still reports `false` either way, by design, since
+    // that boolean contract is shared by every other protected page and
+    // can't be widened just for this one. The bare `return;` here meant:
+    // nothing rendered, and the outer IIFE below still saw this promise
+    // resolve (not reject), so it marked initialization "done" and
+    // canceled the 10-second watchdog — leaving Orbit's loading card
+    // bobbing forever with neither the greeting nor the recovery message
+    // ever appearing. If we are still executing on THIS page at all
+    // after requireAuth() ran, no navigation actually happened (a real
+    // `location.href` assignment unloads the page; it does not return
+    // control to the next line first) — so this page must show its own
+    // recoverable state rather than silently doing nothing. Re-checking
+    // isAuthenticated() (rather than assuming) keeps this safe even if
+    // requireAuth()'s internal reasons for returning false ever change.
+    if(typeof isAuthenticated === 'function' && !isAuthenticated()){
+      wrldRenderProfileRecovery();
+    }
+    return;
+  }
 
   const profileState = typeof wrldGetProfileState === 'function' ? wrldGetProfileState() : 'loaded';
   if(profileState === 'permanent_error' || profileState === 'not_found'){

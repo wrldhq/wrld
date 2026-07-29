@@ -817,7 +817,32 @@ function requireAuth(){
     }
     const sanitizedNext = wrldSanitizeNextParam(rawNext);
     const dest = 'login.html' + (sanitizedNext ? '?next=' + encodeURIComponent(sanitizedNext) : '');
-    wrldSafeRedirect(dest, 'no_session');
+    // V22.5 — ROOT-CAUSE FIX (see ROOT-CAUSE-ANALYSIS.md). This call used
+    // to discard wrldSafeRedirect()'s return value entirely, even though
+    // that function's own contract (its comment above) is explicit:
+    // `false` means "did NOT navigate — caller should proceed with its
+    // own normal initialization," never "treat this exactly like a real
+    // redirect." The `needsOnboarding` branch a few lines below already
+    // honors that contract correctly (`if(navigated) return false; return
+    // true;`); this branch never did. So whenever wrldSafeRedirect()
+    // declined to navigate — most commonly its redirect-loop guard,
+    // firing when the identical welcome→login `no_session` redirect was
+    // already attempted moments earlier in this same browser session —
+    // any caller doing the standard `if(!requireAuth()) return;` (every
+    // protected page, including welcome.html) was left believing a
+    // redirect was in flight when none was: a silent dead end with
+    // nothing rendered and no error thrown. requireAuth() still correctly
+    // returns `false` here either way — a visitor with no confirmed
+    // session is never granted access, navigating or not, so that part
+    // was never wrong — but this is now logged distinctly (and the
+    // outcome is captured) so a caller-side page can tell the difference
+    // and show its own recoverable state instead of relying on a
+    // redirect that may never actually happen. See welcome.html's
+    // wrldRunWelcomeEntry() for the corresponding caller-side fix.
+    const navigated = wrldSafeRedirect(dest, 'no_session');
+    if(!navigated){
+      wrldLogDiag && wrldLogDiag('redirect_blocked_no_fallback', { reason:'no_session', from: hereRoute });
+    }
     return false;
   }
   // A signed-in Explorer who hasn't finished first-time onboarding yet
