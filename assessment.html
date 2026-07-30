@@ -129,9 +129,9 @@
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
 <script src="illustrations.js"></script>
-<script src="auth.js?v=23"></script>
+<script src="auth.js?v=24"></script>
 <script src="app.js?v=22.1"></script>
-<script src="orbit.js?v=22"></script>
+<script src="orbit.js?v=24"></script>
 <script>
 /* ===================================================================
    ASSESSMENT DATA — 8 sections, clustering the 26 confidence categories
@@ -230,7 +230,7 @@ const SCALE_LABELS = ['Not at all','A little','Somewhat','Confident','Very confi
    app.js which always loads before this inline script) — this page's
    own control flow is unchanged, only which storage bucket these two
    functions read/write from. The final, COMMITTED assessment result
-   (what needsOnboarding()/the dashboard actually read) already goes
+   already goes
    through app.js's getState()/setState() and was fixed there; this is
    only the scratch pad of answers while the assessment is still in
    progress.
@@ -613,15 +613,13 @@ function beginJourney(){
   }, 700);
   setTimeout(()=>{
     clearInterval(interval);
-    // V20.5: a logged-in user routes through postAuthDestination() —
-    // same shared priority order login.html uses (onboarding, now just
-    // completed, so this resolves to whatever was preserved as `next`
-    // when onboarding started, e.g. the Volunteer Tracker, or the
-    // account's normal role dashboard if nothing was pending). A
-    // logged-out visitor taking the assessment without an account keeps
-    // the exact previous behavior — sent to dashboard.html, which
-    // itself prompts sign-in as before; nothing about the anonymous
-    // assessment path changes.
+    // A logged-in user routes through postAuthDestination() — same
+    // shared priority order login.html uses (a validated `next`, e.g.
+    // the Volunteer Tracker link that brought them here, or the
+    // account's normal role dashboard if nothing was pending; see
+    // AUTH-MIGRATION-SUMMARY.md). A logged-out visitor taking the
+    // assessment without an account keeps the exact previous behavior —
+    // sent to dashboard.html, which itself prompts sign-in as before.
     const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
     if(user && typeof postAuthDestination==='function'){
       const pendingNext = new URLSearchParams(location.search).get('next');

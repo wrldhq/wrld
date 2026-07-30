@@ -559,6 +559,15 @@ async function setAdministratorStatus(userId, makeAdmin){
 // A `next` value that itself resolves to any of these is never a
 // legitimate final destination — they're the auth flow's own pages, not
 // somewhere a completed login should ever be sent "back" to.
+// V24: welcome.html itself was deleted (the onboarding gate was
+// removed; see AUTH-MIGRATION-SUMMARY.md) but 'welcome' stays in this
+// reject-list on purpose — a stale bookmark or shared link containing
+// `next=welcome.html` must never be honored as a redirect destination
+// now that the page is gone (it would otherwise send someone to a 404
+// instead of falling back to their role dashboard, as it does now).
+// 'assessment' stays excluded too, exactly as before — it's a real,
+// directly-linked feature page (Adulting Readiness Assessment), just
+// never a legitimate `next` destination to redirect back to.
 const WRLD_AUTH_FLOW_ROUTES = [
   'login', 'signup', 'welcome', 'assessment', 'check-your-email',
   'email-verified', 'forgot-password', 'reset-password',
@@ -631,7 +640,7 @@ const WRLD_KNOWN_ROUTES = [
   'journey-passport','learning-paths','login','mentor-studio',
   'moderation-dashboard','owner-dashboard','owner-setup','playbook',
   'playbooks','program','programs','reset-password','signup','tools',
-  'volunteer-tracker','welcome','worksheet',
+  'volunteer-tracker','worksheet',
 ];
 const WRLD_SAFE_NEXT_DEFAULT = 'dashboard.html';
 
@@ -721,100 +730,51 @@ function wrldSafeRedirect(destinationUrl, reason){
   return true;
 }
 
-// V20.5 — first-time onboarding + unified post-auth routing.
+// V24 — AUTHENTICATION RESTORED TO THE V19.2 ARCHITECTURE (see
+// AUTH-MIGRATION-SUMMARY.md for the full before/after). The entire
+// onboarding system (welcome.html, needsOnboarding(), the
+// ONBOARDING_FLOW_ROUTES exemption list, and the "first-time Explorer ->
+// welcome.html" branch that used to live in postAuthDestination() and
+// requireAuth()) has been removed. It was the root cause of users being
+// unable to reliably reach their dashboard after signing up or logging
+// in. New Authentication Flow (per the launch-stability requirement):
+//   Sign Up -> Account Created -> Redirect to Login -> User Logs In ->
+//   Determine User Role -> Correct Dashboard. Nothing else — no welcome
+//   step, no assessment gate, no profile-completion check, no first-login
+//   detection.
 //
-// Pages that ARE the onboarding flow itself must never be redirected
-// back into onboarding (that would loop). Kept short and explicit
-// rather than inferring it from context.
-//
-// V22.2: compared via wrldNormalizeRoute() now, not a raw filename
-// string — see that function's comment for the exact production bug
-// this fixes (a clean, extension-less "/welcome" URL never matched the
-// old hardcoded 'welcome.html' entry).
-const ONBOARDING_FLOW_ROUTES = ['welcome', 'assessment'];
-
-// Source of truth for "has this account finished first-time onboarding":
-// a completed Adulting Readiness Assessment, i.e. getState().assessment.
-// This already exists, is already synced to Supabase for any logged-in
-// user (pullLearnerStateFromSupabase()/pushLearnerStateFromSupabase() in
-// app.js, via the learner_state table — see supabase-client.js), and is
-// exactly the strongest existing signal available — no new field, no new
-// migration, no new table. Deliberately reused as-is rather than adding
-// a second, possibly-conflicting "onboarding_completed" flag.
-//
-// Scoped to Explorer only: Mentors/Administrators/Owners reach their
-// accounts through mentor-application approval or direct role
-// assignment, not the public Explorer signup form, and may never have
-// taken (or need to take) the Explorer assessment — forcing them through
-// it would be the exact "accidentally force Owner/Administrator/existing
-// Mentor through Explorer onboarding" mistake this release is required
-// to avoid.
-function needsOnboarding(user){
-  if(!user || user.role !== ROLES.EXPLORER) return false;
-  const s = typeof getState==='function' ? getState() : null;
-  return !(s && s.assessment);
-}
-
-// V23 — SINGLE ROUTING AUTHORITY (see AUTH-REGRESSION-ANALYSIS.md). This
-// is now the one function that decides where the browser goes after any
-// authenticated moment — signup no longer calls it at all (Create
-// Account always ends at login.html; see signUp() above and
-// signup.html), so `source` no longer needs to special-case 'signup' vs
-// 'login' with two different rule sets. Every caller — login.html's
-// submit handler, assessment.html's beginJourney() right after a
-// first-time assessment completes, and email-verified.html's dormant
-// email-confirmation path — now gets the exact same priority order,
-// checked exactly once, from real account data:
-//   1. Onboarding incomplete (Explorer, no assessment yet) → welcome.html,
-//      carrying the original destination forward as its own `next=` so
-//      it isn't lost — resumed after the assessment instead of dropped.
-//   2. A validated, safe requested destination (e.g. a Volunteer Tracker
-//      link that triggered the login redirect) → that destination.
-//   3. No destination requested → the account's normal role dashboard.
-// `source` is kept as a parameter (unused by the rule itself now) only
-// so any future caller that genuinely needs to distinguish journeys has
-// a place to do it without touching every call site again — it must
-// never again grow into two different, silently-diverging rule sets.
+// postAuthDestination() is the one function every authenticated moment
+// (login.html's submit handler, assessment.html's own "Begin My
+// Journey" button, email-verified.html's dormant email-confirmation
+// path) still funnels through, but its rule is now exactly two steps,
+// matching V19.2's proven, stable login.html logic 1:1:
+//   1. A validated, safe requested destination (`next=`) -> that
+//      destination.
+//   2. Otherwise -> the account's role dashboard (ROLE_DESTINATIONS).
+// All of V23's redirect-safety hardening (safeInternalNext/
+// wrldSanitizeNextParam/wrldNormalizeRoute/wrldSafeRedirect, the
+// window.wrldAuthReady single-resolution fix in supabase-client.js) is
+// unchanged and still fully in effect — only the onboarding-routing
+// RULE was removed, not the security around routing itself.
 function postAuthDestination(requestedNext, source){
   const user = getCurrentUser();
   const safeNext = safeInternalNext(requestedNext);
-
-  if(needsOnboarding(user)){
-    return 'welcome.html' + (safeNext ? '?next=' + encodeURIComponent(safeNext) : '');
-  }
   if(safeNext) return safeNext;
   return (user && ROLE_DESTINATIONS[user.role]) || 'dashboard.html';
 }
 
 /* ---------------------------------------------------------------------
-   V20.6.3 — Critical Architectural Rule: "a profile-loading error is not
-   the same as an unauthenticated user." This function now ONLY redirects
-   to login.html when isAuthenticated() reports Supabase has definitively
-   confirmed there is no valid session — never because a profile fetch
-   hasn't resolved yet, and never because it failed (temporarily or
-   permanently). That distinction previously didn't exist here:
-   isAuthenticated() used to require a loaded profile, so the live "JWT
-   issued in future" 401 on a brand-new signup's first profile request
-   made this function conclude "not logged in" and bounce straight to
-   login.html mid-onboarding. See supabase-client.js's wrldGetAuthState()/
-   wrldGetProfileState() and CHANGES-V20.6.3.md for the full trace.
-
-   The onboarding-redirect branch below is unaffected by that change:
-   needsOnboarding() already returns false for a null user (profile not
-   yet loaded), so it was never at risk of firing a wrong redirect — it
-   simply stays a no-op until a real profile is available, exactly as
-   before.
-
-   V22.2 — every redirect below now goes through wrldSafeRedirect()
-   (self-redirect skip + loop guard) and every `next` value built here
-   is sanitized before being embedded, per the ROUTE NORMALIZATION and
-   SAFE REDIRECT sections above. When the onboarding branch's redirect
-   is skipped because we're already on the (normalized) destination —
-   the exact production scenario this release fixes — this now returns
-   `true`: the visitor IS authenticated, onboarding IS what they need,
-   and welcome.html IS already the page rendering it, so the calling
-   page should simply continue initializing rather than treat this as
-   "access denied." */
+   requireAuth() answers exactly one question: is there a real, confirmed
+   Supabase session? It redirects to login.html ONLY when isAuthenticated()
+   reports Supabase has definitively confirmed there is no valid session —
+   never because a profile fetch hasn't resolved yet, and never because it
+   failed (temporarily or permanently) — that distinction (from V20.6.3)
+   is preserved unchanged. Every redirect below goes through
+   wrldSafeRedirect() (self-redirect skip + loop guard) and every `next`
+   value built here is sanitized first, per the ROUTE NORMALIZATION and
+   SAFE REDIRECT sections above. V24 removed the second check this
+   function used to perform (needsOnboarding(user) -> welcome.html) — see
+   AUTH-MIGRATION-SUMMARY.md. Being authenticated is now sufficient. */
 function requireAuth(){
   if(!isAuthenticated()){
     const hereRoute = wrldCurrentRoute();
@@ -826,57 +786,21 @@ function requireAuth(){
     }
     const sanitizedNext = wrldSanitizeNextParam(rawNext);
     const dest = 'login.html' + (sanitizedNext ? '?next=' + encodeURIComponent(sanitizedNext) : '');
-    // V22.5 — ROOT-CAUSE FIX (see ROOT-CAUSE-ANALYSIS.md). This call used
-    // to discard wrldSafeRedirect()'s return value entirely, even though
-    // that function's own contract (its comment above) is explicit:
-    // `false` means "did NOT navigate — caller should proceed with its
-    // own normal initialization," never "treat this exactly like a real
-    // redirect." The `needsOnboarding` branch a few lines below already
-    // honors that contract correctly (`if(navigated) return false; return
-    // true;`); this branch never did. So whenever wrldSafeRedirect()
-    // declined to navigate — most commonly its redirect-loop guard,
-    // firing when the identical welcome→login `no_session` redirect was
-    // already attempted moments earlier in this same browser session —
-    // any caller doing the standard `if(!requireAuth()) return;` (every
-    // protected page, including welcome.html) was left believing a
-    // redirect was in flight when none was: a silent dead end with
-    // nothing rendered and no error thrown. requireAuth() still correctly
-    // returns `false` here either way — a visitor with no confirmed
-    // session is never granted access, navigating or not, so that part
-    // was never wrong — but this is now logged distinctly (and the
-    // outcome is captured) so a caller-side page can tell the difference
-    // and show its own recoverable state instead of relying on a
-    // redirect that may never actually happen. See welcome.html's
-    // wrldRunWelcomeEntry() for the corresponding caller-side fix.
+    // wrldSafeRedirect()'s return value tells us whether it actually
+    // navigated (self-redirect skip / loop guard can both decline to). A
+    // signed-out visitor is never granted access either way — this is
+    // just logged so it's observable, not treated as "redirect handled."
     const navigated = wrldSafeRedirect(dest, 'no_session');
     if(!navigated){
       wrldLogDiag && wrldLogDiag('redirect_blocked_no_fallback', { reason:'no_session', from: hereRoute });
     }
     return false;
   }
-  // A signed-in Explorer who hasn't finished first-time onboarding yet
-  // must finish it before using another protected feature (e.g. the
-  // Volunteer Tracker) — this covers arriving directly at a protected
-  // page (bookmark, typed URL, closing the browser mid-onboarding and
-  // coming straight back), not just the immediately-after-login case
-  // postAuthDestination() already covers. Exempts the onboarding pages
-  // themselves so this can't loop. Guarded on a real, loaded user object
-  // — if the profile hasn't resolved yet (still retrying, or a
-  // recoverable failure the calling page is already showing its own
-  // state for), this deliberately does not guess whether onboarding is
-  // needed; it simply lets the visitor stay put; the page itself is
-  // responsible for showing loading/retry UI (see welcome.html).
-  const hereRoute = wrldCurrentRoute();
-  const user = getCurrentUser();
-  if(user && !ONBOARDING_FLOW_ROUTES.includes(hereRoute) && needsOnboarding(user)){
-    const rawNext = location.pathname.split('/').pop() + location.search;
-    const sanitizedNext = wrldSanitizeNextParam(rawNext);
-    const dest = 'welcome.html' + (sanitizedNext ? '?next=' + encodeURIComponent(sanitizedNext) : '');
-    wrldLogDiag && wrldLogDiag('require_auth_redirect', { reason:'needs_onboarding', to:'welcome.html', from: hereRoute, rawUrl: location.href });
-    const navigated = wrldSafeRedirect(dest, 'needs_onboarding');
-    if(navigated) return false; // actually leaving this page — caller should stop
-    return true; // already on welcome/assessment, or an identical redirect just fired — continue right here
-  }
+  // V24: this used to also check needsOnboarding(user) here and redirect
+  // a signed-in-but-not-onboarded Explorer to welcome.html before letting
+  // them reach whatever protected page they were trying to load — that
+  // whole branch is gone along with the rest of the onboarding system.
+  // Being authenticated is now the only thing requireAuth() checks.
   return true;
 }
 

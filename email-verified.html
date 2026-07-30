@@ -67,9 +67,9 @@
 <script src="supabase-client.js?v=23"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js?v=23"></script>
+<script src="auth.js?v=24"></script>
 <script src="app.js?v=22.1"></script>
-<script src="orbit.js?v=22"></script>
+<script src="orbit.js?v=24"></script>
 <script>
 function showPanel(id){
   ['ev-verifying','ev-success','ev-already','ev-expired','ev-invalid'].forEach(p=>{
@@ -77,19 +77,14 @@ function showPanel(id){
   });
 }
 
-// V20.6.2: routes through the same shared postAuthDestination() helper
-// login.html/signup.html/assessment.html already use, with an explicit
-// `source` rather than ever jumping straight to ROLE_DESTINATIONS or
-// inferring the journey from cached state. This page is only reachable
-// if Supabase "Confirm email" is ever re-enabled (see CLAUDE.md/
-// signup.html) — but if it is, the exception carved out for email
-// confirmation applies: a just-verified first session (hadTokens===true,
-// the 'ev-success' panel) is still genuinely completing the Create
-// Account journey, so it continues with source:'signup' straight into
-// the first-time welcome/Orbit/Assessment flow. Reopening an old/already-
-// verified link while already signed in (the 'ev-already' panel) is not
-// a fresh signup moment, so it routes with source:'login' instead —
-// straight to the account's own destination, same as a normal log in.
+// Routes through the same shared postAuthDestination() helper
+// login.html/signup.html/assessment.html already use. This page is only
+// reachable if Supabase "Confirm email" is ever re-enabled (see
+// CLAUDE.md/signup.html) — either way, postAuthDestination() now just
+// sends the account straight to its role dashboard (or a validated
+// `next`, though none is ever passed from here); the `source` param is
+// accepted for compatibility but no longer changes the outcome — see
+// AUTH-MIGRATION-SUMMARY.md.
 function goToDashboard(source){
   location.href = (typeof postAuthDestination==='function') ? postAuthDestination(null, source) : 'dashboard.html';
 }

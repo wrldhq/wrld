@@ -266,9 +266,11 @@ function dismissOrbitPanel(){
 // duplicate Orbit and, on the intro view especially, can sit over the
 // "Start My Journey" control. The circular launcher stays available for
 // a manual tap, same as every other excluded page below.
+// V24: 'welcome.html' removed from this list — the page no longer
+// exists (onboarding system removed; see AUTH-MIGRATION-SUMMARY.md).
 const ORBIT_AUTO_SHOW_EXCLUDED_PAGES = [
   'signup.html','login.html','forgot-password.html','reset-password.html',
-  'welcome.html','owner-setup.html','assessment.html',
+  'owner-setup.html','assessment.html',
 ];
 function orbitCurrentPageExcludedFromAutoShow(){
   const page = location.pathname.split('/').pop() || 'index.html';

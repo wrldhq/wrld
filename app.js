@@ -496,8 +496,7 @@ function wrldMigrateLegacyStateOnce(){
     //    — nothing real is lost.
     //  - the assessment draft store only ever holds mid-progress answers
     //    before submission; a genuinely COMPLETED assessment was already
-    //    carried over above as part of wrld_state_v1 (the field
-    //    needsOnboarding()/the dashboard actually read).
+    //    carried over above as part of wrld_state_v1.
     localStorage.removeItem('wrld_volunteer_log_v1');
     localStorage.removeItem('wrld_assessment_v1');
 

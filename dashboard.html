@@ -122,9 +122,9 @@
 <script src="supabase-client.js?v=23"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js?v=23"></script>
+<script src="auth.js?v=24"></script>
 <script src="app.js?v=22.1"></script>
-<script src="orbit.js?v=22"></script>
+<script src="orbit.js?v=24"></script>
 <script>
 function pbMiniCard(p){
   return `<a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
@@ -309,23 +309,15 @@ function renderDashboard(){
 // — wait for the Supabase session cache to resolve first so a logged-in
 // learner's name shows immediately instead of the generic guest greeting.
 //
-// V20.5: dashboard.html doesn't gate access with requireAuth() (it's
-// meant to be viewable by guests too), so the first-time-onboarding
-// check that lives inside requireAuth() for pages like
-// volunteer-tracker.html never ran here — which is exactly how a
-// brand-new, not-yet-onboarded Explorer could land straight on this
-// page and see "Welcome back" before ever meeting Orbit or taking the
-// assessment. A signed-in Explorer who hasn't finished onboarding yet
-// is sent to welcome.html instead, before renderDashboard() ever runs;
-// a guest (no user) or anyone who has finished onboarding sees the
-// dashboard exactly as before.
+// V24: dashboard.html doesn't gate access with requireAuth() — it's
+// meant to be viewable by guests too (they see a generic greeting). The
+// onboarding redirect that used to run here (a signed-in Explorer who
+// hadn't finished the Adulting Readiness Assessment was bounced to
+// welcome.html before this page ever rendered) is gone along with the
+// rest of the onboarding system — see AUTH-MIGRATION-SUMMARY.md. Every
+// signed-in user now lands directly on their dashboard after login.
 (async () => {
   await window.wrldAuthReady;
-  const dashUser = getCurrentUser();
-  if(typeof needsOnboarding==='function' && needsOnboarding(dashUser)){
-    location.href = 'welcome.html';
-    return;
-  }
   renderDashboard();
   initPage('dashboard');
 })();

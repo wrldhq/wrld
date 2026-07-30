@@ -47,9 +47,9 @@
 <script src="supabase-client.js?v=23"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js?v=23"></script>
+<script src="auth.js?v=24"></script>
 <script src="app.js?v=22.1"></script>
-<script src="orbit.js?v=22"></script>
+<script src="orbit.js?v=24"></script>
 <script>
 // One login for everyone — the account's real, stored role decides where
 // you land. Nobody ever picks "Explorer" or "Admin" here.
@@ -87,25 +87,19 @@ document.getElementById('login-form').addEventListener('submit', async (e)=>{
   btn.disabled = false; btn.textContent = 'Log In →';
 
   if(!result.ok){
-    if(result.needsOwnerSetup){ location.href = 'owner-setup.html'; return; }
     showFormError(result.error);
     return;
   }
 
-  // V20.1: validate `next` against the internal-routes allowlist before
-  // ever using it as a redirect target — `next` comes straight from the
+  // `next` is validated against the internal-routes allowlist before
+  // ever being used as a redirect target — it comes straight from the
   // URL, which is attacker-controllable if someone shares a crafted
   // login link (e.g. login.html?next=https://evil.example).
-  // V23 — this is now THE single moment a first-time vs. returning
-  // account is decided, for every account: Create Account (signup.html)
-  // no longer keeps a session or makes this decision itself — every
-  // brand-new signup ends here, at a real login, exactly like every
-  // returning account. postAuthDestination() (auth.js) checks real
-  // onboarding-completion data from this account's own profile/assessment
-  // state exactly once and sends an incomplete Explorer to welcome.html
-  // (carrying any pending `next`, e.g. the Volunteer Tracker, forward
-  // through onboarding) or a completed/returning account straight to its
-  // requested destination or role dashboard. See AUTH-REGRESSION-ANALYSIS.md.
+  // V24: postAuthDestination() (auth.js) now does exactly what V19.2's
+  // login.html always did — a validated `next` if one was requested
+  // (e.g. a Volunteer Tracker link that triggered this login), otherwise
+  // the account's role dashboard. No onboarding check of any kind runs
+  // here. See AUTH-MIGRATION-SUMMARY.md.
   const params = new URLSearchParams(location.search);
   location.href = postAuthDestination(params.get('next'), 'login');
 });

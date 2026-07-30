@@ -64,9 +64,9 @@
 <script src="supabase-client.js?v=23"></script>
 <script src="data.js"></script>
 <script src="orbit-knowledge.js"></script>
-<script src="auth.js?v=23"></script>
+<script src="auth.js?v=24"></script>
 <script src="app.js?v=22.1"></script>
-<script src="orbit.js?v=22"></script>
+<script src="orbit.js?v=24"></script>
 <script>
 function showFormError(msg){
   const el = document.getElementById('form-error');
@@ -150,17 +150,12 @@ document.getElementById('signup-form').addEventListener('submit', async (e)=>{
 
   const params = new URLSearchParams(location.search);
 
-  // V23 — ROOT-CAUSE FIX: restores the V19.2/V20.3-proven login-first
-  // architecture (see AUTH-REGRESSION-ANALYSIS.md). signUp() (auth.js) no
-  // longer keeps the freshly-issued session — it signs it back out and
-  // returns {accountCreated:true} the same way V19.2/V20.3 did. No
-  // welcome/onboarding initialization of any kind happens inside this
-  // signup lifecycle; the browser always lands on login.html next, and
-  // login.html's own submit handler is the ONE place that calls
-  // postAuthDestination() to decide whether a first-time Explorer goes to
-  // welcome.html or a returning/completed account goes straight to its
-  // role destination — a single centralized routing authority instead of
-  // signup.html and login.html each independently deciding.
+  // V24: signup always ends at login.html — signUp() (auth.js) signs the
+  // freshly-issued session back out and returns {accountCreated:true},
+  // matching the New Authentication Flow: Sign Up -> Account Created ->
+  // Redirect to Login -> User Logs In -> Determine User Role -> Correct
+  // Dashboard. No onboarding step of any kind runs here. See
+  // AUTH-MIGRATION-SUMMARY.md.
   if(result.accountCreated){
     location.href = 'login.html?created=1' + (params.get('next') ? '&next='+encodeURIComponent(params.get('next')) : '');
     return;
@@ -173,9 +168,8 @@ document.getElementById('signup-form').addEventListener('submit', async (e)=>{
   }
   // Defensive fallback — should be unreachable (every ok:true result from
   // signUp() sets accountCreated or needsEmailConfirmation), but if it
-  // ever is hit, land on login.html rather than welcome.html: per this
-  // release's requirement, signup must never route directly into an
-  // auth-gated, auto-routing page.
+  // ever is hit, land on login.html — signup must never route directly
+  // into any other page.
   location.href = 'login.html' + (params.get('next') ? '?next='+encodeURIComponent(params.get('next')) : '');
 });
 
