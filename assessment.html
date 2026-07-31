@@ -482,6 +482,28 @@ function renderPassport(sectionScores, overall){
   `;
 
   renderPersonalizedRoadmap(growth);
+
+  // V25.1 root-cause fix: every card in the results view above (the
+  // passport itself, Start Here, Suggested Learning Path, and — critically
+  // — every individual card inside Helpful Resources and Suggested Live
+  // Learning) is marked with the site-wide `.reveal` class, which starts
+  // at opacity:0 until app.js's initReveal() observes it and adds `.in`.
+  // initPage() only ever calls initReveal() ONCE, early, right after page
+  // load — long before a learner finishes the assessment and this
+  // function ever runs. The outer, STATIC containers (already present in
+  // the DOM at that first sweep, just hidden behind view-results'
+  // `.hidden` class) get caught by that first sweep and correctly reveal
+  // once shown. But cards built fresh here, via innerHTML, did not exist
+  // yet at that sweep — they were never `.observe()`'d at all, so they
+  // stayed permanently invisible: the section heading (static markup)
+  // shows, while the real, correctly-computed cards underneath it never
+  // fade in, looking exactly like an empty section. Every OTHER page on
+  // the site that injects `.reveal` content after its own initial load
+  // already re-calls initReveal() afterward (dashboard.html, events.html,
+  // community.html, playbook.html, etc.) — this page was simply missing
+  // that same, established call. Matches this codebase's existing
+  // pattern exactly: a plain, harmless, idempotent re-scan.
+  setTimeout(initReveal, 30);
 }
 
 /* ===================================================================

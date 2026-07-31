@@ -973,6 +973,36 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   #suggested-path-card .flex.items-center{ flex-direction:column; align-items:flex-start; gap:12px; }
   #suggested-path-card .pillar-icon{ width:64px !important; height:64px !important; font-size:26px !important; }
 
+  /* V25.1 — same anti-pattern, two more real spots it was still causing
+     a genuine mobile bug: horizontal page overflow (not just a narrow
+     text column). `.btn` is `white-space:nowrap` site-wide (by design —
+     it keeps short labels like "Start Now →" from breaking mid-phrase),
+     but the Dashboard's "Your Learning Path" card and the Events page's
+     Live-Learning-by-Program cards both build a button with genuinely
+     DYNAMIC, sometimes-long text ("Continue: {Playbook Title} →"), with
+     no width cap — on a real phone that pushes the button (and the
+     whole row, and the whole page) wider than the viewport, which is
+     what actually caused the "loads zoomed in, blank space when you zoom
+     out" symptom: the page's true scrollWidth was wider than the device,
+     not a viewport-tag problem. Root cause confirmed by inspecting the
+     exact element (see V25.1-Mobile-Cleanup-Summary.md) — fixed at the
+     source instead of hiding it with overflow:hidden. */
+  #learning-path-card .flex.gap-16:not(.items-center){
+    flex-direction:column; align-items:stretch; gap:10px;
+  }
+  #learning-path-card .flex.gap-16:not(.items-center) .btn{
+    width:100%; text-align:center; white-space:normal;
+  }
+  #program-sessions-list > .card{
+    flex-direction:column; align-items:flex-start; text-align:left;
+  }
+  #program-sessions-list > .card .pillar-icon{
+    width:64px !important; height:64px !important; font-size:26px !important;
+  }
+  #program-sessions-list > .card > a.btn{
+    width:100%; text-align:center; align-self:stretch !important;
+  }
+
   /* Calculator rows: stack label above input, input goes full-width */
   .calc-row{flex-direction:column; align-items:stretch; gap:6px; padding:12px 0;}
   .calc-input{width:100%; text-align:left;}

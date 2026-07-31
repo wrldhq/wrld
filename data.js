@@ -31,7 +31,15 @@ const NAV_GROUPS = [
     {label:'Community', href:'community.html', key:'community'},
     {label:'Volunteer', href:'community.html#volunteer', key:'community'},
     {label:'Become a Mentor', href:'become-mentor.html', key:'become-mentor'},
-    {label:'Partner With Us', href:'about.html#partner', key:'about'},
+    {/* V25.1 fix: this used to be key:'about' — identical to every item in
+       the "About WRLD" group below, so renderNavDropdown()'s
+       `group.items.some(it=>it.key===activeKey)` check matched BOTH
+       groups whenever about.html called initPage('about'), highlighting
+       "Connect" and "About WRLD" at the same time. This link still points
+       at the same #partner section on about.html (unchanged) — it just
+       needed its own, non-colliding key so only the group the visitor
+       actually landed on lights up. */
+     label:'Partner With Us', href:'about.html#partner', key:'partner'},
   ]},
   {label:'About WRLD', key:'about-wrld', items:[
     {label:'About', href:'about.html', key:'about'},

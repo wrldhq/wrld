@@ -207,7 +207,27 @@ function renderDashboard(){
     </a>`;
 
   // --- Your Learning Path: personalized path recommendation ---
-  const recommendedPathKey = (s.assessment && weakestKey) ? SECTION_RECS[weakestKey].path : null;
+  // V25.1 root-cause fix: some assessment sections (e.g. "Community &
+  // Purpose") have SECTION_RECS[key].path === null by design (see
+  // data.js) — there's no single Learning Path that maps to every
+  // section. Using ONLY the single weakest section's path, with no
+  // fallback, meant a completed assessment whose weakest area happened
+  // to be one of those null-path sections fell all the way through to
+  // the "Take the Adulting Readiness Assessment" empty state below, even
+  // though the assessment was genuinely already done — the dashboard was
+  // reading real, correct data (s.assessment), just with no fallback
+  // chain for this one field. assessment.html's own results page already
+  // solved this exact problem (its "Suggested Learning Path" card falls
+  // back through every weak-to-strong section until it finds one with a
+  // real path) — this mirrors that same, already-proven fallback here,
+  // ranking every real section score from weakest to strongest and using
+  // the first one that actually has a Learning Path attached.
+  let recommendedPathKey = null;
+  if(s.assessment && s.assessment.sectionScores){
+    const scores = s.assessment.sectionScores;
+    const rankedWeakToStrong = Object.keys(scores).sort((a,b)=>scores[a]-scores[b]);
+    recommendedPathKey = rankedWeakToStrong.map(k=>SECTION_RECS[k] && SECTION_RECS[k].path).find(Boolean) || null;
+  }
   const path = recommendedPathKey ? getPath(recommendedPathKey) : null;
   if(path){
     const {done, total, pct, nextStep} = pathProgress(path);

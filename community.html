@@ -252,10 +252,21 @@ async function renderMentorsList(){
   const featured = typeof getFeatured==='function' ? getFeatured() : {};
   mentors.sort((a,b)=>(b.user_id===featured.mentorUserId)-(a.user_id===featured.mentorUserId));
   if(!mentors.length){
+    // V25.1: (1) warmer copy + a real CTA, per the requested empty-state
+    // wording; (2) root-cause fix — this branch used to `return` before
+    // ever reaching the shared `setTimeout(initReveal, 20)` call at the
+    // end of this function, so this exact `.card.reveal` element never
+    // got observed and stayed at opacity:0 forever, looking like a large
+    // blank area under the "Current Mentors" heading (identical
+    // underlying cause to the Assessment results page fix elsewhere in
+    // this release). Calling initReveal() here too, before returning,
+    // fixes it without restructuring this function.
     wrap.innerHTML = `<div class="card reveal text-center" style="padding:28px;">
-      <p style="font-size:13.5px; margin-bottom:4px;">No Mentors have joined yet.</p>
-      <p style="font-size:12.5px; color:var(--ink-faint);">WRLD is actively building its volunteer mentor community — check back soon, or be the first to sign up.</p>
+      <p style="font-size:14px; font-weight:700; color:var(--navy); margin-bottom:6px;">We're building an incredible mentor community.</p>
+      <p style="font-size:13px; color:var(--ink-faint); margin-bottom:18px;">Applications are open — be one of the first mentors to help shape WRLD.</p>
+      <a href="become-mentor.html" class="btn btn-primary btn-sm">Apply to Mentor →</a>
     </div>`;
+    setTimeout(initReveal, 20);
     return;
   }
   wrap.innerHTML = mentors.map((m,i)=>{
