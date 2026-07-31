@@ -67,6 +67,7 @@
 <script src="auth.js?v=24"></script>
 <script src="app.js?v=22.1"></script>
 <script src="orbit.js?v=24"></script>
+<script src="new-user-journey.js?v=1"></script>
 <script>
 function showFormError(msg){
   const el = document.getElementById('form-error');
@@ -149,15 +150,47 @@ document.getElementById('signup-form').addEventListener('submit', async (e)=>{
   }
 
   const params = new URLSearchParams(location.search);
+  const requestedNext = params.get('next');
 
-  // V24: signup always ends at login.html — signUp() (auth.js) signs the
-  // freshly-issued session back out and returns {accountCreated:true},
-  // matching the New Authentication Flow: Sign Up -> Account Created ->
-  // Redirect to Login -> User Logs In -> Determine User Role -> Correct
-  // Dashboard. No onboarding step of any kind runs here. See
-  // AUTH-MIGRATION-SUMMARY.md.
+  // V25 — New User Journey entry point. auth.js/signUp() is UNCHANGED:
+  // it still signs the freshly-issued signup session back out immediately
+  // (see that function's V23 comment for why — a real, audited fix for a
+  // production race). What's new here is that signup.html itself, rather
+  // than sending the person to a manual login screen, performs one
+  // ordinary, fully-awaited logIn() with the credentials they just chose
+  // — the exact same signInWithPassword() + wrldRefreshSessionCache()
+  // path every returning user's login already goes through, millions of
+  // times, with no special-casing. This is not a reuse of the risky
+  // freshly-issued signUp() session (that one is still discarded,
+  // untouched); it is a brand-new, independent, fully-settled sign-in,
+  // performed once, synchronously awaited, before this page ever
+  // navigates anywhere — so by the time we redirect, the session cache is
+  // already known-good, the same way it is after any normal login.html
+  // submission. If it fails for any reason, we fall back to the exact
+  // previous, proven behavior (send them to login.html to sign in by
+  // hand) rather than stranding them.
   if(result.accountCreated){
-    location.href = 'login.html?created=1' + (params.get('next') ? '&next='+encodeURIComponent(params.get('next')) : '');
+    let loginResult;
+    try{ loginResult = await logIn(email, password, true); }
+    catch(e){ loginResult = {ok:false}; }
+
+    if(loginResult && loginResult.ok && loginResult.user){
+      // Marks this brand-new account as pending its one-time New User
+      // Journey (new-user-journey.js) — the ONLY place this ever
+      // happens. dashboard.html is the only page that ever checks this
+      // marker; login.html, auth.js, and every other route are untouched.
+      if(typeof wrldNUJStartForNewSignup === 'function'){
+        wrldNUJStartForNewSignup(loginResult.user.id);
+      }
+      location.href = 'orbit-welcome.html' + (requestedNext ? '?next='+encodeURIComponent(requestedNext) : '');
+      return;
+    }
+
+    // Fallback — preserves the exact previous, proven flow if the
+    // automatic sign-in above didn't succeed for any reason. The account
+    // itself was already created successfully; this only affects how the
+    // person gets signed in.
+    location.href = 'login.html?created=1' + (requestedNext ? '&next='+encodeURIComponent(requestedNext) : '');
     return;
   }
   // Fallback path — only reached if "Confirm email" is ever re-enabled on

@@ -177,6 +177,7 @@ function sessionCard(e){
 }
 
 function registerSession(id, title){
+  if(!requireAccountForAction('register for this live session')) return;
   const s = getState(); const key = 'event-'+id;
   if(!s.bookmarks.includes(key)){ s.bookmarks.push(key); setState(s); showToast('✅ Registered for '+title); }
   renderEventList();

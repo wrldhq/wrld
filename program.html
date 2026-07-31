@@ -206,6 +206,7 @@ function loadProgram(){
         <p style="font-size:13.5px; margin-bottom:18px;">This program is opening in phases. Join the list and we'll notify you the moment enrollment opens.</p>
         <button class="btn btn-primary btn-block" id="waitlist-btn">${isEnrolled?'✓ On the Waiting List':'Join Waiting List'}</button>`;
       document.getElementById('waitlist-btn').addEventListener('click', ()=>{
+        if(!requireAccountForAction('join this waiting list')) return;
         const s = getState(); const key='program-'+p.id;
         if(!s.bookmarks.includes(key)){ s.bookmarks.push(key); setState(s); showToast('📝 Added to the waiting list'); renderEnrollBox(); }
       });
@@ -218,6 +219,7 @@ function loadProgram(){
         <a href="events.html" class="btn btn-outline btn-block mt-8">📅 See Live Learning</a>`;
       document.getElementById('enroll-btn').addEventListener('click', ()=>{
         if(isEnrolled){ location.href='dashboard.html'; return; }
+        if(!requireAccountForAction('enroll in this program')) return;
         const s = getState(); const key='program-'+p.id;
         if(!s.bookmarks.includes(key)) s.bookmarks.push(key);
         setState(s);

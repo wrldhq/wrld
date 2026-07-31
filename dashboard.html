@@ -125,6 +125,7 @@
 <script src="auth.js?v=24"></script>
 <script src="app.js?v=22.1"></script>
 <script src="orbit.js?v=24"></script>
+<script src="new-user-journey.js?v=1"></script>
 <script>
 function pbMiniCard(p){
   return `<a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
@@ -236,70 +237,131 @@ function renderDashboard(){
       </div>`;
   }
 
+  // V24.1 polish: every remaining section below is now isolated in its own
+  // try/catch. Previously one section throwing partway through this
+  // function would abort the whole call, leaving every section AFTER it
+  // as a permanently empty <div> — the "large blank white section" pattern
+  // reported for this release. Each section now falls back to a generic-
+  // but-populated state instead of ever going silently blank.
+
   // Continue learning: recently viewed, not yet complete
-  const continueSlugs = (s.recentlyViewed||[]).filter(slug=>!s.completed.includes(slug)).slice(0,3).map(getPlaybook).filter(Boolean);
-  document.getElementById('continue-list').innerHTML = continueSlugs.length ? continueSlugs.map(p=>`
-    <a href="playbook.html?slug=${p.slug}" class="card hoverable reveal flex items-center gap-16 mb-16" style="padding:18px 22px;">
-      <div style="font-size:28px;">${p.emoji}</div>
-      <div style="flex:1;"><h4 style="font-size:15.5px; margin-bottom:4px;">${p.title}</h4><p style="margin:0; font-size:13px;">${p.category} · ${p.readTime}</p></div>
-      <span style="color:var(--blue); font-weight:700;">Continue →</span>
-    </a>`).join('') : `<div class="empty-state"><div class="ic">🌍</div><p>Your learning journey starts with a single Playbook — Orbit's got plenty of ideas.</p><a href="playbooks.html" class="btn btn-primary mt-16">Browse Playbooks</a></div>`;
+  try{
+    const continueSlugs = (s.recentlyViewed||[]).filter(slug=>!s.completed.includes(slug)).slice(0,3).map(getPlaybook).filter(Boolean);
+    document.getElementById('continue-list').innerHTML = continueSlugs.length ? continueSlugs.map(p=>`
+      <a href="playbook.html?slug=${p.slug}" class="card hoverable reveal flex items-center gap-16 mb-16" style="padding:18px 22px;">
+        <div style="font-size:28px;">${p.emoji}</div>
+        <div style="flex:1;"><h4 style="font-size:15.5px; margin-bottom:4px;">${p.title}</h4><p style="margin:0; font-size:13px;">${p.category} · ${p.readTime}</p></div>
+        <span style="color:var(--blue); font-weight:700;">Continue →</span>
+      </a>`).join('') : `<div class="empty-state"><div class="ic">🌍</div><p>Your learning journey starts with a single Playbook — Orbit's got plenty of ideas.</p><a href="playbooks.html" class="btn btn-primary mt-16">Browse Playbooks</a></div>`;
+  }catch(e){
+    console.error('[WRLD] Continue Learning list failed to render, showing fallback:', e);
+    document.getElementById('continue-list').innerHTML = `<div class="empty-state"><div class="ic">🌍</div><p>Your learning journey starts with a single Playbook — Orbit's got plenty of ideas.</p><a href="playbooks.html" class="btn btn-primary mt-16">Browse Playbooks</a></div>`;
+  }
 
   // Recommended: first incomplete playbooks from journeys already touched, else first 4 overall
-  let recommended = PLAYBOOKS.filter(p=>!s.completed.includes(p.slug) && s.recentlyViewed.includes(p.slug)===false).slice(0,4);
-  if(completedPlaybooks.length){
-    const touchedJourneys = new Set(completedPlaybooks.flatMap(p=>p.journeys));
-    recommended = PLAYBOOKS.filter(p=>!s.completed.includes(p.slug) && p.journeys.some(j=>touchedJourneys.has(j))).slice(0,4);
+  try{
+    let recommended = PLAYBOOKS.filter(p=>!s.completed.includes(p.slug) && s.recentlyViewed.includes(p.slug)===false).slice(0,4);
+    if(completedPlaybooks.length){
+      const touchedJourneys = new Set(completedPlaybooks.flatMap(p=>p.journeys));
+      recommended = PLAYBOOKS.filter(p=>!s.completed.includes(p.slug) && p.journeys.some(j=>touchedJourneys.has(j))).slice(0,4);
+    }
+    if(!recommended.length) recommended = PLAYBOOKS.slice(0,4);
+    document.getElementById('recommend-grid').innerHTML = recommended.map(pbMiniCard).join('');
+  }catch(e){
+    console.error('[WRLD] Recommend grid failed to render, showing fallback:', e);
+    document.getElementById('recommend-grid').innerHTML = PLAYBOOKS.slice(0,4).map(pbMiniCard).join('');
   }
-  if(!recommended.length) recommended = PLAYBOOKS.slice(0,4);
-  document.getElementById('recommend-grid').innerHTML = recommended.map(pbMiniCard).join('');
 
   // Saved
-  document.getElementById('saved-list').innerHTML = savedPlaybooks.length ? savedPlaybooks.map(p=>`
-    <a href="playbook.html?slug=${p.slug}" class="flex items-center gap-12 mb-12" style="text-decoration:none;">
-      <span style="font-size:20px;">${p.emoji}</span><span style="font-size:13.5px; font-weight:600; color:var(--navy);">${p.title}</span>
-    </a>`).join('') : `<p style="font-size:13.5px; color:var(--ink-faint);">🌱 Nothing saved yet — bookmark a Playbook you like and it'll show up right here.</p>`;
+  try{
+    document.getElementById('saved-list').innerHTML = savedPlaybooks.length ? savedPlaybooks.map(p=>`
+      <a href="playbook.html?slug=${p.slug}" class="flex items-center gap-12 mb-12" style="text-decoration:none;">
+        <span style="font-size:20px;">${p.emoji}</span><span style="font-size:13.5px; font-weight:600; color:var(--navy);">${p.title}</span>
+      </a>`).join('') : `<p style="font-size:13.5px; color:var(--ink-faint);">🌱 Nothing saved yet — bookmark a Playbook you like and it'll show up right here.</p>`;
+  }catch(e){
+    console.error('[WRLD] Saved list failed to render, showing fallback:', e);
+    document.getElementById('saved-list').innerHTML = `<p style="font-size:13.5px; color:var(--ink-faint);">🌱 Nothing saved yet — bookmark a Playbook you like and it'll show up right here.</p>`;
+  }
 
-  // Upcoming Live Learning sessions (registered ones first, else next 2) —
-  // real mentor-published sessions only, never fictional placeholder events.
-  const allUpcoming = upcomingLiveSessions();
-  const registered = allUpcoming.filter(e=>s.bookmarks.includes('event-'+e.id));
-  const upcoming = (registered.length ? registered : allUpcoming).slice(0,2);
-  document.getElementById('upcoming-events').innerHTML = upcoming.length ? upcoming.map(e=>{
-    const {dateStr, timeStr} = formatEventLocalTime(e.dateISO);
-    const prog = getProgram(e.programId);
-    return `<div class="mb-12" style="padding-bottom:12px; border-bottom:1px solid var(--navy-06);">
-      <div style="font-size:13.5px; font-weight:700; color:var(--navy);">${prog?prog.title:'Live Session'}</div>
-      <div style="font-size:12px; color:var(--ink-faint);">${dateStr} · ${timeStr}</div>
-    </div>`;
-  }).join('') : `<p style="font-size:13px; color:var(--ink-faint);">No live sessions are scheduled yet. We'll recommend future workshops that match your interests as they become available.</p>`;
+  // Suggested Live Learning (registered sessions first, else next 2) — real
+  // mentor-published sessions only, never fictional placeholder events. If
+  // none are scheduled, recommend the real Program that matches the
+  // learner's Next Step instead of a bare "nothing here" message; only
+  // fall back to plain text if there's no relevant Program either.
+  try{
+    const allUpcoming = upcomingLiveSessions();
+    const registered = allUpcoming.filter(e=>s.bookmarks.includes('event-'+e.id));
+    const upcoming = (registered.length ? registered : allUpcoming).slice(0,2);
+    if(upcoming.length){
+      document.getElementById('upcoming-events').innerHTML = upcoming.map(e=>{
+        const {dateStr, timeStr} = formatEventLocalTime(e.dateISO);
+        const prog = getProgram(e.programId);
+        return `<div class="mb-12" style="padding-bottom:12px; border-bottom:1px solid var(--navy-06);">
+          <div style="font-size:13.5px; font-weight:700; color:var(--navy);">${prog?prog.title:'Live Session'}</div>
+          <div style="font-size:12px; color:var(--ink-faint);">${dateStr} · ${timeStr}</div>
+        </div>`;
+      }).join('');
+    } else {
+      const weakestProgramId = (s.assessment && weakestKey) ? SECTION_RECS[weakestKey].program : null;
+      const suggestedProgram = weakestProgramId ? getProgram(weakestProgramId) : null;
+      document.getElementById('upcoming-events').innerHTML = suggestedProgram ? `
+        <div style="padding-bottom:4px;">
+          <div style="font-size:12px; color:var(--ink-faint); margin-bottom:6px;">No live sessions scheduled yet — based on your results:</div>
+          <div style="font-size:13.5px; font-weight:700; color:var(--navy);">${suggestedProgram.icon} ${suggestedProgram.title}</div>
+          <a href="program.html?id=${suggestedProgram.id}" style="font-size:12.5px; font-weight:700; color:var(--blue-dark);">View Program →</a>
+        </div>` : `<p style="font-size:13px; color:var(--ink-faint);">No live sessions are scheduled yet. We'll recommend future workshops that match your interests as they become available.</p>`;
+    }
+  }catch(e){
+    console.error('[WRLD] Suggested Live Learning failed to render, showing fallback:', e);
+    document.getElementById('upcoming-events').innerHTML = `<p style="font-size:13px; color:var(--ink-faint);">No live sessions are scheduled yet. We'll recommend future workshops that match your interests as they become available.</p>`;
+  }
 
   // Helpful Downloads — assessment-aware when possible, falling back to
-  // whatever category the learner's Next Step Playbook belongs to.
-  const dlPillars = new Set([nextStepPlaybook.pillar]);
-  let helpfulDownloads = DOWNLOADS.filter(d=>dlPillars.has(d.pillar)).slice(0,3);
-  if(!helpfulDownloads.length) helpfulDownloads = DOWNLOADS.slice(0,3);
-  document.getElementById('helpful-downloads-list').innerHTML = helpfulDownloads.map(d=>`
-    <a href="worksheet.html?type=${d.type}" target="_blank" class="flex items-center gap-12 mb-12" style="text-decoration:none;">
-      <span style="font-size:18px;">${d.icon}</span><span style="font-size:13px; font-weight:600; color:var(--navy);">${d.title}</span>
-    </a>`).join('');
+  // whatever category the learner's Next Step Playbook belongs to, and to
+  // the first few real Downloads if even that isn't available.
+  try{
+    const dlPillars = new Set([nextStepPlaybook.pillar]);
+    let helpfulDownloads = DOWNLOADS.filter(d=>dlPillars.has(d.pillar)).slice(0,3);
+    if(!helpfulDownloads.length) helpfulDownloads = DOWNLOADS.slice(0,3);
+    document.getElementById('helpful-downloads-list').innerHTML = helpfulDownloads.length ? helpfulDownloads.map(d=>`
+      <a href="worksheet.html?type=${d.type}" target="_blank" class="flex items-center gap-12 mb-12" style="text-decoration:none;">
+        <span style="font-size:18px;">${d.icon}</span><span style="font-size:13px; font-weight:600; color:var(--navy);">${d.title}</span>
+      </a>`).join('') : `<p style="font-size:13px; color:var(--ink-faint);"><a href="downloads.html" style="font-weight:700; color:var(--blue-dark);">Browse the Download Center →</a></p>`;
+  }catch(e){
+    console.error('[WRLD] Helpful Downloads list failed to render, showing fallback:', e);
+    document.getElementById('helpful-downloads-list').innerHTML = `<p style="font-size:13px; color:var(--ink-faint);"><a href="downloads.html" style="font-weight:700; color:var(--blue-dark);">Browse the Download Center →</a></p>`;
+  }
 
   // Achievements (computed honestly from real local actions)
-  const achievements = computeAchievements();
-  document.getElementById('achievements-list').innerHTML = achievements.map(a=>`
-    <div class="pill ${a.unlocked?'pill-success':'pill-navy'}" style="opacity:${a.unlocked?1:.4};" title="${a.unlocked?'Unlocked!':'Locked'}">${a.icon} ${a.label}</div>`).join('');
+  try{
+    const achievements = computeAchievements();
+    document.getElementById('achievements-list').innerHTML = achievements.map(a=>`
+      <div class="pill ${a.unlocked?'pill-success':'pill-navy'}" style="opacity:${a.unlocked?1:.4};" title="${a.unlocked?'Unlocked!':'Locked'}">${a.icon} ${a.label}</div>`).join('');
+  }catch(e){
+    console.error('[WRLD] Achievements list failed to render:', e);
+    document.getElementById('achievements-list').innerHTML = '';
+  }
 
   // Volunteer Hours summary (real, from the Volunteer Hours Tracker)
-  const volSummary = getVolunteerSummary();
-  document.getElementById('volunteer-summary').innerHTML = volSummary.entryCount>0
-    ? `<p style="font-size:13.5px;"><strong>${volSummary.totalHours}</strong> hour${volSummary.totalHours!==1?'s':''} across <strong>${volSummary.organizationCount}</strong> organization${volSummary.organizationCount!==1?'s':''}.</p>`
-    : `<p style="font-size:13px; color:var(--ink-faint);">🌱 Nothing logged yet — track your first volunteer experience.</p>`;
+  try{
+    const volSummary = getVolunteerSummary();
+    document.getElementById('volunteer-summary').innerHTML = volSummary.entryCount>0
+      ? `<p style="font-size:13.5px;"><strong>${volSummary.totalHours}</strong> hour${volSummary.totalHours!==1?'s':''} across <strong>${volSummary.organizationCount}</strong> organization${volSummary.organizationCount!==1?'s':''}.</p>`
+      : `<p style="font-size:13px; color:var(--ink-faint);">🌱 Nothing logged yet — track your first volunteer experience.</p>`;
+  }catch(e){
+    console.error('[WRLD] Volunteer summary failed to render, showing fallback:', e);
+    document.getElementById('volunteer-summary').innerHTML = `<p style="font-size:13px; color:var(--ink-faint);">🌱 Nothing logged yet — track your first volunteer experience.</p>`;
+  }
 
   // Latest Owner/Admin announcement, if one has been published
-  const latestAnnouncement = typeof getLatestAnnouncement==='function' ? getLatestAnnouncement() : null;
-  if(latestAnnouncement){
-    document.getElementById('announcement-card').classList.remove('hidden');
-    document.getElementById('announcement-text').textContent = latestAnnouncement.message;
+  try{
+    const latestAnnouncement = typeof getLatestAnnouncement==='function' ? getLatestAnnouncement() : null;
+    if(latestAnnouncement){
+      document.getElementById('announcement-card').classList.remove('hidden');
+      document.getElementById('announcement-text').textContent = latestAnnouncement.message;
+    }
+  }catch(e){
+    console.error('[WRLD] Announcement card failed to render:', e);
   }
 
   setTimeout(initReveal, 30);
@@ -316,8 +378,22 @@ function renderDashboard(){
 // welcome.html before this page ever rendered) is gone along with the
 // rest of the onboarding system — see AUTH-MIGRATION-SUMMARY.md. Every
 // signed-in user now lands directly on their dashboard after login.
+//
+// V25 — one new, single, explicit check before rendering: "does this
+// signed-in Explorer still have a pending New User Journey?" This is
+// deliberately NOT logic added to requireAuth()/postAuthDestination()
+// (auth.js is untouched) — it's a call out to a separate, dedicated
+// controller (new-user-journey.js) that owns this decision entirely.
+// For a returning user, a pre-existing (pre-V25) account, or an account
+// that has already finished the journey, wrldNUJCheckAndRedirect() is a
+// fast, side-effect-free no-op and this page renders exactly as it did
+// in V24 — no flicker, no delay, no exceptions.
 (async () => {
   await window.wrldAuthReady;
+  if(typeof wrldNUJCheckAndRedirect === 'function'){
+    const handedOff = await wrldNUJCheckAndRedirect();
+    if(handedOff) return; // navigating to orbit-welcome.html — don't render this page
+  }
   renderDashboard();
   initPage('dashboard');
 })();

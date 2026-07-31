@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welcome to WRLD — Orbit</title>
+<meta name="description" content="Orbit's personal welcome to WRLD — a quick, warm introduction before your Adulting Readiness Assessment.">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="styles.css?v=22">
+</head>
+<body>
+<div id="site-header"></div>
+<main id="main">
+
+  <!-- V25 — New User Journey. This page is the ONE and ONLY entry point
+       into the New User Journey (reached exclusively from signup.html
+       right after a brand-new account's first session is confirmed, or
+       from dashboard.html's single wrldNUJCheckAndRedirect() check if
+       that same account returns before finishing). It is intentionally
+       not part of top navigation, not linked from anywhere else on the
+       site, and not a legitimate `next=` redirect destination — see
+       new-user-journey.js's file header for the full architecture note.
+       All three states below share one goal: get the person, warmly and
+       quickly, into the (unchanged) Adulting Readiness Assessment. -->
+  <section class="section">
+    <div class="container">
+      <div class="nuj-hero" id="nuj-view">
+        <!-- Populated by initOrbitWelcomePage() below -->
+        <p class="reveal" style="color:var(--ink-faint);">Loading your welcome…</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+<div id="site-footer"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.107.0/dist/umd/supabase.min.js"></script>
+<script src="supabase-config.js?v=2"></script>
+<script src="supabase-client.js?v=23"></script>
+<script src="data.js"></script>
+<script src="orbit-knowledge.js"></script>
+<script src="auth.js?v=24"></script>
+<script src="app.js?v=22.1"></script>
+<script src="orbit.js?v=24"></script>
+<script src="new-user-journey.js?v=1"></script>
+<script>
+const ORBIT_AVATAR_LG_SVG = `<svg class="nuj-avatar float" width="104" height="104" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#2EA8C7" stroke="white" stroke-width="4"/><path d="M20 35c10-25 45-20 40 5-4 18-30 10-25 25 4 12-15 15-20 0-4-13 3-20 5-30z" fill="#F5CF57"/><circle cx="40" cy="45" r="4" fill="#1F3D4D"/><circle cx="60" cy="45" r="4" fill="#1F3D4D"/><path d="M38 60c6 6 18 6 24 0" stroke="#1F3D4D" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
+
+function wrldNextParam(){
+  return new URLSearchParams(location.search).get('next');
+}
+function wrldAssessmentHref(){
+  const next = wrldNextParam();
+  return 'assessment.html' + (next ? '?next=' + encodeURIComponent(next) : '');
+}
+
+/* Peeks at this account's own in-progress assessment draft using the
+   exact same namespaced-storage convention assessment.html itself uses
+   (wrldNamespacedKey()/wrldResolveStateOwnerId(), both shared, unchanged
+   functions in app.js) — never duplicates the questions, scoring, or
+   any of assessment.html's own logic; just checks whether one already
+   exists so this page can greet a "resuming" learner differently from a
+   brand-new one. */
+function wrldPeekAssessmentDraft(){
+  try{
+    const ownerId = typeof wrldResolveStateOwnerId === 'function' ? wrldResolveStateOwnerId() : null;
+    const key = typeof wrldNamespacedKey === 'function' ? wrldNamespacedKey('wrld_assessment_v2', ownerId) : null;
+    if(!key) return null;
+    const raw = localStorage.getItem(key);
+    if(!raw) return null;
+    const record = JSON.parse(raw);
+    return (record && record.data) || null;
+  }catch(e){ return null; }
+}
+
+function renderWelcomeView(){
+  document.getElementById('nuj-view').innerHTML = `
+    ${ORBIT_AVATAR_LG_SVG}
+    <div class="eyebrow reveal" style="margin:0 auto 14px;">🌍 Welcome to WRLD</div>
+    <h1 class="reveal" style="font-size:clamp(1.8rem,4.5vw,2.5rem);">Hi, I'm Orbit — so glad you're here.</h1>
+    <p class="reveal" style="font-size:var(--fs-md); max-width:480px; margin:16px auto 8px; color:var(--ink-soft);">WRLD is a free curriculum for adulthood — real skills school never covered, from budgeting to your first apartment. Before I show you around, I'd love to understand where you're starting from.</p>
+
+    <div class="nuj-step-grid">
+      <div class="card reveal reveal-d1 nuj-step-card">
+        <div class="nuj-step-icon">🧭</div>
+        <h4 style="font-size:14.5px; margin-bottom:6px;">Quick Check-In</h4>
+        <p style="font-size:12.5px; margin:0;">A few minutes, no wrong answers — just an honest starting point.</p>
+      </div>
+      <div class="card reveal reveal-d2 nuj-step-card">
+        <div class="nuj-step-icon">🎯</div>
+        <h4 style="font-size:14.5px; margin-bottom:6px;">Instant Personalization</h4>
+        <p style="font-size:12.5px; margin:0;">Your results shape exactly what I recommend for you — nothing generic.</p>
+      </div>
+      <div class="card reveal reveal-d3 nuj-step-card">
+        <div class="nuj-step-icon">🚀</div>
+        <h4 style="font-size:14.5px; margin-bottom:6px;">Your Dashboard</h4>
+        <p style="font-size:12.5px; margin:0;">Then you land somewhere that already feels like it's yours.</p>
+      </div>
+    </div>
+
+    <a href="${wrldAssessmentHref()}" class="btn btn-primary btn-lg reveal">Let's Get Started →</a>
+    <p class="reveal mt-16" style="font-size:12.5px; color:var(--ink-faint);">Takes about 10-15 minutes — save and continue anytime.</p>
+  `;
+}
+
+function renderResumeView(draft){
+  const sectionNum = (draft && typeof draft.currentSection === 'number') ? draft.currentSection + 1 : 1;
+  document.getElementById('nuj-view').innerHTML = `
+    ${ORBIT_AVATAR_LG_SVG}
+    <div class="eyebrow reveal" style="margin:0 auto 14px;">👋 Welcome back</div>
+    <h1 class="reveal" style="font-size:clamp(1.8rem,4.5vw,2.5rem);">Let's pick up right where you left off.</h1>
+    <p class="reveal" style="font-size:var(--fs-md); max-width:480px; margin:16px auto 32px; color:var(--ink-soft);">You started your Adulting Readiness Assessment already — you're on Section ${sectionNum}. Nothing you answered was lost.</p>
+    <a href="${wrldAssessmentHref()}" class="btn btn-primary btn-lg reveal">Continue My Assessment →</a>
+  `;
+}
+
+function renderGuestRecognizedView(assessmentSummary){
+  const overall = assessmentSummary.overall || 0;
+  const stage = (typeof getStage === 'function' ? getStage(overall) : null) || {icon:'🌱', label:'Explorer', desc:''};
+  document.getElementById('nuj-view').innerHTML = `
+    ${ORBIT_AVATAR_LG_SVG}
+    <div class="eyebrow reveal" style="margin:0 auto 14px;">🎉 I found your results</div>
+    <h1 class="reveal" style="font-size:clamp(1.8rem,4.5vw,2.5rem);">You already completed your Assessment.</h1>
+    <p class="reveal" style="font-size:var(--fs-md); max-width:480px; margin:16px auto 24px; color:var(--ink-soft);">You took the Adulting Readiness Assessment before creating your account — I've connected those results to your new profile. No need to take it again.</p>
+
+    <div class="card reveal nuj-stage-teaser">
+      <div class="nuj-stage-icon">${stage.icon}</div>
+      <div>
+        <div style="font-weight:800; font-family:'Plus Jakarta Sans'; color:var(--navy); font-size:1.1rem;">${stage.label} Stage</div>
+        <p style="margin:4px 0 0; font-size:13px;">${stage.desc || ''}</p>
+      </div>
+    </div>
+
+    <a href="${wrldAssessmentHref()}" class="btn btn-primary btn-lg reveal mt-24">View My Results →</a>
+  `;
+}
+
+async function initOrbitWelcomePage(){
+  await window.wrldAuthReady;
+
+  // Same guard every other authenticated WRLD page uses — unchanged
+  // requireAuth(), unchanged redirect-to-login behavior for a signed-out
+  // visitor.
+  if(!requireAuth()) return;
+
+  const user = getCurrentUser();
+
+  // A confirmed session but a still-unresolved/failed profile fetch is a
+  // real, documented (if rare) state elsewhere in this codebase (see
+  // volunteer-tracker.html's V20.6 note and supabase-client.js's
+  // _wrldProfileState machine) — requireAuth() can be true while
+  // getCurrentUser() is briefly or permanently null. Never guess at a
+  // role in that state; just hand off to dashboard.html, which already
+  // renders safely with a null user.
+  if(!user){
+    location.href = 'dashboard.html';
+    return;
+  }
+
+  // Mentor/Administrator/Owner accounts never go through the New User
+  // Journey (mirrors the old, removed needsOnboarding()'s Explorer-only
+  // scope) — send them straight to their own dashboard rather than 404
+  // or an empty page if this URL is ever visited directly.
+  if(user.role !== 'explorer'){
+    location.href = (typeof ROLE_DESTINATIONS !== 'undefined' && ROLE_DESTINATIONS[user.role]) || 'dashboard.html';
+    return;
+  }
+
+  // This page is only ever meant to be reached while a journey is
+  // pending. A direct/bookmarked visit after the journey already
+  // finished (or by a pre-existing account that never had one) is sent
+  // straight to the dashboard instead of showing a stale welcome screen.
+  if(typeof wrldNUJGetStatus === 'function' && wrldNUJGetStatus(user.id) !== 'pending'){
+    location.href = 'dashboard.html';
+    return;
+  }
+
+  if(typeof wrldNUJForceSync === 'function') await wrldNUJForceSync();
+
+  const state = typeof getState === 'function' ? getState() : null;
+  if(state && state.assessment){
+    renderGuestRecognizedView(state.assessment);
+  } else {
+    const draft = wrldPeekAssessmentDraft();
+    if(draft && !draft.completed && draft.answers && Object.keys(draft.answers).length > 0){
+      renderResumeView(draft);
+    } else {
+      renderWelcomeView();
+    }
+  }
+
+  initPage(null, "I'll be right here in the corner if you want to chat before we start.");
+  setTimeout(() => { if(typeof initReveal === 'function') initReveal(); }, 30);
+}
+initOrbitWelcomePage();
+</script>
+</body>
+</html>

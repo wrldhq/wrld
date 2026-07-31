@@ -631,7 +631,76 @@ function updateStreak(){
   return s;
 }
 
+/* ---------------------------------------------------------------------
+   GUEST ACTION GATE (V24.1)
+   WRLD deliberately lets guests browse freely — Playbooks, Programs, and
+   the Adulting Readiness Assessment all work with no account. But any
+   action that creates a real, tracked progress record (completing or
+   saving a Playbook, enrolling in a Program, registering for a live
+   session) needs a real account: both so it's never silently lost the
+   moment this browser's storage is cleared, and so WRLD can actually
+   count real completions/registrations platform-wide instead of a
+   per-browser "guest" bucket getState()/setState() already fall back to
+   (see wrldNamespacedKey() above — a guest's writes today succeed but
+   land in a bucket no one, including that guest on another device, can
+   ever see again).
+
+   requireAccountForAction(actionLabel) is the one shared check every
+   such action calls first: a real signed-in user (getCurrentUser()
+   resolved) passes straight through exactly as before; a guest instead
+   sees a professional Create Account/Log In prompt, reusing the existing
+   .wrld-modal-overlay/.wrld-modal system showConfirmModal() already
+   introduced (V19) rather than a new UI pattern. The prompt's links carry
+   the current page through the same `next=` mechanism requireAuth()/
+   postAuthDestination() already use everywhere else, so logging in or
+   signing up returns the visitor to exactly the page they were on. */
+function requireAccountForAction(actionLabel){
+  const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+  if(user) return true;
+  showGuestAccountModal(actionLabel);
+  return false;
+}
+
+function showGuestAccountModal(actionLabel){
+  const existing = document.getElementById('wrld-confirm-modal');
+  if(existing) existing.remove();
+
+  const rawNext = location.pathname.split('/').pop() + location.search;
+  const safeNext = typeof wrldSanitizeNextParam==='function' ? wrldSanitizeNextParam(rawNext) : null;
+  const nextQS = safeNext ? '?next=' + encodeURIComponent(safeNext) : '';
+
+  const overlay = document.createElement('div');
+  overlay.id = 'wrld-confirm-modal';
+  overlay.className = 'wrld-modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.innerHTML = `
+    <div class="wrld-modal card">
+      <h4 class="mb-12">Create a free account to ${actionLabel || 'save your progress'}</h4>
+      <p style="font-size:14px; color:var(--ink-soft); margin-bottom:20px;">You're welcome to browse WRLD as a guest — Playbooks, Programs, and the Assessment are all open. But saving progress, tracking completions, and registering for programs or live sessions needs a free WRLD account, so nothing gets lost and your achievements are really yours.</p>
+      <div class="flex gap-10" style="flex-wrap:wrap; justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" id="wrld-modal-cancel">Not Now</button>
+        <a href="login.html${nextQS}" class="btn btn-outline">Log In</a>
+        <a href="signup.html${nextQS}" class="btn btn-primary">Create Free Account</a>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+
+  function closeModal(){
+    overlay.remove();
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', onKeydown);
+  }
+  function onKeydown(e){ if(e.key==='Escape') closeModal(); }
+  document.addEventListener('keydown', onKeydown);
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
+  document.getElementById('wrld-modal-cancel').addEventListener('click', closeModal);
+  setTimeout(()=>document.getElementById('wrld-modal-cancel')?.focus(), 30);
+}
+
 function toggleBookmark(slug){
+  if(!requireAccountForAction('save this Playbook')) return;
   const s = getState();
   const i = s.bookmarks.indexOf(slug);
   if(i>-1){ s.bookmarks.splice(i,1); showToast('Removed from Saved Playbooks'); }
@@ -649,6 +718,7 @@ function syncBookmarkButtons(){
 }
 
 function markComplete(slug, title){
+  if(!requireAccountForAction('mark this Playbook complete')) return;
   const s = getState();
   if(!s.completed.includes(slug)){
     s.completed.push(slug);

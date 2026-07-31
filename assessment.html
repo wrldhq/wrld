@@ -132,6 +132,7 @@
 <script src="auth.js?v=24"></script>
 <script src="app.js?v=22.1"></script>
 <script src="orbit.js?v=24"></script>
+<script src="new-user-journey.js?v=1"></script>
 <script>
 /* ===================================================================
    ASSESSMENT DATA — 8 sections, clustering the 26 confidence categories
@@ -486,8 +487,21 @@ function renderPassport(sectionScores, overall){
 /* ===================================================================
    PERSONALIZED ROADMAP — never empty. Every section below is derived
    from the learner's real assessment answers (SECTION_RECS, DOWNLOADS
-   pillars, LEARNING_PATHS), with sensible fallbacks so there's always
-   something meaningful to show.
+   pillars, LEARNING_PATHS, PROGRAMS), with sensible fallbacks so
+   there's always something meaningful to show.
+
+   V24.1 polish: each section below is now wrapped in its own try/catch
+   with a safe fallback render. Previously an exception thrown partway
+   through this function (e.g. from an unexpected data shape) would abort
+   the whole call, leaving every section AFTER the failure point as an
+   empty <div> — exactly the "large blank white section" behavior
+   reported for this release. Isolating each section means one section
+   failing to compute a personalized result can never blank out the
+   sections that come after it; it only falls back to a generic-but-
+   populated state for that one section. `startHere`/`recommendedNext`
+   are given safe defaults up front so later sections that reference them
+   still have something valid even if an earlier section's own render
+   threw before finishing.
    =================================================================== */
 function renderPersonalizedRoadmap(growth){
   const s = getState();
@@ -495,96 +509,177 @@ function renderPersonalizedRoadmap(growth){
   const rec = SECTION_RECS[weakest];
 
   // Start Here: first not-yet-completed playbook from the weakest section
-  const startHere = rec.playbooks.map(getPlaybook).find(p=>p && !s.completed.includes(p.slug))
-    || rec.playbooks.map(getPlaybook).find(Boolean)
-    || PLAYBOOKS[0];
+  let startHere = PLAYBOOKS[0];
+  try{
+    startHere = rec.playbooks.map(getPlaybook).find(p=>p && !s.completed.includes(p.slug))
+      || rec.playbooks.map(getPlaybook).find(Boolean)
+      || PLAYBOOKS[0];
 
-  document.getElementById('start-here-card').innerHTML = `
-    <div class="eyebrow blue mb-16">🌟 Start Here</div>
-    <a href="playbook.html?slug=${startHere.slug}" class="flex items-center gap-20" style="text-decoration:none; flex-wrap:wrap;">
-      <div class="pb-thumb" style="width:76px; height:76px; flex-shrink:0; border-radius:var(--r-md); font-size:32px; background:${startHere.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${startHere.emoji}</div>
-      <div style="flex:1; min-width:200px;">
-        <h4 style="margin-bottom:6px;">${startHere.title}</h4>
-        <p style="margin:0; font-weight:600; color:var(--blue-dark); font-size:13.5px;">🎯 ${startHere.outcome}</p>
-      </div>
-      <span class="btn btn-primary" style="flex-shrink:0;">Start Now →</span>
-    </a>
-    <p class="mt-16" style="font-size:13px; color:var(--ink-faint); border-top:1px solid var(--navy-06); padding-top:14px; margin-bottom:0;">We recommend starting here because it aligns with the ${SECTION_META[weakest].title.toLowerCase()} goals you shared during your assessment.</p>`;
+    document.getElementById('start-here-card').innerHTML = `
+      <div class="eyebrow blue mb-16">🌟 Start Here</div>
+      <a href="playbook.html?slug=${startHere.slug}" class="flex items-center gap-20" style="text-decoration:none; flex-wrap:wrap;">
+        <div class="pb-thumb" style="width:76px; height:76px; flex-shrink:0; border-radius:var(--r-md); font-size:32px; background:${startHere.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${startHere.emoji}</div>
+        <div style="flex:1; min-width:200px;">
+          <h4 style="margin-bottom:6px;">${startHere.title}</h4>
+          <p style="margin:0; font-weight:600; color:var(--blue-dark); font-size:13.5px;">🎯 ${startHere.outcome}</p>
+        </div>
+        <span class="btn btn-primary" style="flex-shrink:0;">Start Now →</span>
+      </a>
+      <p class="mt-16" style="font-size:13px; color:var(--ink-faint); border-top:1px solid var(--navy-06); padding-top:14px; margin-bottom:0;">We recommend starting here because it aligns with the ${SECTION_META[weakest].title.toLowerCase()} goals you shared during your assessment.</p>`;
+  }catch(e){
+    console.error('[WRLD] Start Here card failed to personalize, showing fallback:', e);
+    document.getElementById('start-here-card').innerHTML = `
+      <div class="eyebrow blue mb-16">🌟 Start Here</div>
+      <p style="margin-bottom:16px;">Browse the Playbook Library to pick your first lesson — Orbit's got plenty of ideas.</p>
+      <a href="playbooks.html" class="btn btn-primary btn-sm">Browse Playbooks →</a>`;
+  }
 
   // Suggested Learning Path
-  const pathKey = rec.path || growth.map(g=>SECTION_RECS[g.key].path).find(Boolean);
-  const path = pathKey ? getPath(pathKey) : null;
-  if(path){
-    const {done, total, pct} = pathProgress(path);
+  try{
+    const pathKey = rec.path || growth.map(g=>SECTION_RECS[g.key].path).find(Boolean);
+    const path = pathKey ? getPath(pathKey) : null;
+    if(path){
+      const {done, total, pct} = pathProgress(path);
+      document.getElementById('suggested-path-card').innerHTML = `
+        <div class="eyebrow blue mb-16">🛤️ Your Suggested Learning Path</div>
+        <div class="flex items-center gap-16 mb-16" style="flex-wrap:wrap;">
+          <div class="pillar-icon" style="background:${path.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; margin-bottom:0;">${path.icon}</div>
+          <div style="flex:1; min-width:200px;"><h4 style="margin-bottom:2px;">${path.title}</h4><p style="margin:0; font-size:13px;">${path.desc}</p></div>
+        </div>
+        <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">${(path.skillsGained||[]).slice(0,3).map(sk=>`<span class="pill pill-navy">${sk}</span>`).join('')}</div>
+        <div class="progress-bar mb-16"><div style="width:${pct}%;"></div></div>
+        <a href="learning-paths.html#${path.key}" class="btn btn-outline btn-sm">View Full Path (${done}/${total}) →</a>`;
+    } else {
+      document.getElementById('suggested-path-card').innerHTML = `
+        <div class="eyebrow blue mb-16">🛤️ Your Suggested Learning Path</div>
+        <p style="margin-bottom:16px;">As you complete a few more Playbooks, I'll match you to a full guided Learning Path.</p>
+        <a href="learning-paths.html" class="btn btn-outline btn-sm">Browse Learning Paths →</a>`;
+    }
+  }catch(e){
+    console.error('[WRLD] Suggested Learning Path card failed to personalize, showing fallback:', e);
     document.getElementById('suggested-path-card').innerHTML = `
       <div class="eyebrow blue mb-16">🛤️ Your Suggested Learning Path</div>
-      <div class="flex items-center gap-16 mb-16" style="flex-wrap:wrap;">
-        <div class="pillar-icon" style="background:${path.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'}; margin-bottom:0;">${path.icon}</div>
-        <div style="flex:1; min-width:200px;"><h4 style="margin-bottom:2px;">${path.title}</h4><p style="margin:0; font-size:13px;">${path.desc}</p></div>
-      </div>
-      <div class="flex gap-8 mb-16" style="flex-wrap:wrap;">${(path.skillsGained||[]).slice(0,3).map(sk=>`<span class="pill pill-navy">${sk}</span>`).join('')}</div>
-      <div class="progress-bar mb-16"><div style="width:${pct}%;"></div></div>
-      <a href="learning-paths.html#${path.key}" class="btn btn-outline btn-sm">View Full Path (${done}/${total}) →</a>`;
-  } else {
-    document.getElementById('suggested-path-card').innerHTML = `
-      <div class="eyebrow blue mb-16">🛤️ Your Suggested Learning Path</div>
-      <p style="margin-bottom:16px;">As you complete a few more Playbooks, I'll match you to a full guided Learning Path.</p>
+      <p style="margin-bottom:16px;">Browse our guided Learning Paths to find the right sequence for your goals.</p>
       <a href="learning-paths.html" class="btn btn-outline btn-sm">Browse Learning Paths →</a>`;
   }
 
   // Recommended Next: more playbooks from the weakest areas, excluding Start Here
-  const nextPool = [];
-  growth.forEach(g=>{
-    SECTION_RECS[g.key].playbooks.forEach(slug=>{
-      const pb = getPlaybook(slug);
-      if(pb && pb.slug!==startHere.slug && !nextPool.find(p=>p.slug===slug)) nextPool.push(pb);
+  let recommendedNext = [];
+  try{
+    const nextPool = [];
+    growth.forEach(g=>{
+      SECTION_RECS[g.key].playbooks.forEach(slug=>{
+        const pb = getPlaybook(slug);
+        if(pb && pb.slug!==startHere.slug && !nextPool.find(p=>p.slug===slug)) nextPool.push(pb);
+      });
     });
-  });
-  let recommendedNext = nextPool.slice(0,3);
-  if(!recommendedNext.length){
-    recommendedNext = PLAYBOOKS.filter(p=>p.slug!==startHere.slug && !s.completed.includes(p.slug)).slice(0,3);
+    recommendedNext = nextPool.slice(0,3);
+    if(!recommendedNext.length){
+      recommendedNext = PLAYBOOKS.filter(p=>p.slug!==startHere.slug && !s.completed.includes(p.slug)).slice(0,3);
+    }
+    if(!recommendedNext.length) recommendedNext = PLAYBOOKS.filter(p=>p.slug!==startHere.slug).slice(0,3);
+    document.getElementById('recommended-next-grid').innerHTML = recommendedNext.map(p=>`
+      <a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
+        <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}<img class="pb-thumb-img" src="images/playbooks/${p.slug}-card.jpg" alt="" loading="lazy" onerror="this.style.display='none'"></div>
+        <div class="pb-body">
+          <div class="pb-meta"><span class="pill pill-${p.difficulty==='Beginner'?'success':p.difficulty==='Advanced'?'sample':'yellow'}">${p.difficulty}</span></div>
+          <h4>${p.title}</h4>
+          <p style="font-weight:600; color:var(--blue-dark);">🎯 ${p.outcome}</p>
+          <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
+        </div>
+      </a>`).join('');
+  }catch(e){
+    console.error('[WRLD] Recommended Next grid failed to personalize, showing fallback:', e);
+    recommendedNext = PLAYBOOKS.filter(p=>p.slug!==startHere.slug).slice(0,3);
+    document.getElementById('recommended-next-grid').innerHTML = recommendedNext.map(p=>`
+      <a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
+        <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}</div>
+        <div class="pb-body">
+          <h4>${p.title}</h4>
+          <p style="font-weight:600; color:var(--blue-dark);">🎯 ${p.outcome}</p>
+          <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
+        </div>
+      </a>`).join('');
   }
-  document.getElementById('recommended-next-grid').innerHTML = recommendedNext.map(p=>`
-    <a href="playbook.html?slug=${p.slug}" class="pb-card card hoverable">
-      <div class="pb-thumb" style="background:${p.color==='yellow'?'var(--yellow-15)':'var(--blue-15)'};">${p.emoji}<img class="pb-thumb-img" src="images/playbooks/${p.slug}-card.jpg" alt="" loading="lazy" onerror="this.style.display='none'"></div>
-      <div class="pb-body">
-        <div class="pb-meta"><span class="pill pill-${p.difficulty==='Beginner'?'success':p.difficulty==='Advanced'?'sample':'yellow'}">${p.difficulty}</span></div>
-        <h4>${p.title}</h4>
-        <p style="font-weight:600; color:var(--blue-dark);">🎯 ${p.outcome}</p>
-        <div class="pb-footer"><span class="pill pill-navy">${p.category}</span><span style="color:var(--blue); font-weight:700; font-size:13px;">Start →</span></div>
-      </div>
-    </a>`).join('');
 
   // Helpful Resources: downloads sharing a pillar with the recommended playbooks
-  const pillars = new Set([startHere.pillar, ...recommendedNext.map(p=>p.pillar)]);
-  let resources = DOWNLOADS.filter(d=>pillars.has(d.pillar)).slice(0,4);
-  if(!resources.length) resources = DOWNLOADS.slice(0,4);
-  document.getElementById('helpful-resources-grid').innerHTML = resources.map(d=>`
-    <a href="worksheet.html?type=${d.type}" target="_blank" class="card hoverable reveal" style="padding:18px; text-align:center;">
-      <div style="font-size:26px; margin-bottom:8px;">${d.icon}</div>
-      <h4 style="font-size:13.5px; margin-bottom:4px;">${d.title}</h4>
-      <p style="font-size:11.5px; margin:0;">${d.desc}</p>
-    </a>`).join('');
-
-  // Suggested Live Learning — real sessions only, honest empty state otherwise
-  const relatedProgramIds = growth.map(g=>SECTION_RECS[g.key].program).filter(Boolean);
-  const allSessions = upcomingLiveSessions();
-  let suggestedSessions = allSessions.filter(e=>relatedProgramIds.includes(e.programId));
-  if(!suggestedSessions.length) suggestedSessions = allSessions;
-  if(suggestedSessions.length){
-    document.getElementById('suggested-live-card').innerHTML = suggestedSessions.slice(0,2).map(e=>{
-      const prog = getProgram(e.programId);
-      const {dateStr, timeStr} = formatEventLocalTime(e.dateISO);
-      return `<div class="card reveal mb-12" style="padding:18px 22px;">
-        <div style="font-weight:700; font-size:14px; color:var(--navy);">${prog?prog.title:'Live Session'}</div>
-        <div style="font-size:12.5px; color:var(--ink-faint); margin-bottom:10px;">${dateStr} · ${timeStr}</div>
-        <a href="events.html" class="btn btn-outline btn-sm">View on Live Learning →</a>
+  try{
+    const pillars = new Set([startHere.pillar, ...recommendedNext.map(p=>p.pillar)]);
+    let resources = DOWNLOADS.filter(d=>pillars.has(d.pillar)).slice(0,4);
+    if(!resources.length) resources = DOWNLOADS.slice(0,4);
+    if(resources.length){
+      document.getElementById('helpful-resources-grid').innerHTML = resources.map(d=>`
+        <a href="worksheet.html?type=${d.type}" target="_blank" class="card hoverable reveal" style="padding:18px; text-align:center;">
+          <div style="font-size:26px; margin-bottom:8px;">${d.icon}</div>
+          <h4 style="font-size:13.5px; margin-bottom:4px;">${d.title}</h4>
+          <p style="font-size:11.5px; margin:0;">${d.desc}</p>
+        </a>`).join('');
+    } else {
+      // Should never happen (DOWNLOADS always has real worksheets), but
+      // never leave a bare empty grid if it somehow does.
+      document.getElementById('helpful-resources-grid').innerHTML = `
+        <div class="card" style="grid-column:1/-1; padding:24px; text-align:center;">
+          <p style="margin:0 0 12px;">No downloads matched this section yet — browse the full Download Center instead.</p>
+          <a href="downloads.html" class="btn btn-outline btn-sm">Browse Downloads →</a>
+        </div>`;
+    }
+  }catch(e){
+    console.error('[WRLD] Helpful Resources grid failed to personalize, showing fallback:', e);
+    document.getElementById('helpful-resources-grid').innerHTML = `
+      <div class="card" style="grid-column:1/-1; padding:24px; text-align:center;">
+        <p style="margin:0 0 12px;">Browse the full Download Center for worksheets and templates.</p>
+        <a href="downloads.html" class="btn btn-outline btn-sm">Browse Downloads →</a>
       </div>`;
-    }).join('');
-  } else {
+  }
+
+  // Suggested Live Learning — real upcoming sessions first; if none are
+  // scheduled yet, fall back to the real Program(s) that match the
+  // learner's weakest areas (still real WRLD content, never a fabricated
+  // event); only show the plain empty state if neither exists.
+  try{
+    const relatedProgramIds = growth.map(g=>SECTION_RECS[g.key].program).filter(Boolean);
+    const allSessions = upcomingLiveSessions();
+    let suggestedSessions = allSessions.filter(e=>relatedProgramIds.includes(e.programId));
+    if(!suggestedSessions.length) suggestedSessions = allSessions;
+
+    if(suggestedSessions.length){
+      document.getElementById('suggested-live-card').innerHTML = suggestedSessions.slice(0,2).map(e=>{
+        const prog = getProgram(e.programId);
+        const {dateStr, timeStr} = formatEventLocalTime(e.dateISO);
+        return `<div class="card reveal mb-12" style="padding:18px 22px;">
+          <div style="font-weight:700; font-size:14px; color:var(--navy);">${prog?prog.title:'Live Session'}</div>
+          <div style="font-size:12.5px; color:var(--ink-faint); margin-bottom:10px;">${dateStr} · ${timeStr}</div>
+          <a href="events.html" class="btn btn-outline btn-sm">View on Live Learning →</a>
+        </div>`;
+      }).join('');
+    } else {
+      // No live session is scheduled right now — recommend the real
+      // Program that matches the learner's results instead of a bare
+      // "nothing here" message, per the "populate from Programs/Events,
+      // polished empty state otherwise" requirement.
+      const suggestedProgram = relatedProgramIds.map(getProgram).find(Boolean);
+      if(suggestedProgram){
+        document.getElementById('suggested-live-card').innerHTML = `
+          <div class="card reveal" style="padding:20px 22px;">
+            <div class="eyebrow blue" style="margin-bottom:8px;">🎥 No live sessions scheduled yet</div>
+            <div style="font-weight:700; font-size:15px; color:var(--navy); margin-bottom:4px;">${suggestedProgram.icon} ${suggestedProgram.title}</div>
+            <p style="font-size:13px; margin-bottom:14px;">${suggestedProgram.tagline||suggestedProgram.overview||'A live, cohort-based WRLD program that matches your results.'}</p>
+            <a href="program.html?id=${suggestedProgram.id}" class="btn btn-outline btn-sm">View Program →</a>
+          </div>`;
+      } else {
+        document.getElementById('suggested-live-card').innerHTML = `
+          <div class="card reveal" style="padding:24px; text-align:center;">
+            <p style="margin:0 0 14px;">No live sessions are scheduled yet. We'll recommend future workshops that match your interests as they become available.</p>
+            <a href="events.html" class="btn btn-outline btn-sm">Browse Live Learning →</a>
+          </div>`;
+      }
+    }
+  }catch(e){
+    console.error('[WRLD] Suggested Live Learning card failed to personalize, showing fallback:', e);
     document.getElementById('suggested-live-card').innerHTML = `
       <div class="card reveal" style="padding:24px; text-align:center;">
-        <p style="margin:0;">No live sessions are scheduled yet. We'll recommend future workshops that match your interests as they become available.</p>
+        <p style="margin:0 0 14px;">No live sessions are scheduled yet. We'll recommend future workshops that match your interests as they become available.</p>
+        <a href="events.html" class="btn btn-outline btn-sm">Browse Live Learning →</a>
       </div>`;
   }
 }
@@ -621,6 +716,16 @@ function beginJourney(){
     // assessment without an account keeps the exact previous behavior —
     // sent to dashboard.html, which itself prompts sign-in as before.
     const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
+    // V25 — New User Journey: if this account still had a pending journey
+    // (new-user-journey.js), this is the moment it's genuinely finished.
+    // A no-op for every other caller of this exact same, unchanged
+    // function — returning users, guests, and any account that was never
+    // marked 'pending' in the first place never had this marker to begin
+    // with, so this line changes nothing about beginJourney()'s existing
+    // routing below for them.
+    if(user && typeof wrldNUJCompleteIfPending==='function'){
+      wrldNUJCompleteIfPending(user.id);
+    }
     if(user && typeof postAuthDestination==='function'){
       const pendingNext = new URLSearchParams(location.search).get('next');
       location.href = postAuthDestination(pendingNext);
@@ -633,7 +738,38 @@ function beginJourney(){
 /* ===================================================================
    INIT
    =================================================================== */
+// V25 — New User Journey: Guest Assessment Recognition. This page's own
+// completed/in-progress state (`assess`, above) lives in a per-browser
+// draft store and was never touched by this change — same scoring, same
+// questions, same categories. The ONLY addition is this one hydration
+// step: if this browser's own draft isn't marked completed yet, but this
+// signed-in account already HAS a completed assessment summary synced to
+// Supabase (getState().assessment — an existing, unchanged field), reuse
+// it instead of asking the person to retake something they already did.
+// This is exactly how a guest's pre-signup assessment (completed on this
+// same browser before creating an account) surfaces after signup: the
+// existing, unmodified pullLearnerStateFromSupabase() guest-bucket merge
+// (app.js) already copies that summary onto the new account the moment
+// it first syncs; this just means THIS page notices it's there instead
+// of showing the intro screen and asking the person to start over.
+function wrldHydrateAssessmentFromSyncedSummary(){
+  if(assess.completed) return;
+  try{
+    const s = typeof getState === 'function' ? getState() : null;
+    if(s && s.assessment && s.assessment.sectionScores){
+      assess = {
+        answers: {}, currentSection: 0, completed: true,
+        sectionScores: s.assessment.sectionScores,
+        overall: s.assessment.overall,
+        completedAt: s.assessment.completedAt || new Date().toISOString(),
+      };
+      setAssessState(assess);
+    }
+  }catch(e){ /* best-effort only — falls through to the normal intro/resume flow */ }
+}
+
 function initAssessmentPage(){
+  wrldHydrateAssessmentFromSyncedSummary();
   if(assess.completed){
     document.getElementById('view-intro').classList.add('hidden');
     document.getElementById('view-results').classList.remove('hidden');

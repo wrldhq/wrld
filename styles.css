@@ -346,12 +346,20 @@ header{position:sticky; top:0; z-index:200; background:var(--wrld-navy); border-
 .assess-orbit-line{display:flex; gap:12px; align-items:flex-start; background:var(--sky); border-radius:var(--r-md); padding:16px 20px; margin-bottom:28px;}
 .assess-card{background:white; border-radius:var(--r-lg); box-shadow:var(--shadow-md); padding:40px; border:1px solid var(--navy-06);}
 .scale-row{display:flex; gap:8px; justify-content:space-between; margin-top:20px;}
-.scale-opt{flex:1; text-align:center; padding:16px 6px; border-radius:14px; border:1.5px solid var(--navy-06); font-size:13px; font-weight:600; cursor:pointer; transition:all .18s;}
+.scale-opt{flex:1; text-align:center; padding:16px 6px; border-radius:14px; border:1.5px solid var(--navy-06); font-size:13px; font-weight:600; cursor:pointer; transition:all .18s; color:var(--navy); background:white;}
 .scale-opt:hover{border-color:var(--blue);}
 .scale-opt.selected{border-color:var(--blue); background:var(--blue-15); color:var(--blue-dark);}
-.mc-choice{display:block; width:100%; text-align:left; padding:16px 20px; border-radius:14px; border:1.5px solid var(--navy-06); margin-bottom:10px; font-size:14.5px; transition:all .18s;}
+/* V24.1 polish: .mc-choice is a real <button>, unlike .scale-opt (a <div>) —
+   with no explicit color/appearance set, some browsers (notably iOS/macOS
+   Safari) render unstyled <button> text in the OS accent blue instead of
+   inheriting the page's charcoal/navy body color, which is exactly the
+   "answers sometimes appear in blue, sometimes in navy" inconsistency
+   reported for this release. Setting color + appearance explicitly makes
+   every answer option (selected or not, MC or scale) match the same WRLD
+   navy/blue-dark language everywhere. */
+.mc-choice{display:block; width:100%; text-align:left; padding:16px 20px; border-radius:14px; border:1.5px solid var(--navy-06); margin-bottom:10px; font-size:14.5px; transition:all .18s; color:var(--navy); background:white; appearance:none; -webkit-appearance:none; font-weight:500;}
 .mc-choice:hover{border-color:var(--blue);}
-.mc-choice.selected{border-color:var(--blue); background:var(--blue-05);}
+.mc-choice.selected{border-color:var(--blue); background:var(--blue-05); color:var(--blue-dark); font-weight:600;}
 .passport-card{background:linear-gradient(135deg, var(--blue-dark), var(--navy)); color:white; border-radius:var(--r-xl); padding:44px; position:relative; overflow:hidden;}
 .passport-stage-badge{display:inline-flex; align-items:center; gap:10px; background:rgba(245,207,87,.16); border:1px solid rgba(245,207,87,.4); padding:10px 20px; border-radius:var(--r-full); font-family:'Plus Jakarta Sans'; font-weight:700;}
 .radar-svg{width:100%; max-width:380px; margin:0 auto; display:block;}
@@ -940,6 +948,31 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
   .two-col-grid{grid-template-columns:1fr !important; gap:20px !important;}
   .three-col-grid{grid-template-columns:1fr !important;}
 
+  /* V24.1 polish — Assessment "Start Here"/"Suggested Learning Path" cards,
+     the Dashboard "Your Next Step" card, and Learning Paths' "Start Here"
+     card all share the same icon + flex:1 text + button row (flex-wrap:wrap,
+     a fixed-size icon and flex-shrink:0 button pinning their width while
+     the text column carries an inline min-width). That's the exact same
+     anti-pattern already fixed once above for .founder-layout/.prog-hero-row:
+     the [style*="min-width:"] override two rules up lets the text column
+     collapse toward 0 instead of the row ever actually wrapping to a new
+     line, squeezing the title/description into an unreadably narrow,
+     vertically-compressed sliver between the icon and button. Force a true
+     single-column stack instead, matching that established fix. Scoped by
+     ID/class to these specific recommendation cards only — no other flex
+     row on the site is affected, and desktop (>720px) is untouched. */
+  #start-here-card > a, #start-here-card, #next-step-card > a{
+    flex-direction:column; align-items:flex-start; text-align:left; gap:16px;
+  }
+  #start-here-card .pb-thumb, #start-here-card .pillar-icon, #next-step-card .pb-thumb{
+    width:64px !important; height:64px !important; font-size:26px !important;
+  }
+  #start-here-card > a > span.btn, #start-here-card > span.btn, #next-step-card > a > span.btn{
+    width:100%; text-align:center;
+  }
+  #suggested-path-card .flex.items-center{ flex-direction:column; align-items:flex-start; gap:12px; }
+  #suggested-path-card .pillar-icon{ width:64px !important; height:64px !important; font-size:26px !important; }
+
   /* Calculator rows: stack label above input, input goes full-width */
   .calc-row{flex-direction:column; align-items:stretch; gap:6px; padding:12px 0;}
   .calc-input{width:100%; text-align:left;}
@@ -1121,4 +1154,26 @@ footer p.tag{font-size:var(--fs-xs); color:#9DBAC3; max-width:280px;}
 @media(max-width:560px){
   .wrld-modal{padding:22px 20px; max-height:calc(100dvh - 24px);}
   .wrld-modal-overlay{padding:12px;}
+}
+
+/* ---------------------------------------------------------------------
+   NEW USER JOURNEY / ORBIT WELCOME (V25) — orbit-welcome.html only.
+   Built entirely from existing tokens and components already used
+   elsewhere (.card, .eyebrow, .btn, .reveal, .float) — no new colors, no
+   new animation system. Only this small, purpose-built layout is new.
+   --------------------------------------------------------------------- */
+.nuj-hero{text-align:center; max-width:600px; margin:0 auto;}
+.nuj-avatar{margin:0 auto 24px; display:block;}
+.nuj-step-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:32px 0;}
+.nuj-step-card{padding:22px 18px; text-align:center;}
+.nuj-step-icon{width:52px; height:52px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:24px; margin:0 auto 14px; background:var(--blue-15);}
+.nuj-step-card:nth-child(2) .nuj-step-icon{background:var(--yellow-15);}
+.nuj-stage-teaser{display:flex; align-items:center; gap:18px; padding:24px; text-align:left; max-width:440px; margin:0 auto;}
+.nuj-stage-icon{font-size:40px; flex-shrink:0;}
+
+@media(max-width:720px){
+  .nuj-step-grid{grid-template-columns:1fr;}
+}
+@media(max-width:560px){
+  .nuj-stage-teaser{flex-direction:column; text-align:center;}
 }

@@ -268,9 +268,13 @@ function dismissOrbitPanel(){
 // a manual tap, same as every other excluded page below.
 // V24: 'welcome.html' removed from this list — the page no longer
 // exists (onboarding system removed; see AUTH-MIGRATION-SUMMARY.md).
+// V25: 'orbit-welcome.html' added — the new New User Journey page has
+// its own dedicated, full-size Orbit presence built into the page
+// itself (same reasoning as assessment.html above), so the floating
+// auto-show preview would be a duplicate Orbit competing with it.
 const ORBIT_AUTO_SHOW_EXCLUDED_PAGES = [
   'signup.html','login.html','forgot-password.html','reset-password.html',
-  'owner-setup.html','assessment.html',
+  'owner-setup.html','assessment.html','orbit-welcome.html',
 ];
 function orbitCurrentPageExcludedFromAutoShow(){
   const page = location.pathname.split('/').pop() || 'index.html';
