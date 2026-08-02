@@ -801,8 +801,19 @@ function initAssessmentPage(){
     document.getElementById('resume-banner').innerHTML = `<span>💾</span><div>You have a saved assessment in progress (Section ${assess.currentSection+1} of ${ASSESS_SECTIONS.length}). <a href="#" onclick="event.preventDefault(); startAssessment();" style="font-weight:700; color:var(--blue-dark);">Continue where you left off</a>.</div>`;
   }
 }
-initPage('assessment');
-initAssessmentPage();
+// V25.2 — the "Suggested Live Learning" card (renderPassport(), further
+// up this file) reads upcomingLiveSessions(), which is a synchronous
+// read of an in-memory cache filled by pullLiveSessionsFromSupabase().
+// That pull must complete before initAssessmentPage() can call
+// renderPassport() for a returning learner whose assessment is already
+// complete — otherwise that card renders against an empty cache and
+// shows the "no sessions" fallback even when real sessions exist.
+(async () => {
+  await window.wrldAuthReady;
+  await pullLiveSessionsFromSupabase();
+  initPage('assessment');
+  initAssessmentPage();
+})();
 </script>
 </body>
 </html>

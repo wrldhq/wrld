@@ -72,6 +72,10 @@
 (async () => {
 await window.wrldAuthReady;
 if(requireAuth()){
+  // V25.2 — upcomingLiveSessions()/attendedLiveSessions() below are
+  // synchronous reads of an in-memory cache filled by
+  // pullLiveSessionsFromSupabase(); must resolve before they're called.
+  await pullLiveSessionsFromSupabase();
   const summary = getProgressSummary();
   const stage = summary.assessment ? getStage(summary.assessment.overall) : STAGES[0];
 

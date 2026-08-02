@@ -247,6 +247,10 @@ renderVolunteerGrid();
    member. See supabase/migrations/013. */
 async function renderMentorsList(){
   const wrap = document.getElementById('mentors-list');
+  // V25.2 — "N sessions hosted" below reads getLiveSessions(), a
+  // synchronous read of an in-memory cache filled by
+  // pullLiveSessionsFromSupabase(); must resolve before it's read.
+  await pullLiveSessionsFromSupabase();
   const { data, error } = await sbClient.rpc('get_mentor_directory');
   const mentors = (error || !data) ? [] : data.filter(u=>u.role==='mentor');
   const featured = typeof getFeatured==='function' ? getFeatured() : {};

@@ -192,19 +192,27 @@ function renderPath(lp, i){
   </section>`;
 }
 
-document.getElementById('paths-container').innerHTML = LEARNING_PATHS.map(renderPath).join('');
+// V25.2 — renderPath() (above) reads upcomingLiveSessions() via
+// pathLiveSession(), a synchronous read of an in-memory cache filled by
+// pullLiveSessionsFromSupabase(); must resolve before the first render.
+(async () => {
+  await window.wrldAuthReady;
+  await pullLiveSessionsFromSupabase();
 
-document.getElementById('coming-soon-grid').innerHTML = LEARNING_PATHS_COMING_SOON.map(lp=>`
-  <div class="coming-soon-card reveal">
-    <div style="font-size:30px; margin-bottom:12px;">${lp.icon}</div>
-    <h4 style="margin-bottom:8px;">${lp.title}</h4>
-    <p style="font-size:13px; margin-bottom:12px;">${lp.desc}</p>
-    <span class="pill pill-sample">Coming Soon</span>
-  </div>`).join('');
+  document.getElementById('paths-container').innerHTML = LEARNING_PATHS.map(renderPath).join('');
 
-renderStartHere();
-initPage('paths');
-setTimeout(initReveal, 50);
+  document.getElementById('coming-soon-grid').innerHTML = LEARNING_PATHS_COMING_SOON.map(lp=>`
+    <div class="coming-soon-card reveal">
+      <div style="font-size:30px; margin-bottom:12px;">${lp.icon}</div>
+      <h4 style="margin-bottom:8px;">${lp.title}</h4>
+      <p style="font-size:13px; margin-bottom:12px;">${lp.desc}</p>
+      <span class="pill pill-sample">Coming Soon</span>
+    </div>`).join('');
+
+  renderStartHere();
+  initPage('paths');
+  setTimeout(initReveal, 50);
+})();
 </script>
 </body>
 </html>

@@ -186,6 +186,18 @@ function registerSession(id, title){
 function renderEventList(){
   const sessions = upcomingLiveSessions();
   const el = document.getElementById('event-list');
+  // V25.2 — a failed load must never look like "no sessions exist" (same
+  // requirement as Mentor Studio's own list) — liveSessionsLoadFailed()
+  // (app.js) distinguishes the two states.
+  if(typeof liveSessionsLoadFailed==='function' && liveSessionsLoadFailed()){
+    el.innerHTML = `<div class="empty-state">
+      <div class="ic">⚠️</div>
+      <h4>Couldn't load sessions right now</h4>
+      <p>Check your connection and try again.</p>
+      <button class="btn btn-primary mt-16" onclick="retryLoadEvents()">Try Again</button>
+    </div>`;
+    return;
+  }
   el.innerHTML = sessions.length ? sessions.map(sessionCard).join('') : `
     <div class="empty-state">
       <div class="ic">🗓️</div>
@@ -194,6 +206,14 @@ function renderEventList(){
       <a href="programs.html" class="btn btn-primary mt-16">Browse Programs</a>
     </div>`;
   setTimeout(initReveal, 20);
+}
+
+async function retryLoadEvents(){
+  await pullLiveSessionsFromSupabase();
+  drawCalendar();
+  renderEventList();
+  renderProgramSessions();
+  renderRecommendedSessions();
 }
 
 function renderProgramSessions(){
@@ -216,11 +236,22 @@ function renderProgramSessions(){
   setTimeout(initReveal, 20);
 }
 
-drawCalendar();
-renderEventList();
-renderProgramSessions();
-renderRecommendedSessions();
-initPage('events');
+// V25.2 — this page must render correctly for a logged-out/anonymous
+// visitor (RLS now allows anon reads of published, future sessions — see
+// migration 041) as well as a logged-in Explorer/Mentor/Admin, so it
+// waits on wrldAuthReady (settles Supabase's session state either way)
+// then pulls the real session feed once before the first render, exactly
+// like every other page that reads live sessions.
+(async () => {
+  await window.wrldAuthReady;
+  document.getElementById('event-list').innerHTML = `<p style="font-size:13px; color:var(--ink-faint); text-align:center; padding:24px 0;">Loading sessions…</p>`;
+  await pullLiveSessionsFromSupabase();
+  drawCalendar();
+  renderEventList();
+  renderProgramSessions();
+  renderRecommendedSessions();
+  initPage('events');
+})();
 </script>
 </body>
 </html>

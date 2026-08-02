@@ -271,12 +271,25 @@ function renderKeepGoing(p){
 let discussionExpanded = false;
 let currentPlaybookSlug = null;
 
-function renderPlaybookDiscussion(p){
+function renderPlaybookDiscussion(p, justUnlocked){
   currentPlaybookSlug = p.slug;
   const user = typeof getCurrentUser==='function' ? getCurrentUser() : null;
   const gate = communityGateReason(user);
   const gateEl = document.getElementById('discussion-gate');
   const composerEl = document.getElementById('discussion-composer');
+
+  if(gate.ok && justUnlocked){
+    // V25.2 — the Orbit guidance line above the questions section reflects
+    // the unlock in real time (no refresh needed) the moment the first
+    // Playbook is completed. Shown once, right here, immediately after
+    // completion — it is not persisted or reshown on subsequent visits
+    // since gate.ok on later visits simply hides this element as before.
+    gateEl.classList.remove('hidden');
+    gateEl.innerHTML = `<div class="assess-orbit-line" style="margin:0;"><div style="display:flex; gap:12px; width:100%;">${ORBIT_AVATAR_SVG_SM}<p style="margin:0; font-size:14px; color:var(--navy); font-weight:600;">🎉 The community conversation is now unlocked.</p></div></div>`;
+    composerEl.classList.remove('hidden');
+    renderDiscussionList(p.slug);
+    return;
+  }
 
   if(!gate.ok){
     gateEl.classList.remove('hidden');
@@ -506,7 +519,15 @@ function loadPlaybook(){
   document.getElementById('toc-download').href = `worksheet.html?type=${p.download}`;
   document.getElementById('toc-download').target = '_blank';
 
-  renderChecklist('checklist-container', p.checklist, 'pb-'+p.slug, ()=>markComplete(p.slug, p.title));
+  // V25.2 — completing a Playbook can happen two ways (the explicit "Mark
+  // This Playbook Complete" button below, OR reaching 100% on the Action
+  // Checklist) — both must produce the exact same result: confetti, the
+  // Keep Going card, the Continue-the-Conversation gate, and (first
+  // Playbook ever) the community-unlock popup. Previously only the button
+  // click handler had this follow-up logic, so completing purely via the
+  // checklist silently skipped all of it. Both paths now call the same
+  // shared function below.
+  renderChecklist('checklist-container', p.checklist, 'pb-'+p.slug, ()=>handlePlaybookCompletion(p));
   renderQuiz('quiz-container', p.quiz, 'pb-'+p.slug);
   initAccordions();
 
@@ -516,16 +537,25 @@ function loadPlaybook(){
     if(isComplete(p.slug)){ completeBtn.textContent = '✅ Playbook Completed'; completeBtn.classList.remove('btn-primary'); completeBtn.classList.add('btn-outline'); }
   }
   syncCompleteBtn();
-  completeBtn.addEventListener('click', ()=>{
+
+  // V25.2 — first-completion detection lives here (not inside markComplete()
+  // itself) because "first Playbook ever" is a page-level celebration
+  // (Keep Going card, Continue-the-Conversation gate, popup) — markComplete()
+  // (app.js) still owns confetti + the toast + the popup trigger itself, so
+  // any future completion path gets those automatically too; this function
+  // owns the parts that only make sense on playbook.html.
+  function handlePlaybookCompletion(p){
     const wasFirstEver = getState().completed.length===0;
     markComplete(p.slug, p.title);
     syncCompleteBtn();
     renderKeepGoing(p);
     const justUnlockedCommunity = wasFirstEver && getState().completed.length===1;
+    renderPlaybookDiscussion(p, justUnlockedCommunity);
     setGuideMessage(justUnlockedCommunity
       ? `🎉 That's your first Playbook done — nice work! I can introduce you to the community now. Head to Community Commons whenever you're ready.`
       : `🎉 Nice work! Ready for the next challenge? Check out what's up next below.`);
-  });
+  }
+  completeBtn.addEventListener('click', ()=>handlePlaybookCompletion(p));
 
   // --- Keep Going: personalized continuation, never empty ---
   renderKeepGoing(p);

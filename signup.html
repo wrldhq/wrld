@@ -124,6 +124,16 @@ document.getElementById('signup-form').addEventListener('submit', async (e)=>{
   if(!isValidEmailFormat(email)){ showFormError('Please enter a valid email address.'); return; }
   if(password.length < 8){ showFormError('Password must be at least 8 characters.'); return; }
   if(password !== password2){ showFormError('The passwords do not match. Please re-enter them.'); return; }
+  // V25.2 — client-side first line of defense (app.js). The AUTHORITATIVE,
+  // unbypassable check is a Postgres trigger on public.profiles (see
+  // supabase/migrations/.../040_display_name_safety_filtering.sql) that
+  // fires no matter what calls it; this pre-check just gives instant,
+  // non-technical feedback before a network round-trip, and never reveals
+  // which word triggered it. The form is deliberately NOT cleared here.
+  if(typeof wrldDisplayNameBlocked==='function' && wrldDisplayNameBlocked(name)){
+    showFormError(WRLD_NAME_GUIDELINES_MESSAGE);
+    return;
+  }
 
   const btn = document.getElementById('signup-submit');
   signupInFlight = true;
@@ -145,6 +155,20 @@ document.getElementById('signup-form').addEventListener('submit', async (e)=>{
 
   if(!result.ok){
     if(result.error && /already exists/i.test(result.error)){ showExistingEmailPanel(); return; }
+    // V25.2 — defense in depth for a client-JS-bypass scenario: if the
+    // server-side display-name trigger rejected this signup, Supabase
+    // Auth's own error wrapping may surface only a generic database
+    // failure message here rather than the exact Postgres exception text
+    // (this varies by project configuration — the client-side check
+    // above already catches every normal signup before this is ever
+    // reached). Show the same friendly guidelines copy in that case
+    // rather than a technical "Database error saving new user" message —
+    // either way, no account was created and the rest of the form is
+    // preserved (nothing is cleared on this path).
+    if(result.error && /database error saving new user|unexpected_failure/i.test(result.error)){
+      showFormError(WRLD_NAME_GUIDELINES_MESSAGE);
+      return;
+    }
     showFormError(result.error);
     return;
   }

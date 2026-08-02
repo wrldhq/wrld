@@ -414,6 +414,10 @@ function renderDashboard(){
     const handedOff = await wrldNUJCheckAndRedirect();
     if(handedOff) return; // navigating to orbit-welcome.html — don't render this page
   }
+  // V25.2 — "Suggested Live Learning" (renderDashboard(), above) reads
+  // upcomingLiveSessions(), a synchronous read of an in-memory cache that
+  // pullLiveSessionsFromSupabase() fills — must resolve before the first render.
+  await pullLiveSessionsFromSupabase();
   renderDashboard();
   initPage('dashboard');
 })();

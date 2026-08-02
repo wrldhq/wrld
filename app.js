@@ -7,6 +7,80 @@
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
+   V25.2 — DISPLAY NAME SAFETY FILTERING (client-side layer only)
+   The AUTHORITATIVE check is a Postgres trigger on public.profiles (see
+   supabase/migrations/20260801120000_040_display_name_safety_filtering.sql)
+   that fires on every insert/update to `name` no matter what calls it —
+   signup, Account Settings, or a direct API call that bypasses this file
+   entirely. This client-side copy exists purely so signup.html and
+   account-settings.html can reject an unacceptable name instantly, with
+   the required generic message, before a network round-trip. It is not
+   itself the security boundary and does not need to catch 100% of cases.
+   Blocklist is a small, representative starting set spanning profanity,
+   sexual-explicit language, slurs/hate speech, threats/harassment, and
+   WRLD-staff impersonation — intentionally not exhaustive; WRLD's Trust &
+   Safety team should extend both this array and the matching one in the
+   SQL migration as needed. Never reveals which word matched.
+   --------------------------------------------------------------------- */
+const WRLD_BLOCKED_NAME_TERMS = [
+  'fuck','shit','bitch','cunt','asshole','bastard','whore','slut','douchebag','motherfucker','dumbass','jackass',
+  'sex','porn','anal','blowjob','handjob','dildo','vagina','penis','boobs','xxx',
+  'nigger','nigga','faggot','fag','retard','tranny','spic','chink','gook','kike','wetback','coon',
+  'kill','rape','murder','terrorist','nazi','hitler',
+  'admin','administrator','moderator','wrldstaff','wrldteam','wrldsupport','wrldofficial','official','staff','support',
+];
+const WRLD_NAME_GUIDELINES_MESSAGE = "That display name doesn't meet WRLD's community guidelines. Please choose another name.";
+
+// Folds accents, substitutes common leetspeak digits/symbols, strips every
+// non-alphanumeric character, and collapses 3+ repeated characters down to
+// one — turns "s.l.u.r", "s___lur", "$1ur", and "SLUR" all into "slur" for
+// comparison purposes only (never used for the stored/displayed name).
+// oneAsL toggles whether digit '1' folds to 'l' or 'i', since both are
+// common leetspeak substitutions and only one mapping can apply per pass —
+// callers should check both passes.
+function wrldTightNormalize(input, oneAsL){
+  let s = String(input||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const map = oneAsL
+    ? {'0':'o','1':'l','3':'e','4':'a','5':'s','7':'t','8':'b','$':'s','@':'a','!':'i'}
+    : {'0':'o','1':'i','3':'e','4':'a','5':'s','7':'t','8':'b','$':'s','@':'a','!':'i'};
+  s = s.replace(/[01345789$@!]/g, ch => map[ch] || ch);
+  s = s.replace(/[^a-z0-9]/g, '');
+  s = s.replace(/(.)\1{2,}/g, '$1');
+  return s;
+}
+
+// Tiered check, favoring false negatives over false positives (whole-word
+// matching, not short-substring containment — avoids flagging legitimate
+// names like "Scunthorpe"-style false positives):
+//  1. exact whole-word match on lightly-normalized (accent/case only) words
+//  2. per-word tight-normalized match (catches punctuation/leet disguises)
+//  3. all-tokens-concatenated tight match, only when every token is
+//     suspiciously short (catches "s l u r" spaced-out-letter disguises
+//     without misfiring on ordinary multi-word names)
+// Also rejects names that are symbols-only (no letters/digits at all).
+function wrldDisplayNameBlocked(name){
+  const raw = String(name||'').trim();
+  if(!raw) return false; // emptiness is handled by required-field checks elsewhere
+  const strippedAlnum = raw.replace(/[^a-zA-Z0-9]/g, '');
+  if(!strippedAlnum) return true; // symbol-only name
+
+  const words = raw.split(/\s+/).filter(Boolean);
+
+  const lightWords = words.map(w => w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  if(lightWords.some(w => WRLD_BLOCKED_NAME_TERMS.includes(w))) return true;
+
+  if(words.some(w => WRLD_BLOCKED_NAME_TERMS.includes(wrldTightNormalize(w, true)) || WRLD_BLOCKED_NAME_TERMS.includes(wrldTightNormalize(w, false)))) return true;
+
+  const avgLen = words.reduce((a,w) => a + w.replace(/[^a-zA-Z0-9]/g,'').length, 0) / (words.length || 1);
+  if(words.length > 1 && avgLen <= 2){
+    const joined = words.join('');
+    if(WRLD_BLOCKED_NAME_TERMS.includes(wrldTightNormalize(joined, true)) || WRLD_BLOCKED_NAME_TERMS.includes(wrldTightNormalize(joined, false))) return true;
+  }
+
+  return false;
+}
+
+/* ---------------------------------------------------------------------
    NAV + FOOTER (rendered into every page from one shared template)
    --------------------------------------------------------------------- */
 function userInitials(name){
@@ -511,28 +585,120 @@ function wrldMigrateLegacyStateOnce(){
 wrldMigrateLegacyStateOnce();
 
 /* ---------------------------------------------------------------------
-   LIVE SESSIONS (Live Learning + Mentor Studio)
-   WRLD never displays fictional workshops or fake scheduled dates —
-   this store starts empty and only ever contains sessions a real Mentor
-   actually published through Mentor Studio. Same read/write-boundary
-   pattern as getState()/setState(): swap the bodies for real API calls
-   once a backend exists, and every page reading from this keeps working.
+   LIVE SESSIONS (Live Learning + Mentor Studio) — V25.2
+   ROOT CAUSE FIX: this store was, since the live_sessions table was first
+   created, 100% localStorage-only (wrld_live_sessions_v1) — it never
+   touched Supabase at all. That is the entire reason a published session
+   was only ever visible in the publishing mentor's own browser: it never
+   left that browser. Now backed by the real public.live_sessions table
+   (see supabase/migrations/.../041_live_sessions_public_visibility.sql).
+
+   getLiveSessions() stays SYNCHRONOUS on purpose, exactly like
+   getState() — dozens of existing call sites (events.html, dashboard.html,
+   mentor-studio.html, journey-passport.html, learning-paths.html,
+   assessment.html, community.html, owner-dashboard.html) call it inline
+   with no `await`, and rewriting all of them was unnecessary. Instead
+   every one of those pages now calls `await pullLiveSessionsFromSupabase()`
+   once, before its first render, exactly like pullLearnerStateFromSupabase()
+   — after that, getLiveSessions() just reads the in-memory cache it filled.
+
+   A single unfiltered SELECT is correct for every caller: RLS (migration
+   041) already scopes the returned rows by who's asking — an anonymous
+   or logged-out visitor gets only published, future sessions; a Mentor
+   additionally gets their own past/draft/cancelled sessions (needed for
+   Mentor Studio's "Your Scheduled Sessions" list); an Administrator/Owner
+   gets everything. No client-side role filtering is required here —
+   upcomingLiveSessions()/attendedLiveSessions() below do still filter to
+   status==='published' explicitly, purely so a logged-in mentor's own
+   draft/cancelled sessions (visible to them via RLS) never leak into the
+   general public-facing "what's upcoming" listings meant for everyone.
    --------------------------------------------------------------------- */
-const LIVE_SESSIONS_KEY = 'wrld_live_sessions_v1';
+let _wrldLiveSessionsCache = [];
+let _wrldLiveSessionsLoadFailed = false;
+
+// Normalizes a raw Supabase row into the exact shape every existing page
+// already expects (programId/dateISO/duration/platform/meetingLink/
+// capacity/description/mentorId/mentorName/createdAt) — no call site
+// needed to change field names because of this migration.
+function liveSessionFromRow(row){
+  return {
+    id: row.id,
+    programId: row.program_id,
+    dateISO: row.starts_at,
+    duration: row.duration_minutes ? `${row.duration_minutes} min` : '',
+    platform: row.platform,
+    meetingLink: row.meeting_link,
+    capacity: row.capacity,
+    description: row.description,
+    mentorId: row.mentor_id,
+    mentorName: row.mentor_name,
+    createdAt: row.created_at,
+    status: row.status,
+  };
+}
+
 function getLiveSessions(){
-  try{ return JSON.parse(localStorage.getItem(LIVE_SESSIONS_KEY)) || []; }
-  catch(e){ return []; }
-}
-function saveLiveSessions(sessions){ localStorage.setItem(LIVE_SESSIONS_KEY, JSON.stringify(sessions)); }
-
-function publishLiveSession(session){
-  const sessions = getLiveSessions();
-  sessions.push(session);
-  saveLiveSessions(sessions);
+  return _wrldLiveSessionsCache;
 }
 
-function cancelLiveSession(id){
-  saveLiveSessions(getLiveSessions().filter(s=>s.id!==id));
+// Whether the last pull genuinely failed (network/RLS/etc.) — pages use
+// this to show a real error state instead of silently treating a failed
+// request as "there are no sessions," per the release requirement that
+// Mentor Studio (and every public consumer) never confuse an error with
+// a real empty state.
+function liveSessionsLoadFailed(){ return _wrldLiveSessionsLoadFailed; }
+
+async function pullLiveSessionsFromSupabase(){
+  if(typeof sbClient==='undefined'){ _wrldLiveSessionsCache = []; _wrldLiveSessionsLoadFailed = true; return {ok:false}; }
+  const { data, error } = await sbClient.from('live_sessions').select('*').order('starts_at', {ascending:true});
+  if(error){
+    console.warn('WRLD: could not load live sessions', error.message);
+    _wrldLiveSessionsLoadFailed = true;
+    // Deliberately does NOT clear the existing cache on a transient
+    // read error — pages should check liveSessionsLoadFailed() to show
+    // an error state rather than assume zero sessions exist.
+    return {ok:false, error: error.message};
+  }
+  _wrldLiveSessionsLoadFailed = false;
+  _wrldLiveSessionsCache = (data||[]).map(liveSessionFromRow);
+  return {ok:true};
+}
+
+// Mentor Studio must never show success unless Supabase actually confirms
+// the write — this is `await`ed by its submit handler, which only resets
+// the form / shows the success toast when {ok:true} comes back.
+async function publishLiveSession(session){
+  const prog = typeof getProgram==='function' ? getProgram(session.programId) : null;
+  const { data, error } = await sbClient.from('live_sessions').insert({
+    mentor_id: session.mentorId,
+    mentor_name: session.mentorName,
+    program_id: session.programId,
+    title: session.title || (prog && prog.title) || 'Live Session',
+    description: session.description || null,
+    starts_at: session.dateISO,
+    duration_minutes: parseInt(session.duration, 10) || 60,
+    meeting_link: session.meetingLink || null,
+    capacity: session.capacity || null,
+    platform: session.platform,
+    status: 'published',
+  }).select().single();
+  if(error){
+    console.warn('WRLD: could not publish live session', error.message);
+    return {ok:false, error: "Something went wrong publishing that session — please try again."};
+  }
+  _wrldLiveSessionsCache = [..._wrldLiveSessionsCache, liveSessionFromRow(data)];
+  return {ok:true, session: liveSessionFromRow(data)};
+}
+
+// Soft-cancel (status update) rather than a hard delete — the row (and
+// any registrations recorded against it) is preserved; it simply becomes
+// permanently excluded from every public/consumer query and from
+// upcomingLiveSessions()/attendedLiveSessions() below, same as a draft.
+async function cancelLiveSession(id){
+  const { error } = await sbClient.from('live_sessions').update({status:'cancelled'}).eq('id', id);
+  if(error){ console.warn('WRLD: could not cancel live session', error.message); return {ok:false, error: "Something went wrong canceling that session — please try again."}; }
+  _wrldLiveSessionsCache = _wrldLiveSessionsCache.map(s=>s.id===id ? {...s, status:'cancelled'} : s);
+  return {ok:true};
 }
 
 /* ---------------------------------------------------------------------
@@ -607,7 +773,11 @@ function getProgressSummary(){
 
 function upcomingLiveSessions(){
   const now = Date.now();
-  return getLiveSessions().filter(s=>new Date(s.dateISO).getTime() > now).sort((a,b)=>new Date(a.dateISO)-new Date(b.dateISO));
+  // status==='published' explicitly filters out a logged-in mentor's own
+  // draft/cancelled sessions, which RLS lets THEM see via getLiveSessions()
+  // (for Mentor Studio's own "Your Scheduled Sessions" list) but which
+  // must never leak into general public-facing "what's upcoming" listings.
+  return getLiveSessions().filter(s=>s.status==='published' && new Date(s.dateISO).getTime() > now).sort((a,b)=>new Date(a.dateISO)-new Date(b.dateISO));
 }
 
 // A session the learner registered for whose date has already passed — the
@@ -616,7 +786,7 @@ function attendedLiveSessions(){
   const s = getState();
   const now = Date.now();
   return getLiveSessions()
-    .filter(sess => (s.bookmarks||[]).includes('event-'+sess.id) && new Date(sess.dateISO).getTime() <= now)
+    .filter(sess => sess.status==='published' && (s.bookmarks||[]).includes('event-'+sess.id) && new Date(sess.dateISO).getTime() <= now)
     .sort((a,b)=>new Date(b.dateISO)-new Date(a.dateISO));
 }
 
@@ -721,6 +891,12 @@ function markComplete(slug, title){
   if(!requireAccountForAction('mark this Playbook complete')) return;
   const s = getState();
   if(!s.completed.includes(slug)){
+    // V25.2 — "first Playbook ever" is read from the same persisted
+    // completion history (learner_state / s.completed) every other
+    // completion check already uses — no separate flag, no localStorage-only
+    // signal, so it survives across devices/browsers exactly like the rest
+    // of the account's state and can't be replayed by clearing local storage.
+    const wasFirstEver = s.completed.length===0;
     s.completed.push(slug);
     const rv = s.recentlyViewed.filter(r=>r!==slug);
     rv.unshift(slug); s.recentlyViewed = rv.slice(0,8);
@@ -728,6 +904,7 @@ function markComplete(slug, title){
     updateStreak();
     launchConfetti();
     showToast(`🎉 Playbook complete: ${title||slug}`);
+    if(wasFirstEver) showFirstPlaybookUnlockPopup();
   }
 }
 function isComplete(slug){ return getState().completed.includes(slug); }
@@ -1930,6 +2107,59 @@ function showConfirmModal({title, detailsHtml, warning, confirmLabel, onConfirm}
   });
 
   setTimeout(()=>document.getElementById('wrld-modal-cancel')?.focus(), 30);
+}
+
+/* ---------------------------------------------------------------------
+   V25.2 — FIRST PLAYBOOK COMPLETION / COMMUNITY UNLOCK POPUP
+   Fires exactly once per account, the moment getState().completed goes
+   from 0 -> 1 inside markComplete() above. It is never re-triggered on
+   refresh, on any later Playbook completion, or on a failed save, because
+   it is gated on the same persisted completion history (learner_state)
+   every other completion check already relies on — there is no separate
+   "seen this popup" flag to fall out of sync or to survive a localStorage
+   clear. Reuses the existing .wrld-modal-overlay/.wrld-modal CSS and
+   accessibility pattern from showConfirmModal() (role="dialog",
+   aria-modal, Escape-to-close, click-outside-to-close, body scroll lock)
+   but with celebratory (non-destructive) content and styling — it is
+   intentionally not a call to showConfirmModal() itself since that
+   component's copy/color choices are tuned for destructive confirmations.
+   --------------------------------------------------------------------- */
+function showFirstPlaybookUnlockPopup(){
+  const existing = document.getElementById('wrld-unlock-modal');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'wrld-unlock-modal';
+  overlay.className = 'wrld-modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'wrld-unlock-title');
+  overlay.innerHTML = `
+    <div class="wrld-modal card" style="text-align:center;">
+      <div style="font-size:38px; line-height:1; margin-bottom:12px;">🎉</div>
+      <h4 id="wrld-unlock-title" class="mb-12">Congratulations!</h4>
+      <p class="mb-20" style="color:var(--ink-faint);">You've completed your first WRLD Playbook and unlocked the community. Ask questions, connect with other learners, and continue your journey in Community Commons.</p>
+      <div class="flex gap-10" style="flex-wrap:wrap; justify-content:center;">
+        <button type="button" class="btn btn-outline" id="wrld-unlock-stay">Stay Here</button>
+        <a href="community.html" class="btn btn-primary" id="wrld-unlock-visit">Visit Community Commons</a>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+
+  function closeModal(){
+    overlay.remove();
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', onKeydown);
+  }
+  function onKeydown(e){ if(e.key==='Escape') closeModal(); }
+  document.addEventListener('keydown', onKeydown);
+
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
+  document.getElementById('wrld-unlock-stay').addEventListener('click', closeModal);
+  document.getElementById('wrld-unlock-visit').addEventListener('click', closeModal);
+
+  setTimeout(()=>document.getElementById('wrld-unlock-stay')?.focus(), 30);
 }
 
 /* ---------------------------------------------------------------------

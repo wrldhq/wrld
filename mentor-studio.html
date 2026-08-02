@@ -151,9 +151,17 @@ if(requireCapability(canAccessMentorStudio)){
     el.classList.toggle('show', !!msg);
   }
 
+  // V25.2 — Mentor Studio must never confuse a failed request with "no
+  // sessions": liveSessionsLoadFailed() (app.js) tells these two states
+  // apart, since pullLiveSessionsFromSupabase() deliberately leaves the
+  // cache untouched (rather than clearing it) on a transient read error.
   function renderMySessions(){
-    const mine = getLiveSessions().filter(s=>s.mentorId===currentUser.id).sort((a,b)=>new Date(a.dateISO)-new Date(b.dateISO));
     const el = document.getElementById('my-sessions-list');
+    if(liveSessionsLoadFailed()){
+      el.innerHTML = `<p style="font-size:13px; color:#C0392B;">Couldn't load your scheduled sessions right now — <button class="btn btn-outline btn-sm" onclick="retryLoadSessions()">try again</button>.</p>`;
+      return;
+    }
+    const mine = getLiveSessions().filter(s=>s.mentorId===currentUser.id).sort((a,b)=>new Date(a.dateISO)-new Date(b.dateISO));
     if(!mine.length){
       el.innerHTML = `<p style="font-size:13px; color:var(--ink-faint);">Nothing scheduled yet — publish your first session to see it here.</p>`;
       return;
@@ -162,21 +170,28 @@ if(requireCapability(canAccessMentorStudio)){
       const prog = getProgram(s.programId);
       const {dateStr, timeStr} = formatEventLocalTime(s.dateISO);
       const isPast = new Date(s.dateISO).getTime() < Date.now();
+      const isCancelled = s.status==='cancelled';
       return `<div class="mb-12" style="padding-bottom:12px; border-bottom:1px solid var(--navy-06);">
-        <div style="font-size:13.5px; font-weight:700; color:var(--navy);">${prog?prog.title:'Live Session'} ${isPast?'<span class="pill pill-navy" style="margin-left:6px;">Past</span>':''}</div>
+        <div style="font-size:13.5px; font-weight:700; color:var(--navy);">${prog?prog.title:'Live Session'} ${isCancelled?'<span class="pill pill-navy" style="margin-left:6px;">Canceled</span>':isPast?'<span class="pill pill-navy" style="margin-left:6px;">Past</span>':''}</div>
         <div style="font-size:12px; color:var(--ink-faint); margin-bottom:6px;">${dateStr} · ${timeStr} · ${s.platform}</div>
-        <button class="btn btn-outline btn-sm" onclick="removeSession('${s.id}')">Cancel Session</button>
+        ${isCancelled?'':`<button class="btn btn-outline btn-sm" onclick="removeSession('${s.id}')">Cancel Session</button>`}
       </div>`;
     }).join('');
   }
 
-  window.removeSession = function(id){
-    cancelLiveSession(id);
+  window.retryLoadSessions = async function(){
+    await pullLiveSessionsFromSupabase();
+    renderMySessions();
+  };
+
+  window.removeSession = async function(id){
+    const result = await cancelLiveSession(id);
+    if(!result.ok){ showToast(result.error||'Something went wrong — try again.'); return; }
     showToast('🗑️ Session canceled');
     renderMySessions();
   };
 
-  document.getElementById('session-form').addEventListener('submit', (e)=>{
+  document.getElementById('session-form').addEventListener('submit', async (e)=>{
     e.preventDefault();
     showFormError('');
     const programId = document.getElementById('ms-program').value;
@@ -193,13 +208,21 @@ if(requireCapability(canAccessMentorStudio)){
     const dateISO = new Date(`${date}T${time}`).toISOString();
     if(new Date(dateISO).getTime() < Date.now()){ showFormError('Pick a date and time in the future.'); return; }
 
-    publishLiveSession({
-      id: 'ls_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),
+    // V25.2 — never show success unless Supabase actually confirms the
+    // write. The submit button is disabled and relabeled while the
+    // request is in flight so a slow network doesn't look like a
+    // silent failure, and the form is only reset on a confirmed {ok:true}.
+    const submitBtn = document.getElementById('session-submit');
+    submitBtn.disabled = true; submitBtn.textContent = 'Publishing…';
+    const result = await publishLiveSession({
       programId, dateISO, duration, platform,
       meetingLink: link, capacity, description,
       mentorId: currentUser.id, mentorName: currentUser.name,
       createdAt: new Date().toISOString(),
     });
+    submitBtn.disabled = false; submitBtn.textContent = 'Publish Session →';
+
+    if(!result.ok){ showFormError(result.error || "Something went wrong publishing that session — please try again."); return; }
 
     showToast('🎉 Session published — now live on Live Learning');
     document.getElementById('session-form').reset();
@@ -208,6 +231,8 @@ if(requireCapability(canAccessMentorStudio)){
     renderMySessions();
   });
 
+  document.getElementById('my-sessions-list').innerHTML = `<p style="font-size:13px; color:var(--ink-faint);">Loading your sessions…</p>`;
+  await pullLiveSessionsFromSupabase();
   renderMySessions();
   initPage(null);
 }

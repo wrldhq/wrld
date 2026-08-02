@@ -131,6 +131,20 @@ if(requireAuth()){
     const lastName = document.getElementById('name-last').value.trim();
     if(!firstName){ errEl.textContent = 'First name cannot be empty.'; errEl.classList.add('show'); return; }
 
+    // V25.2 — client-side first line of defense (app.js), checked against
+    // the full computed display name exactly like update_own_name() (the
+    // RPC this form calls) recomputes it. The AUTHORITATIVE check is a
+    // Postgres trigger on public.profiles (see supabase/migrations/.../
+    // 040_display_name_safety_filtering.sql) — it fires regardless of
+    // this client check, and a rejected update there leaves the previous
+    // approved name in the database untouched (the whole transaction
+    // rolls back). Never reveals which word triggered it; the form is
+    // not cleared.
+    const computedName = firstName + (lastName ? ' ' + lastName : '');
+    if(typeof wrldDisplayNameBlocked==='function' && wrldDisplayNameBlocked(computedName)){
+      errEl.textContent = WRLD_NAME_GUIDELINES_MESSAGE; errEl.classList.add('show'); return;
+    }
+
     const btn = document.getElementById('name-submit');
     btn.disabled = true; btn.textContent = 'Saving...';
     const result = await updateOwnName(firstName, lastName);

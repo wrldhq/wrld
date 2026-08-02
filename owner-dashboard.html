@@ -44,6 +44,12 @@ await window.wrldAuthReady;
 // model — see auth.js.
 if(requireCapability(canAccessOwnerDashboard)){
   await refreshUsersCache();
+  // V25.2 — Content tab's "Live Sessions" metric and the Mentors tab's
+  // per-mentor session data both read getLiveSessions(), a synchronous
+  // read of an in-memory cache filled by pullLiveSessionsFromSupabase().
+  // An Administrator/Owner's own RLS grants full visibility (every
+  // status, every mentor), so this one pull covers both tabs correctly.
+  await pullLiveSessionsFromSupabase();
   const me = getCurrentUser();
   const isOwner = roleAtLeast(me, ROLES.OWNER);
   document.getElementById('od-heading').textContent = isOwner ? 'The command center for WRLD.' : 'The Administrator control center.';
